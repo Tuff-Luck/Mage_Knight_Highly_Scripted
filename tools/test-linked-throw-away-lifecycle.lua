@@ -71,6 +71,24 @@ private.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracke
 local code=section(rec,"function resourceCardsMaximalEffectSyncMarks(","-- Cleanup and the UI consult")
     ..section(rec,"function resourceCardsReturnedToHand(","function resourceCardsSourceChanged()")
 assert(load(code,"Throw-away lifecycle","t",env))()
+-- Exercise the actual arrow-registry removal path, not a stub that merely
+-- clears the calculator's parallel target table.
+local arrows=read("src/PlayingGame/Combat/AttackAssignments.lua")
+local registry,pending,committed={},{},{}
+local persisted,redraws,buttonSyncs=0,0,0
+env.assignmentRegistry=registry
+env.targetingByPlayer=pending
+env.combatCommittedSource=function(key) return committed[key]==true end
+env.reconcileRemainingSourceTarget=function(key)
+    env.combatAssignmentState.targets[key]=nil
+    env.combatAssignmentState.explicit[key]=nil
+end
+env.persistAssignments=function() persisted=persisted+1 end
+env.syncTargetButtons=function() buttonSyncs=buttonSyncs+1 end
+env.refreshRenderedLines=function() redraws=redraws+1 end
+local arrowCode=section(arrows,"local function assignmentBaseGUID(","-- ")
+    ..section(arrows,"function attackAssignmentsClearForObject(","function attackAssignmentsObjectMoved(")
+assert(load(arrowCode,"Hand return arrow cleanup","t",env))()
 local function scan()
     env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},
         {target={sourceGUID=source.guid}}, {target=source.guid,ordinary=source.guid},{main=true})
@@ -194,4 +212,33 @@ assert(private.playCardMovements[guid]==nil and private.playCandidatesBySeat[1][
     "Hand recovery cancels stale callbacks and only this card's assignments")
 env.resourceCardsReturnedToHand(target,1)
 assert(private.choiceResetGenerationByGUID[guid]==1,"Hand recovery is idempotent")
+
+-- Reproduce the rare ordinary card case: resources, play order, markers
+-- and calculator targets are already gone, but the physical registry still
+-- owns an arrow. The hand event must remove it without needing a replay.
+local plain=card("plain",1.2)
+registry.one={sourceGUID="plain",targetGUID="enemy"}
+registry.two={sourceGUID="plain#2",targetGUID="enemy2"}
+registry.keep={sourceGUID="otherCard",targetGUID="enemy"}
+registry.locked={sourceGUID="plain#locked",targetGUID="enemy"}
+committed["plain#locked"]=true
+pending.Red={sourceGUID="plain#3"}
+pending.Blue={sourceGUID="otherCard"}
+private.playCardMovements[plain.guid]={}
+local before=redraws
+env.resourceCardsReturnedToHand(plain,1)
+assert(registry.one==nil and registry.two==nil and registry.keep~=nil
+    and registry.locked~=nil and pending.Red==nil and pending.Blue~=nil,
+    "Settled hand entry clears only this card's uncommitted arrows and pending target")
+assert(redraws==before+1 and persisted==1 and buttonSyncs==1,
+    "Hand entry immediately persists and redraws the physical arrow registry")
+assert(private.playCardMovements.plain==nil,"Hand entry retires the stale movement snapshot")
+-- No pickup snapshot or other previous-play data is required either.
+local orphan=card("orphan",1.2)
+registry.orphan={sourceGUID="orphan",targetGUID="enemy"}
+env.resourceCardsReturnedToHand(orphan,1)
+assert(registry.orphan==nil and redraws==before+2 and persisted==2,
+    "An arrow alone is sufficient evidence for hand recovery")
+env.resourceCardsReturnedToHand(orphan,1)
+assert(redraws==before+2,"Repeated hand event must not redraw unrelated vectors")
 print("Linked throw-away restack and hand recovery regressions passed")

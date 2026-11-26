@@ -5856,15 +5856,22 @@ local function queueSeat(seatPos,triggerGUID)
 end
 
 -- Confirmed hand entry is stronger evidence than a transient play-zone
--- exit. Reset both the marker and the authoritative throw-away state even
--- when the tracker is minimized, without touching unrelated card UI.
+-- exit. Retire physical target arrows and previous play state even if the
+-- scan has already removed this card's resources or throw-away marker.
 function resourceCardsReturnedToHand(card,seatPos)
     if card==nil or card.type~="Card" or gStates==nil
         or gStates.preEndTurn==true then return end
     local guid=card.guid
+    -- The calculator and the physical arrow registry have separate lifetimes.
+    -- A scan can remove the resource while a movement snapshot still keeps
+    -- its arrow alive. Clear the registry even if play-order/marker data
+    -- was already retired. The arrow owner preserves committed phase history
+    -- and handles split sources, pending targeting and vector redraw.
+    local arrowsRemoved=attackAssignmentsClearForObject(guid)
     local linked=trackerPrivate.throwAwayLinksByGUID
     local marked=trackerPrivate.maximalMarkedByGUID
-    if not (linked~=nil and linked[guid]~=nil)
+    if arrowsRemoved==0 and trackerPrivate.playCardMovements[guid]==nil
+        and not (linked~=nil and linked[guid]~=nil)
         and not (marked~=nil and marked[guid]~=nil)
         and not resourceCardsMaximalEffectMarked(card)
         and not (gStates.artifactBreaks~=nil and gStates.artifactBreaks[guid]~=nil)
