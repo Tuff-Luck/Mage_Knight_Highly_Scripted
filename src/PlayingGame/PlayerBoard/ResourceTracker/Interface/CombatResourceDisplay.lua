@@ -30,7 +30,7 @@ return function(combatConfig,skillRuleOf,combatDetailPhase,combatEnemyResists,co
                         local phase=combatDetailPhase(item.detail,
                             group.rangeDefeated or group.rangeSpent,group.fortification,item.source)
                         -- Keep invalidated Attack-phase Unit icons visible so players
-                        -- can see what was assigned, but make the unavailable value grey
+                        -- can see what was assigned, but give the unavailable button a red background
                         -- and explain why it does not count. Earlier Ranged/Block stands.
                         local wounded=phase=="attack" and (woundedBeforeAttack[item.source.guid]==true
                             or item.source.dodgeIneligible==true)

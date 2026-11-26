@@ -527,6 +527,47 @@ local function playerBoardCrookedUnderOverlaps(a,b)
     return overlapX>math.min(ax,bx)*0.35 and overlapZ>math.min(az,bz)*0.35
 end
 
+function playerBoardSendCardUnder(card,top,finished,isCurrent)
+    local guid,topGUID=card.guid,top.guid
+    local topPosition=top.getPosition()
+    local topX,topY,topZ=topPosition.x or topPosition[1],
+        topPosition.y or topPosition[2],topPosition.z or topPosition[3]
+    local cardPosition=card.getPosition()
+    local cardX,cardZ=cardPosition.x or cardPosition[1],
+        cardPosition.z or cardPosition[3]
+    -- Preserve explicit card options/target locks through the move.
+    if resourceCardsObjectPickedUp~=nil then
+        resourceCardsObjectPickedUp(card)
+        resourceCardsObjectPickedUp(top)
+    end
+    -- With collision disabled during smooth movement, both cards can
+    -- exchange Y order directly. No large lift across the shallow zone
+    -- (or deck-merging putObject call) is necessary.
+    top.setPositionSmooth({topX,topY+0.13,topZ},false,false)
+    card.setPositionSmooth({cardX,topY,cardZ},false,false)
+    local function reconcile()
+        if isCurrent~=nil and not isCurrent() then return end
+        local lower=getObjectFromGUID(guid)
+        local upper=getObjectFromGUID(topGUID)
+        if resourceCardsObjectMoved~=nil then
+            if lower~=nil and lower.held_by_color==nil then
+                resourceCardsObjectMoved(lower)
+            end
+            if upper~=nil and upper.held_by_color==nil then
+                resourceCardsObjectMoved(upper)
+            end
+        end
+        if finished~=nil then finished() end
+    end
+    safeWaitCondition("PlayerBoard.Events.crookedUnder",reconcile,function()
+        local lower=getObjectFromGUID(guid)
+        local upper=getObjectFromGUID(topGUID)
+        if lower==nil or upper==nil then return true end
+        if lower.held_by_color~=nil or upper.held_by_color~=nil then return true end
+        return not lower.isSmoothMoving() and not upper.isSmoothMoving()
+    end,4,reconcile)
+end
+
 local function playerBoardScheduleCrookedUnder(obj)
     if gStates==nil or gStates.firstStarted~=true or obj==nil
         or obj.type~="Card" or gameCards[obj.guid]==nil
@@ -545,43 +586,9 @@ local function playerBoardScheduleCrookedUnder(obj)
             and playerBoardPlayMatSeat(card)==seat
     end
     local function sendUnder(card,top,seat)
-        local topPosition=top.getPosition()
-        local topX,topY,topZ=topPosition.x or topPosition[1],
-            topPosition.y or topPosition[2],topPosition.z or topPosition[3]
-        local cardPosition=card.getPosition()
-        local cardX,cardZ=cardPosition.x or cardPosition[1],
-            cardPosition.z or cardPosition[3]
-        -- Preserve explicit card options/target locks through the move.
-        if resourceCardsObjectPickedUp~=nil then
-            resourceCardsObjectPickedUp(card)
-            resourceCardsObjectPickedUp(top)
-        end
-        -- With collision disabled during smooth movement, both cards can
-        -- exchange Y order directly. No large lift across the shallow zone
-        -- (or deck-merging putObject call) is necessary.
-        top.setPositionSmooth({topX,topY+0.13,topZ},false,false)
-        card.setPositionSmooth({cardX,topY,cardZ},false,false)
-        local function reconcile()
-            if playerBoardCrookedUnderPending[guid]~=state then return end
-            local lower=getObjectFromGUID(guid)
-            local upper=getObjectFromGUID(top.guid)
-            if resourceCardsObjectMoved~=nil then
-                if lower~=nil and lower.held_by_color==nil then
-                    resourceCardsObjectMoved(lower)
-                end
-                if upper~=nil and upper.held_by_color==nil then
-                    resourceCardsObjectMoved(upper)
-                end
-            end
-            finish()
-        end
-        safeWaitCondition("PlayerBoard.Events.crookedUnder",reconcile,function()
-            local lower=getObjectFromGUID(guid)
-            local upper=getObjectFromGUID(top.guid)
-            if lower==nil or upper==nil then return true end
-            if lower.held_by_color~=nil or upper.held_by_color~=nil then return true end
-            return not lower.isSmoothMoving() and not upper.isSmoothMoving()
-        end,4,reconcile)
+        playerBoardSendCardUnder(card,top,finish,function()
+            return playerBoardCrookedUnderPending[guid]==state
+        end)
     end
     local function sample()
         if playerBoardCrookedUnderPending[guid]~=state then return end

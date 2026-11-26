@@ -1690,6 +1690,7 @@ local function handleHandZoneEnter(ctx)
 	--Record Cards in hand as part of a players deed deck
 	if objType=="Card" and zoneInfo~=nil and zoneInfo.kind=="hand" then
 		scheduleSettledZoneEntry(ctx,function(liveCtx)
+			resourceCardsReturnedToHand(liveCtx.obj,liveCtx.zoneInfo.seatPos)
 			local handPlayerIndex=turnOrderIndexAtSeat(liveCtx.zoneInfo.seatPos)
 			local cardType=gameCardType(liveCtx.obj)
 			if handPlayerIndex~=nil and cardType~="Regular Unit" and cardType~="Elite Unit" then

@@ -1,6 +1,32 @@
 -- Relevant-zone filtering, played-source pickup/drop reconciliation, native Place Under, delayed choice reset and missing-control repair. Delayed callbacks resolve replaceable tables through live accessors.
 local M={}
 
+function M.resetDepartedCard(guid,seatPos,getChoices,getExpanded)
+    -- A genuine departure retires this play's time-order slot;
+    -- moving a card in/out again starts a fresh play sequence.
+    if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
+        gStates.resourceCardPlayOrder[guid]=nil
+    end
+    getChoices()[guid]=nil
+    if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
+        gStates.resourceCardMoveRoles[guid]=nil
+    end
+    -- A genuinely departed conversion card starts fresh on replay.
+    local kind=guid=="878d92" and "agility" or guid=="8c3de6" and "diplomacy" or nil
+    local conversions=gStates~=nil and gStates.resourceCardConversions or nil
+    local seat=type(conversions)=="table" and conversions[tostring(seatPos)] or nil
+    if kind~=nil and type(seat)=="table" then seat[kind]=nil end
+    getExpanded()[guid]=nil
+    resourceCardsArtifactBreakClear(guid)
+    if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
+        gStates.artifactGrailHealingUsed[guid]=nil
+    end
+    if gStates~=nil and gStates.unitReadyCardChoices~=nil then
+        gStates.unitReadyCardChoices[guid]=nil
+    end
+    unitHistoryValidSources(seatPos)
+end
+
 function M.scheduleChoiceReset(guid,seatPos,getChoices,getExpanded,trackerPrivate,cardInSeatPlayArea)
     if guid==nil or seatPos==nil then return end
     -- Avoid physics waits for mana, enemies and unrelated play-area objects.
@@ -21,29 +47,7 @@ function M.scheduleChoiceReset(guid,seatPos,getChoices,getExpanded,trackerPrivat
         safeWaitCondition("PlayerBoard.CardRecognition",function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return end
             if not cardInSeatPlayArea(guid,seatPos) then
-                -- A genuine departure retires this play's time-order slot;
-                -- moving a card in/out again starts a fresh play sequence.
-                if gStates~=nil and gStates.resourceCardPlayOrder~=nil then
-                    gStates.resourceCardPlayOrder[guid]=nil
-                end
-                getChoices()[guid]=nil
-                if gStates~=nil and gStates.resourceCardMoveRoles~=nil then
-                    gStates.resourceCardMoveRoles[guid]=nil
-                end
-                -- A genuinely departed conversion card starts fresh on replay.
-                local kind=guid=="878d92" and "agility" or guid=="8c3de6" and "diplomacy" or nil
-                local conversions=gStates~=nil and gStates.resourceCardConversions or nil
-                local seat=type(conversions)=="table" and conversions[tostring(seatPos)] or nil
-                if kind~=nil and type(seat)=="table" then seat[kind]=nil end
-                getExpanded()[guid]=nil
-                resourceCardsArtifactBreakClear(guid)
-                if gStates~=nil and gStates.artifactGrailHealingUsed~=nil then
-                    gStates.artifactGrailHealingUsed[guid]=nil
-                end
-                if gStates~=nil and gStates.unitReadyCardChoices~=nil then
-                    gStates.unitReadyCardChoices[guid]=nil
-                end
-                unitHistoryValidSources(seatPos)
+                M.resetDepartedCard(guid,seatPos,getChoices,getExpanded)
             end
         end,function()
             if trackerPrivate.choiceResetGenerationByGUID[guid]~=serial then return true end

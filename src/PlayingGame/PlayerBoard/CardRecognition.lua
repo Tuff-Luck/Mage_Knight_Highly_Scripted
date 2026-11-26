@@ -5079,6 +5079,43 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
     end
+    -- Use the same physical Y swap as crooked discard cards. Only an
+    -- authoritative paid link may trigger movement, never the OFF fallback
+    -- or End Turn's final verdict reconciliation.
+    if discarded~=nil and gStates~=nil and gStates.preEndTurn~=true
+        and playerBoardSendCardUnder~=nil and not trackerPrivate.throwUnderPending then
+        for _,card in ipairs(cards or {}) do
+            local guid=card.guid
+            local sourceGUID=discarded[guid]
+            local reason=prior[guid]
+            local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
+            if reason~=nil and source~=nil and present[sourceGUID]
+                and not combatConfig.cardInTransit(card) and not combatConfig.cardInTransit(source) then
+                local p,q=card.getPosition(),source.getPosition()
+                local delta=(p.y or p[2])-(q.y or q[2])
+                if delta>0.008 and delta<=0.45 then
+                    trackerPrivate.throwUnderPending=true
+                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",function()
+                        trackerPrivate.throwUnderPending=nil
+                        if gStates==nil or gStates.preEndTurn==true or not resourceCardsPanelOpen()
+                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason then return end
+                        local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
+                        if lower==nil or upper==nil or combatConfig.cardInTransit(lower)
+                            or combatConfig.cardInTransit(upper)
+                            or not cardInSeatPlayArea(guid,seatPos)
+                            or not cardInSeatPlayArea(sourceGUID,seatPos)
+                            or overlapArea(footprint(lower),footprint(upper))<=0 then return end
+                        local lp,up=lower.getPosition(),upper.getPosition()
+                        local gap=(lp.y or lp[2])-(up.y or up[2])
+                        if gap>0.008 and gap<=0.45 then
+                            playerBoardSendCardUnder(lower,upper)
+                        end
+                    end,1)
+                    break
+                end
+            end
+        end
+    end
     for guid in pairs(trackerPrivate.maximalMarkedByGUID or {}) do
         if not present[guid] then
             local previous=getObjectFromGUID(guid)
@@ -5745,6 +5782,43 @@ end
 
 local function queueSeat(seatPos,triggerGUID)
     return trackerPrivate.scanScheduler.queue(seatPos,triggerGUID,trackerPrivate,scheduleSeatRender)
+end
+
+-- Confirmed hand entry is stronger evidence than a transient play-zone
+-- exit. Reset both the marker and the authoritative throw-away state even
+-- when the tracker is minimized, without touching unrelated card UI.
+function resourceCardsReturnedToHand(card,seatPos)
+    if card==nil or card.type~="Card" or gStates==nil
+        or gStates.preEndTurn==true then return end
+    local guid=card.guid
+    local linked=trackerPrivate.throwAwayLinksByGUID
+    local marked=trackerPrivate.maximalMarkedByGUID
+    if not (linked~=nil and linked[guid]~=nil)
+        and not (marked~=nil and marked[guid]~=nil)
+        and not resourceCardsMaximalEffectMarked(card)
+        and not (gStates.artifactBreaks~=nil and gStates.artifactBreaks[guid]~=nil) then return end
+    if linked~=nil then linked[guid]=nil end
+    if gStates.throwAwayCleanupByGUID~=nil then gStates.throwAwayCleanupByGUID[guid]=nil end
+    resourceCardsMaximalEffectMark(card,false)
+    -- Invalidate the pickup snapshot and delayed departure reset before
+    -- clearing choices; neither may restore the previous play on replay.
+    trackerPrivate.playCardMovements[guid]=nil
+    trackerPrivate.choiceResetGenerationByGUID[guid]=
+        (trackerPrivate.choiceResetGenerationByGUID[guid] or 0)+1
+    trackerPrivate.cardUIRecheckSerial[guid]=(trackerPrivate.cardUIRecheckSerial[guid] or 0)+1
+    for _,candidates in pairs(trackerPrivate.playCandidatesBySeat) do candidates[guid]=nil end
+    trackerPrivate.objectEvents.resetDepartedCard(guid,seatPos,
+        function() return selectedResourceByGUID end,function() return choiceExpandedByGUID end)
+    local prefix=guid.."#"
+    for key in pairs(combatAssignmentState.targets) do
+        if key==guid or key:sub(1,#prefix)==prefix then
+            combatAssignmentState.targets[key]=nil
+            combatAssignmentState.explicit[key]=nil
+        end
+    end
+    removeChoiceButtons(card)
+    choiceButtonShown[guid]=nil
+    if resourceCardsPanelOpen() then queueSeat(seatPos,nil) end
 end
 
 function resourceCardsSourceChanged()

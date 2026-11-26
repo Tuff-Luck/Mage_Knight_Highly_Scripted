@@ -119,7 +119,7 @@ return function(combatConfig,combatPanelSetAttribute,combatAssignmentIconButton,
                             if tooltipProfile~=nil then profiler.profileFinish("renderer.tooltip",tooltipProfile) end
                             combatAssignmentIconButton(id,true,item.amount,item.icon,
                                 tooltip,combatAssignmentState.selected==item.source.key,
-                                (item.wounded or item.ineffective) and "#292323" or (item.typeKey~=nil
+                                (item.typeKey~=nil
                                     and combatConfig.typeColors[item.typeKey][item.reduced and 2 or 1] or nil),
                                 item.wounded,item.ineffective)
                             combatPanelSetAttribute(id,"interactable",

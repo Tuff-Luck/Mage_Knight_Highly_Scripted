@@ -90,7 +90,7 @@ run("resource-tracker-combat-presentation",function()
     end
     local function icon(id,active,amount,image,tooltip,selected,color,wounded,ineffective)
         iconCalls=iconCalls+1
-        icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,wounded=wounded,ineffective=ineffective}
+        icons[id]={active=active,amount=amount,tooltip=tooltip,selected=selected,color=color,wounded=wounded,ineffective=ineffective}
     end
     local layout=dofile(root.."Interface/CombatPanel.lua").layout
     eq(layout.estimatedTextWidth("Wi"),35,"Glyph widths retained")
@@ -192,6 +192,7 @@ run("resource-tracker-combat-presentation",function()
     eq(slots.CombatSourceSlot1attack1,"effect","Effect icon clickable by source key")
     eq(icons.CombatSourceSlot1attack1.selected,true,"Selection retained")
     eq(icons.CombatSourceSlot1attack2.wounded,true,"Wounded source marked")
+    eq(icons.CombatSourceSlot1attack2.color,"white","Invalid Attack retains its normal text color")
     eq(icons.CombatSourceSlot2attack1.active,false,"Unused row slot cleared")
     eq(ui.CombatEnemyRow1Result.text,"Attack 2/3","Authoritative Attack total rendered")
     eq(used.attack,true,"Attack column marked used")
