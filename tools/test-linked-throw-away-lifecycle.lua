@@ -19,6 +19,7 @@ local private={
     playCandidatesBySeat={[1]={}},maximalMarkedByGUID={}
 }
 local cards,frames,swaps={}, {},0
+local refreshes=0
 local open=true
 local moving=false
 local function card(guid,y)
@@ -52,11 +53,13 @@ local env=setmetatable({
     cardInSeatPlayArea=function() return true end,
     footprint=function(obj) return obj end,
     overlapArea=function() return 1 end,
-    playerBoardSendCardUnder=function(lower,upper)
+    playerBoardSendCardUnder=function(lower,upper,finished)
         assert(lower==target and upper==source,"Only the consumed card is tucked")
         lower.y,upper.y=upper.y,upper.y+0.13
         swaps=swaps+1
+        finished()
     end,
+    resourceCardsSourceChanged=function() refreshes=refreshes+1 end,
     selectedResourceByGUID=choices,choiceExpandedByGUID=expanded,choiceButtonShown=shown,
     combatAssignmentState={targets={},explicit={}},
     removeChoiceButtons=function(obj) obj.controlsRemoved=true end,
@@ -72,13 +75,30 @@ local function scan()
     env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},
         {target={sourceGUID=source.guid}}, {target=source.guid,ordinary=source.guid},{main=true})
 end
+local function tick()
+    assert(#frames>0,"Expected a pending physics sample")
+    table.remove(frames,1)()
+end
+local function drain()
+    local tries=0
+    while #frames>0 do
+        tries=tries+1
+        assert(tries<100,"Physics sampling must be bounded")
+        tick()
+    end
+end
 scan()
 assert(target.marked and not ordinary.marked and #frames==1,
     "Only a genuine throw-away link is marked and schedules a restack")
 scan()
 assert(#frames==1,"A repeated scan must not queue duplicate movement")
-table.remove(frames,1)()
+tick()
+tick()
+assert(swaps==0,"Wait for the source height to stabilize before moving")
+tick()
 assert(swaps==1 and target.y<source.y,"Linked payment goes under its owner")
+drain()
+assert(refreshes==1,"One reconciliation after physical settling")
 scan()
 assert(#frames==0 and swaps==1,"An already-under payment is not moved again")
 
@@ -91,41 +111,52 @@ end
 target.y=source.y
 ritualScan()
 assert(target.marked and private.throwAwayLinksByGUID[target.guid]=="ritualAttack"
-    and #frames==1,"Ritual Attack must schedule placement even at equal Y")
--- The one-frame callback may land during another physics transition.
+    and #frames==1,"Ritual Attack must sample even at equal Y")
 moving=true
-table.remove(frames,1)()
-assert(swaps==1 and #frames==1,"Transient motion must defer rather than abandon the tuck")
+tick()
+assert(swaps==1 and #frames==1,"Transient motion defers the tuck")
 moving=false
 target.y=source.y+0.6
-table.remove(frames,1)()
+tick()
 assert(swaps==1 and #frames==1,"A high falling card must be sampled again")
 target.y=source.y+0.2
-table.remove(frames,1)()
-assert(swaps==2 and target.y<source.y,"Ritual Attack must tuck after physics settles")
-ritualScan()
-assert(#frames==0,"Ritual Attack already below its owner must stay put")
--- The automatic movement itself triggers further scans. TTS physics can
--- temporarily report equal or even inverted heights after the first swap.
+tick()
+assert(swaps==1,"Source height has not yet stabilized")
+tick()
+assert(swaps==2 and target.y<source.y,"Ritual Attack tucks in the normal height window")
+-- Smooth completion may be followed by bounce/settling. Suppress only
+-- overlapping physical transactions, not subsequent legitimate under moves.
+local settledY=target.y
 target.y=source.y
 ritualScan()
+tick()
 target.y=source.y+0.1
 ritualScan()
-assert(swaps==2 and #frames==0 and target.marked,
-    "The same paid Ritual Attack link must never dispatch a second tuck")
--- A genuinely broken and re-established link may tuck again.
-env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
-assert(private.throwUnderCompletedByGUID[target.guid]==nil and not target.marked,
-    "Breaking the link retires the previous physical movement")
+tick()
+assert(swaps==2 and #frames==1,"No duplicate tuck during post-move bounce")
+target.y=settledY
+drain()
 ritualScan()
-assert(#frames==1,"Re-linking must allow a fresh movement")
--- If the player removes the link during the delay, don't move the card.
-env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
-table.remove(frames,1)()
-assert(swaps==2 and #frames==0 and not target.marked,"A cancelled link must not restack")
+assert(#frames==0,"Ritual Attack already below its owner stays put")
+target.y=source.y+0.1
 ritualScan()
-table.remove(frames,1)()
-assert(swaps==3 and target.marked,"A subsequent valid Ritual Attack link can tuck again")
+drain()
+assert(swaps==3 and target.y<source.y,
+    "A later manual rearrangement of the same paid link may tuck again")
+-- Near-equal height only dispatches after stable samples, and a cancelled
+-- link must not cause movement.
+target.y=source.y
+ritualScan()
+tick()
+tick()
+assert(swaps==3,"Equal-height pair must not move on a single sample")
+env.resourceCardsMaximalEffectSyncMarks(1,{source,target,ordinary},{},{},{})
+tick()
+assert(swaps==3 and #frames==0 and not target.marked,"Cancelled link must not restack")
+ritualScan()
+drain()
+assert(swaps==4 and target.marked and target.y<source.y,
+    "A valid stable equal-height link can still tuck")
 
 open=false
 local guid=target.guid
@@ -148,7 +179,6 @@ env.resourceCardsReturnedToHand(target,1)
 assert(not target.marked and private.maximalMarkedByGUID[guid]==nil
     and private.throwAwayLinksByGUID[guid]==nil
     and private.throwAwaySourcesByGUID[guid]==nil
-    and private.throwUnderCompletedByGUID[guid]==nil
     and state.throwAwayCleanupByGUID[guid]==nil,
     "Hand recovery must clear marker and every throw-away verdict")
 assert(state.resourceCardPlayOrder[guid]==nil and state.artifactBreaks[guid]==nil

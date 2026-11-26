@@ -5083,21 +5083,10 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     for guid in pairs(prior) do
         if not present[guid] then prior[guid]=nil end
     end
-    -- Movement itself triggers another settled resource scan. Remember an
-    -- already dispatched tuck for the lifetime of this paid link so a
-    -- transient equal/inverted Y cannot send the same pair under twice.
-    trackerPrivate.throwUnderCompletedByGUID=trackerPrivate.throwUnderCompletedByGUID or {}
-    if discarded~=nil then
-        for guid,completed in pairs(trackerPrivate.throwUnderCompletedByGUID) do
-            if prior[guid]~=completed.reason
-                or trackerPrivate.throwAwaySourcesByGUID[guid]~=completed.sourceGUID then
-                trackerPrivate.throwUnderCompletedByGUID[guid]=nil
-            end
-        end
-    end
-    -- Only an authoritative paid link may trigger the shared physical
-    -- restack. A newly linked card may still be falling in Y: don't let a
-    -- single near-equal height or transient motion silently cancel it.
+    -- Use the same shallow-zone height window as tilted discard. The
+    -- tracker can scan before vertical physics settles, so sample before
+    -- dispatch and keep the temporary guard until the actual move settles.
+    -- No per-link history: a later genuine rearrangement can tuck again.
     if discarded~=nil and gStates~=nil and gStates.preEndTurn~=true
         and playerBoardSendCardUnder~=nil and not trackerPrivate.throwUnderPending then
         for _,card in ipairs(cards or {}) do
@@ -5105,8 +5094,7 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
             local sourceGUID=discarded[guid]
             local reason=prior[guid]
             local source=sourceGUID~=nil and getObjectFromGUID(sourceGUID) or nil
-            if reason~=nil and source~=nil and present[sourceGUID]
-                and trackerPrivate.throwUnderCompletedByGUID[guid]==nil then
+            if reason~=nil and source~=nil and present[sourceGUID] then
                 local p,q=card.getPosition(),source.getPosition()
                 local delta=(p.y or p[2])-(q.y or q[2])
                 if delta>=-0.008 then
@@ -5117,14 +5105,16 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
                             trackerPrivate.throwUnderPending=nil
                         end
                     end
+                    local function current()
+                        return trackerPrivate.throwUnderPending==pending
+                            and trackerPrivate.trackerSession==pending.session
+                            and gStates~=nil and gStates.preEndTurn~=true
+                            and resourceCardsPanelOpen()
+                            and trackerPrivate.throwAwayLinksByGUID[guid]==reason
+                            and trackerPrivate.throwAwaySourcesByGUID[guid]==sourceGUID
+                    end
                     local function sample()
-                        if trackerPrivate.throwUnderPending~=pending then return end
-                        if trackerPrivate.trackerSession~=pending.session or gStates==nil
-                            or gStates.preEndTurn==true or not resourceCardsPanelOpen()
-                            or trackerPrivate.throwAwayLinksByGUID[guid]~=reason
-                            or trackerPrivate.throwAwaySourcesByGUID[guid]~=sourceGUID then
-                            finish() return
-                        end
+                        if not current() then finish() return end
                         local lower,upper=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
                         if lower==nil or upper==nil or overlapArea(footprint(lower),footprint(upper))<=0 then
                             finish() return
@@ -5133,26 +5123,60 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
                         if not combatConfig.cardInTransit(lower) and not combatConfig.cardInTransit(upper)
                             and cardInSeatPlayArea(guid,seatPos) and cardInSeatPlayArea(sourceGUID,seatPos) then
                             local lp,up=lower.getPosition(),upper.getPosition()
-                            local gap=(lp.y or lp[2])-(up.y or up[2])
+                            local ly,uy=lp.y or lp[2],up.y or up[2]
+                            local gap=ly-uy
                             if gap< -0.008 then finish() return end
-                            -- The normal shallow-zone pair can be moved at
-                            -- once, including equal-height cards. For a larger
-                            -- falling gap, wait for Y to settle before moving.
-                            if gap<=0.45 or (pending.lastGap~=nil
-                                and math.abs(gap-pending.lastGap)<0.008) then
-                                -- Record before moving: the shared restack
-                                -- immediately starts pickup/drop reconciliation.
-                                trackerPrivate.throwUnderCompletedByGUID[guid]={
-                                    sourceGUID=sourceGUID,reason=reason}
-                                finish()
+                            -- Like tilted discard, wait until the source
+                            -- is stable and the falling card is close to it.
+                            -- Near-equal Y is only a fallback for genuinely
+                            -- stable overlapping cards, not a transient bounce.
+                            local previous=pending.previous
+                            if previous~=nil and math.abs(uy-previous.uy)<0.008 then
+                                pending.stableUpper=(pending.stableUpper or 0)+1
+                            else pending.stableUpper=0 end
+                            if previous~=nil and math.abs(ly-previous.ly)<0.008 then
+                                pending.stableLower=(pending.stableLower or 0)+1
+                            else pending.stableLower=0 end
+                            pending.previous={ly=ly,uy=uy}
+                            if pending.stableUpper>=2 and gap<=0.45
+                                and (gap>0.008 or pending.stableLower>=2) then
                                 if trackerPrivate.traceEnabled then
                                     trackerPrivate.traceEvent("throw.under",seatPos,guid,
                                         "source="..sourceGUID.." gap="..tostring(gap))
                                 end
-                                playerBoardSendCardUnder(lower,upper)
+                                -- Smooth completion is not physics completion:
+                                -- both cards can still fall after it. Keep only
+                                -- an in-flight guard until their Y positions
+                                -- stop changing, then resume ordinary scans.
+                                playerBoardSendCardUnder(lower,upper,function()
+                                    local tries,stable,last=0,0,nil
+                                    local function settled()
+                                        if not current() then finish() return end
+                                        local l,u=getObjectFromGUID(guid),getObjectFromGUID(sourceGUID)
+                                        if l==nil or u==nil then finish() return end
+                                        tries=tries+1
+                                        local a,b=l.getPosition(),u.getPosition()
+                                        local y1,y2=a.y or a[2],b.y or b[2]
+                                        if not combatConfig.cardInTransit(l) and not combatConfig.cardInTransit(u)
+                                            and last~=nil and math.abs(y1-last[1])<0.008
+                                            and math.abs(y2-last[2])<0.008 then
+                                            stable=stable+1
+                                        else stable=0 end
+                                        last={y1,y2}
+                                        if stable>=3 or tries>=90 then
+                                            finish()
+                                            resourceCardsSourceChanged()
+                                        else
+                                            safeWaitFrames("PlayerBoard.CardRecognition.throwUnderSettle",settled,1)
+                                        end
+                                    end
+                                    safeWaitFrames("PlayerBoard.CardRecognition.throwUnderSettle",settled,1)
+                                end)
                                 return
                             end
-                            pending.lastGap=gap
+                        else
+                            pending.previous=nil
+                            pending.stableUpper,pending.stableLower=0,0
                         end
                         if pending.tries>=90 then finish()
                         else safeWaitFrames("PlayerBoard.CardRecognition.throwUnder",sample,1) end
@@ -5848,7 +5872,6 @@ function resourceCardsReturnedToHand(card,seatPos)
         and not (gStates.resourceCardPlayOrder~=nil and gStates.resourceCardPlayOrder[guid]~=nil) then return end
     if linked~=nil then linked[guid]=nil end
     if trackerPrivate.throwAwaySourcesByGUID~=nil then trackerPrivate.throwAwaySourcesByGUID[guid]=nil end
-    if trackerPrivate.throwUnderCompletedByGUID~=nil then trackerPrivate.throwUnderCompletedByGUID[guid]=nil end
     if gStates.throwAwayCleanupByGUID~=nil then gStates.throwAwayCleanupByGUID[guid]=nil end
     resourceCardsMaximalEffectMark(card,false)
     -- Invalidate the pickup snapshot and delayed departure reset before
