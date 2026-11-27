@@ -652,6 +652,7 @@ local function combatAssignmentSources(seat)
                         explosiveBolt=record.explosiveBolt,
                         dodgeConditional=record.dodgeConditional==true,
                         combatWoundAttack=record.combatWoundAttack,
+                        distinctAttackBonus=record.distinctAttackBonus,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32",
                         damagePhaseWound=gStates~=nil and gStates.combatWoundApplication~=nil
@@ -3105,7 +3106,7 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
         totalDiscardWounds=totalDiscardWounds+(tonumber(result.discard) or 0)
     end
     local otherCombatWounds=combatConfig.combatOtherWounds(damageSeat)
-    trackerPrivate.lateCombatPhase.woundAttackBonuses(sources,totalHeroWounds+otherCombatWounds)
+    trackerPrivate.lateCombatPhase.woundAttackBonuses(sources,totalHeroWounds+otherCombatWounds,damageItems,damageResults)
     local currentPlayer=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)

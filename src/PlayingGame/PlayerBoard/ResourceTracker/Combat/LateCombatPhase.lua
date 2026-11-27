@@ -158,18 +158,29 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
         end
     end
 
-    local function woundAttackBonuses(sources,wounds)
+    local function woundAttackBonuses(sources,wounds,damageItems,damageResults)
+        local byEnemy,highest={},0
+        for _,item in ipairs(damageItems or {}) do
+            local result=(damageResults or {})[item.key]
+            if item.owner~=nil and result~=nil then
+                byEnemy[item.owner]=(byEnemy[item.owner] or 0)+(tonumber(result.heroWounds) or 0)
+                highest=math.max(highest,byEnemy[item.owner])
+            end
+        end
         -- Apply only in Attack, after Damage, to fresh physical source records.
         -- Do not credit the same Wounds to manually selected bonus values or
         -- change an earlier Ranged/Siege result after the fact.
         for _,source in ipairs(sources) do
             local spec=source.combatWoundAttack
-            if spec~=nil and not source.noAttackPhase and (source.attack or 0)>0 then
-                local bonus=math.min(math.max(0,wounds or 0),spec.maxWounds)
-                    *spec.perWound*spec.copies
+            if spec~=nil and not source.noAttackPhase and ((source.attack or 0)>0
+                or source.appliedWoundAttackBonus~=nil) then
+                local count=spec.singleEnemy and highest or (wounds or 0)
+                local earned=math.min(math.max(0,count),spec.maxWounds)*spec.perWound*spec.copies
+                local bonus=earned-(spec.baseCredit or 0)
                 local field
                 for _,detail in ipairs(source.details or {}) do
-                    if detail.family=="attack" and (source.resources[detail.key] or 0)>0 then
+                    if detail.family=="attack" and ((source.resources[detail.key] or 0)>0
+                        or source.appliedWoundAttackBonus~=nil) then
                         if field~=nil then field=nil break end
                         field=detail
                     end
@@ -184,6 +195,54 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
                     field.text=field.woundAttackLabel.." "..tostring(field.amount)
                         ..(bonus>0 and (" (+"..tostring(bonus).." from Wounds)") or "")
                     source.appliedWoundAttackBonus=bonus
+                    if spec.singleEnemy then
+                        source.dodgeIneligible=earned==0
+                        field.text=field.woundAttackLabel.." "..tostring(field.amount)
+                            .." (Wounds from one enemy)"
+                    end
+                end
+            end
+        end
+    end
+
+    local function distinctAttackBonuses(group,sources)
+        local skill
+        for _,source in ipairs(sources) do
+            if source.distinctAttackBonus~=nil then skill=source break end
+        end
+        if skill==nil then return end
+        if #group.members~=1 then
+            -- Coordinated Attack cannot participate in a joined attack.
+            skill.attack=0
+            skill.dodgeIneligible=true
+            for key in pairs(skill.resources or {}) do
+                if key:sub(1,6)=="attack" then skill.resources[key]=0 end
+            end
+            return
+        end
+        if group.rangeDefeated or group.rangeSpent or group.destroyed then return end
+        -- Compare the original printed/current values, never the already
+        -- increased values. One bonus per distinct value, excluding Attack 1
+        -- from the Skill itself. Stable source order resolves equal values.
+        local seen={[skill.attack or 1]=true}
+        local ordered={}
+        for _,source in ipairs(sources) do
+            if source~=skill and source.distinctAttackBonus==nil then ordered[#ordered+1]=source end
+        end
+        table.sort(ordered,function(a,b) return tostring(a.key)<tostring(b.key) end)
+        for _,source in ipairs(ordered) do
+            for _,detail in ipairs(source.details or {}) do
+                local family=detail.family
+                local amount=tonumber(source.resources[detail.key]) or 0
+                if (family=="attack" or family=="ranged" or family=="siege")
+                    and amount>0 and not seen[amount] then
+                    seen[amount]=true
+                    local bonus=skill.distinctAttackBonus
+                    source.resources[detail.key]=amount+bonus
+                    source[family]=(source[family] or 0)+bonus
+                    detail.amount=amount+bonus
+                    detail.text=(detail.text:match("^(.-)%s+%d+$") or detail.text)
+                        .." +"..tostring(bonus).." (Coordinated Attack)"
                 end
             end
         end
@@ -235,6 +294,7 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
                     laterSources[#laterSources+1]=setmetatable({resources=resources},{__index=source})
                 end
             end
+            distinctAttackBonuses(group,laterSources)
             local meleeTotal=combatAttackTotal({
                 {sources=laterSources,category="attack"},
                 {sources=laterSources,category="ranged"},
@@ -280,5 +340,6 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
     end
 
     return {enemyDefeated=enemyDefeated,defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
-        dodgeAfterDamage=dodgeAfterDamage,woundAttackBonuses=woundAttackBonuses,resolve=resolve}
+        dodgeAfterDamage=dodgeAfterDamage,woundAttackBonuses=woundAttackBonuses,
+        distinctAttackBonuses=distinctAttackBonuses,resolve=resolve}
 end

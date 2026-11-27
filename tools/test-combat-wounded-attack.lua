@@ -268,3 +268,41 @@ eq(normal.attack,2,"Undo Damage retracts bonus")
 eq(strong.attack,4,"No Wounds leaves base Attack")
 eq(repeated.attack,8,"Rescans never duplicate bonus")
 print("Automatic Wound-dependent Attack regressions passed")
+
+-- Blood Fury Dagger counts wounds from one physical attacking enemy.
+local dagger=woundAttack(2,3)
+dagger.combatWoundAttack={singleEnemy=true,maxWounds=3,perWound=2,copies=1,baseCredit=2}
+local items={{owner="a",key="a:1"},{owner="a",key="a:2"},{owner="b",key="b:1"}}
+late.woundAttackBonuses({dagger},10,items,{
+    ["a:1"]={heroWounds=1,discard=1},["a:2"]={heroWounds=1},
+    ["b:1"]={heroWounds=1,unitWounds=4}})
+eq(dagger.attack,4,"Only one enemy's combined Hero Wounds count")
+late.woundAttackBonuses({dagger},10,items,{["b:1"]={heroWounds=5}})
+eq(dagger.attack,6,"Dagger capped at six")
+late.woundAttackBonuses({dagger},10,items,{})
+eq(dagger.attack,0,"Other Wounds do not fund the Dagger")
+late.woundAttackBonuses({dagger},0,items,{["b:1"]={heroWounds=1}})
+eq(dagger.attack,2,"Undo restores eligible Dagger")
+local function attackSource(key,value,family)
+    family=family or "attack"
+    return {key=key,attack=0,[family]=value,resources={[family]=value},
+        details={{family=family,key=family,amount=value,text="Attack "..value}}}
+end
+local skill=attackSource("skill",1)
+skill.distinctAttackBonus=1
+local two=attackSource("a",2)
+local duplicate=attackSource("b",2)
+local three=attackSource("c",3)
+local one=attackSource("d",1)
+late.distinctAttackBonuses({members={1}},{skill,two,duplicate,three,one})
+eq(two.attack,3,"First distinct two gets bonus")
+eq(duplicate.attack,2,"Duplicate two does not earn a second bonus")
+eq(three.attack,4,"Different three earns bonus")
+eq(one.attack,1,"Attack one matches Skill value")
+skill=attackSource("skill",1)
+skill.distinctAttackBonus=1
+two=attackSource("a",2)
+late.distinctAttackBonuses({members={1,2}},{skill,two})
+eq(skill.attack,0,"Grouped enemies invalidate Skill")
+eq(two.attack,2,"Grouped enemies cannot earn bonus")
+print("Dagger and Coordinated Attack regression cases passed")

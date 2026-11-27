@@ -2688,7 +2688,7 @@ skillResourceDefinitions={
     ["958209"]={untracked=true}, -- Mana Suppression is handled by Skills.lua.
     ["f30dd4"]={untracked=true}, -- Bonds of Loyalty is an occupied Command slot, not played Influence.
     -- Coral / The Apocalypse Dragon. Permanent movement/reward rules are evaluated separately.
-    ["201f72"]={normal={attack=1},partial=true}, -- Coordinated Attack: target-specific bonuses remain manual.
+    ["201f72"]={normal={attack=1},distinctAttackBonus=1}, -- Coordinated Attack: one enemy, distinct Attack values.
     ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
     ["9cf272"]={choices={{influence=2},{key="boost",influence=4,icon="influence",iconOverlay="4"}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
     ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1},
@@ -2875,7 +2875,7 @@ factionRewardResourceDefinitions={
     ["AuraGauntlet"]={name="Aura Gauntlet",notes="Council of the Void Reward",imageHash="52285695A4A0AF44BDEC296C2D948F294EF1030B",guids={"6f1f8d","512b2e"},choices={{key="blue",icon="block",iconOverlay="B",block=2},{key="green",icon="healing",iconOverlay="G",healing=1},{key="red",icon="attack",iconOverlay="R",attack=2},{key="white",icon="influence",iconOverlay="W",influence=2}},partial=true},
     ["BindingContract"]={name="Binding Contract",notes="Council of the Void Reward",imageHash="896BF6AF73E16C73C3C09FC38B45EB8F196EDC5F",guids={"e13be2","bedce3"}},
     ["BladeofDominance"]={name="Blade of Dominance",notes="Apocalypse Cult Reward",imageHash="5312F4FEA02019FB21911122C8CCA40F1CEADDA6",guids={"20ec1f","ff7836"}},
-    ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},choices={{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
+    ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},combatWoundAttack={singleEnemy=true,maxWounds=3,perWound=2},choices={{key="autoWounds",icon="attack",iconOverlay="AUTO",attack=2},{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
     ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},splitMoveAttack=true,partial=true},
     ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"},heroWoundPrevention=1},
     ["CloakoftheMartyr"]={name="Cloak of the Martyr",notes="Apocalypse Cult Reward",imageHash="0B4ABC0D5840AF6FAD68E398F66AA0729F04710D",guids={"cc1f9f","592fd8"}},

@@ -110,6 +110,7 @@ return function(deps)
             complete=unitResolved or inventoryResolved or (tracked and not rule.partial) or targeted or linkedTarget~=nil,
             powered=skill.is_face_down==true or linkedTarget~=nil or unitLinked,
             forkedLightning=rule.forkedLightning==true,
+            distinctAttackBonus=rule.distinctAttackBonus,
             status=status,links=links,unitSources=unitSources,swiftDouble=swiftDouble,
             resources=effects,choices=choices}
     end

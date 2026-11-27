@@ -55,6 +55,8 @@ function M.read(context)
             end
             local fameRep=flipped and rule~=nil and effect~=nil and effect.key=="fame"
                 and {fame=1} or nil
+            local woundAttack=not flipped and rule~=nil and rule.combatWoundAttack~=nil
+                and effect~=nil and effect.key=="autoWounds" and rule.combatWoundAttack or nil
             local contributes=effectHasTrackedResource(effect)
             local supported=rule~=nil and (flipped or rule.choices~=nil or rule.resources~=nil
                 or rule.modifier~=nil or rule.enemyEffect~=nil or rule.movement~=nil
@@ -63,6 +65,8 @@ function M.read(context)
                 complete=supported==true,resources=effect,choices=choices,fameRep=fameRep,
                 splitTargets=splitMoveAttack and {"block","attack"} or nil,
                 modifier=not flipped and rule~=nil and rule.modifier or nil,
+                combatWoundAttack=woundAttack~=nil and {singleEnemy=true,
+                    maxWounds=woundAttack.maxWounds,perWound=woundAttack.perWound,copies=1,baseCredit=2} or nil,
                 powered=flipped,links={},contributes=contributes,
                 status=highlightPolicy.contribution(contributes or fameRep~=nil),
                 nameKey=rule~=nil and rule.name or nil}
