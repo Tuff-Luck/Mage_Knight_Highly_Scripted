@@ -215,4 +215,14 @@ assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitManagement.
 assert(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/UnitControls.lua"):find('targetSpecs[1].index==targetSpecs[2].index',1,true),
     "Separate Ranged/effect buttons should be distinguishable")
 
-print("Level III Freezers, Sorcerers and Catapults regressions passed.")
+-- All Hero variants distinguish ordinary Influence from confirmed interaction.
+for _,guid in ipairs({"8ccbdd","613dca","88f3f2","4ee245"}) do
+    local options=unitResourceDefinitions[guid]
+    local plain,confirmed=options[#options-1],options[#options]
+    eq(plain.influence,5,"Hero ordinary Influence")
+    eq(plain.fameRep,nil,"Hero ordinary Influence has no Reputation")
+    eq(confirmed.influence,5,"Hero interaction Influence")
+    eq(confirmed.fameRep.rep,1,"Hero interaction Reputation")
+    eq(confirmed.iconOverlay,"INT","Explicit Hero interaction control")
+end
+print("Level III Freezers, Sorcerers, Catapults and Heroes regressions passed.")

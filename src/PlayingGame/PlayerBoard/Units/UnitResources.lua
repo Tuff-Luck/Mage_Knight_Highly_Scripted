@@ -38,6 +38,14 @@ local function special(row,tooltip,extra)
     return a
 end
 
+-- Both options generate the same Influence. The ordinary option is first so
+-- merely activating a Hero never assumes the player is interacting.
+local function heroInfluence()
+    return value(3,"influence",5,"Influence 5"),
+        value(3,"influence",5,"Influence 5; confirm interaction for +1 Reputation",
+            {fameRep={rep=1},iconOverlay="INT",iconOverlayColor="#FFFFFF"})
+end
+
 local byType={
     Peasants={
         value(1,"attack",2,"Attack 2"),value(1,"block",2,"Block 2"),
@@ -134,19 +142,19 @@ local byType={
     HeroesWhite={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"ranged",7,"Ranged Attack 7",{manaCost="White"}),
-        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+        heroInfluence()},
     HeroesGreen={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"healing",4,"Heal 4",{manaCost="Green"}),
-        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+        heroInfluence()},
     HeroesBlue={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"blockColdFire",8,"Cold Fire Block 8",{manaCost="Blue"}),
-        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+        heroInfluence()},
     HeroesRed={
         value(1,"attack",5,"Attack 5"),value(1,"block",5,"Block 5"),
         value(2,"attackColdFire",6,"Cold Fire Attack 6",{manaCost="Red"}),
-        value(3,"influence",5,"Influence 5; +1 Reputation if used in interaction")},
+        heroInfluence()},
     Sorcerers={
         value(1,"ranged",3,"Ranged Attack 3"),
         value(2,"ranged",3,"Pay white mana: target loses all fortifications; Ranged Attack 3",{manaCost="White",baseWithoutPayment=true,enemyEffect={removeFortify=true}}),

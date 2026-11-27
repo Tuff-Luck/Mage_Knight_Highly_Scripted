@@ -34,7 +34,7 @@ local readyCode=section(reader,
 local ready=assert(load([[
 local unitResourceDefinitions={}
 local gameCards={["878d91"]={resourceKey="regeneration"}}
-local cardResourceDefinitions={regeneration={unitReadyLevels={normal=2,powered=3}}}
+local cardResourceDefinitions={regeneration={simultaneousReady=true,unitReadyLevels={normal=2,powered=3}}}
 local turnOrder={{seatPos=1}}
 local gStates={turnNumber=1}
 local record={complete=true,powered=false,resources={healing=1}}
