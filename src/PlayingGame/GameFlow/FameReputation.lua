@@ -150,6 +150,43 @@ function fameReputationSetReversiblePending(playerIndex,entry,key,nominal)
 	return applied
 end
 
+-- Recruitment is a turn event, not the current number of Units. A Unit
+-- recruited and then disbanded still counts. Both normal and special claims
+-- record here, with a shared player correction for manually moved Units.
+local function unitRecruitmentSeat(seatPos)
+    local current=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    return current~=nil and current.seatPos==seatPos and gStates.preEndTurn~=true
+end
+
+function unitRecruitmentCount(seatPos)
+    if not unitRecruitmentSeat(seatPos) then return 0 end
+    return math.max(0,#(gStates.turnUnitRecruitments or {})
+        +(tonumber(gStates.turnUnitRecruitmentAdjustment) or 0))
+end
+
+function unitRecruitmentRecord(seatPos,guid)
+    if not unitRecruitmentSeat(seatPos) or type(guid)~="string" then return false end
+    gStates.turnUnitRecruitments=gStates.turnUnitRecruitments or {}
+    gStates.turnUnitRecruitments[#gStates.turnUnitRecruitments+1]=guid
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    return true
+end
+
+function unitRecruitmentAdjust(seatPos,delta)
+    if not unitRecruitmentSeat(seatPos) or (delta~=1 and delta~=-1)
+        or unitRecruitmentCount(seatPos)+delta<0 then return false end
+    gStates.turnUnitRecruitmentAdjustment=(gStates.turnUnitRecruitmentAdjustment or 0)+delta
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    return true
+end
+
+function unitRecruitmentReward(rule,powered,count,repeats)
+    local reward=rule~=nil and (powered and rule.powered or rule.normal) or nil
+    local times=math.max(0,count or 0)*(repeats or 1)
+    if reward==nil or times==0 then return nil end
+    return {fame=(reward.fame or 0)*times,rep=(reward.rep or 0)*times}
+end
+
 --Resource Tracker Fame/Reputation is runtime-only and rebuilt on every scan. It lives in the same
 --pending fameGain/repGain the main interface shows, and is reversed whenever the played source leaves.
 local resourceFameRepState={}

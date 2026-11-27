@@ -1142,7 +1142,8 @@ cardResourceDefinitions={
     refreshingWalk={normal={move=2,healing=1},powered={move=4,healing=2},
         combatMoveSuppressHealing=true},
     diplomacy={normal={influence=2},powered={influence=4},combatConversion="diplomacy"},
-    heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
+    heroicTale={normal={influence=3},powered={influence=6},
+        recruitmentReward={normal={rep=1},powered={fame=1,rep=1}}},
     peacefulMoment={normal={influence=3},powered={influence=6},
         influenceAction={healCost=2},
         readyWithInfluence={maxLevel=4,costPerLevel=2,maxUses=1,requiresAction=true}},

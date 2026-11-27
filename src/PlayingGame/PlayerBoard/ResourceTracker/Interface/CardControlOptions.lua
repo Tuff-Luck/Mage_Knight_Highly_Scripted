@@ -28,7 +28,7 @@ return function(deps)
         -- Starting cards with selectable conditional effects keep their controls
         -- even when their Move/Influence value is fixed; manual notes need no button.
         if rule~=nil and (rule.interactionReward~=nil or rule.recruitDiscount~=nil
-            or rule.selectedTerrainDiscount~=nil or rule.influenceAction~=nil)
+            or rule.selectedTerrainDiscount~=nil or rule.influenceAction~=nil or rule.recruitmentReward~=nil)
             and (choices==nil or #choices==0) and type(resources)=="table" then
             if (tonumber(resources.move) or 0)>0 then choices={{move=resources.move}}
             elseif (tonumber(resources.influence) or 0)>0 then

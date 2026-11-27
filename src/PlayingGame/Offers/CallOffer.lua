@@ -359,6 +359,7 @@ function callOfferObjectDropped(obj)
         -- The player has recruited this physical Unit with Call to Glory.
         -- Keep the Spell consumed even though its transient browser is gone.
         gStates.callOfferGloryClaimed=true
+        if unitRecruitmentRecord~=nil then unitRecruitmentRecord(current.seatPos,guid) end
         current.unitGUID=nil
         if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
         cleanButtons(getObjectFromGUID(guid),true)

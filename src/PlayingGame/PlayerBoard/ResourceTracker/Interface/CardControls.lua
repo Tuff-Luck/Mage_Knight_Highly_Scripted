@@ -158,6 +158,11 @@ return function(deps)
         local influenceAction=rule~=nil and rule.influenceAction~=nil
             and not combatEnemyInPlay and special~=nil and special.influenceAction==true
         local influenceHealing=influenceAction and (special.influenceHealing or 0) or 0
+        local recruitmentCount=0
+        if rule~=nil and rule.recruitmentReward~=nil and unitRecruitmentCount~=nil then
+            local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+            if active~=nil then recruitmentCount=unitRecruitmentCount(active.seatPos) end
+        end
         local readyLinks={}
         if rule~=nil and (rule.readyWithInfluence~=nil or rule.simultaneousReady==true) then
             for sourceKey in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
@@ -193,6 +198,7 @@ return function(deps)
                 ..":"..table.concat(conversion.elementUses or {},",")) or "")
             ..(special~=nil and (":START:"..tostring(special.interaction)..":"
                 ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
+            ..":RECRUIT_COUNT:"..tostring(recruitmentCount)
             ..":INFL_ACTION:"..tostring(influenceAction)..":"..tostring(influenceHealing)
             ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
             ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
@@ -600,6 +606,8 @@ return function(deps)
             if rule.interactionReward~=nil then
                 startingControl("interaction","INT",
                     special~=nil and special.interaction==true,135,-125)
+            elseif rule.recruitmentReward~=nil then
+                startingControl("recruitCount","REC "..tostring(recruitmentCount),recruitmentCount>0,135,-125)
             elseif rule.recruitDiscount~=nil and not powered then
                 startingControl("recruit","-2 REC",
                     special~=nil and special.recruited==true,135,-125)

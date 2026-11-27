@@ -311,6 +311,10 @@ function cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource,
     safeWaitFrames("PlayerBoard.CardFlow",function()
         safeWaitCondition("PlayerBoard.CardFlow",function()
             fillWait=false
+            -- Record only a completed claim in the player's Unit area.
+            if unitRecruitmentRecord~=nil and objectGUIDInZone(claimedGUID,playerUnitAreas[seatPos]) then
+                unitRecruitmentRecord(seatPos,claimedGUID)
+            end
             scheduleUnitLayoutRefresh(seatPos)
             if type(onSettled)=="function" then onSettled() end
         end,function()

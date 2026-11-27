@@ -68,3 +68,35 @@ end
 assert(read("src/UI/MainGame.xml"):find("tooltip=",1,true),
     "Global UI tooltips must remain available")
 print("Noble Manners and object UI tooltip regressions passed")
+
+-- Heroic Tale's shared event ledger must survive a disband, count each
+-- separate confirmed claim, and support correction for manual recruitment.
+local fameSource=read("src/PlayingGame/GameFlow/FameReputation.lua")
+local a=assert(fameSource:find("local function unitRecruitmentSeat",1,true))
+local b=assert(fameSource:find("--Resource Tracker Fame/Reputation is runtime-only",a,true))
+local refreshes=0
+local recruits=setmetatable({
+    gStates={turnNumber=1},turnOrder={{seatPos=1},{seatPos=2}},
+    resourceCardsSourceChanged=function() refreshes=refreshes+1 end
+},{__index=_G})
+assert(load(fameSource:sub(a,b-1),"Recruitment ledger","t",recruits))()
+eq(recruits.unitRecruitmentCount(1),0,"No recruitment at turn start")
+eq(recruits.unitRecruitmentRecord(1,"first"),true,"First confirmed recruit")
+eq(recruits.unitRecruitmentRecord(1,"second"),true,"Replacement confirmed recruit")
+eq(recruits.unitRecruitmentCount(1),2,"Disbanding does not erase the first recruitment")
+eq(recruits.unitRecruitmentRecord(2,"wrong"),false,"Ignore another seat's recruitment")
+local spec={normal={rep=1},powered={fame=1,rep=1}}
+local result=recruits.unitRecruitmentReward(spec,false,2)
+eq(result.fame,0,"Basic Heroic Tale Fame")
+eq(result.rep,2,"Basic Heroic Tale Reputation per recruit")
+result=recruits.unitRecruitmentReward(spec,true,2,2)
+eq(result.fame,4,"Copied powered Heroic Tale Fame")
+eq(result.rep,4,"Copied powered Heroic Tale Reputation")
+eq(recruits.unitRecruitmentAdjust(1,1),true,"Count a manual recruit")
+eq(recruits.unitRecruitmentCount(1),3,"Manual count shared across effects")
+eq(recruits.unitRecruitmentAdjust(1,-1),true,"Undo manual correction")
+eq(recruits.unitRecruitmentCount(1),2,"Count returns to confirmed claims")
+eq(refreshes,4,"Refresh only when the ledger changes")
+recruits.gStates.preEndTurn=true
+eq(recruits.unitRecruitmentRecord(1,"late"),false,"Late transfer cannot contaminate next turn")
+print("Recruitment history and Heroic Tale reward regressions passed")

@@ -258,6 +258,8 @@ function startOfTurn()
     -- A new turn starts a fresh, reversible play sequence for conditional
     -- starting-card effects. These tables remain in saved games mid-turn.
     gStates.startingCardSelections={}
+    gStates.turnUnitRecruitments={}
+    gStates.turnUnitRecruitmentAdjustment=0
     gStates.resourceCardPlayOrder={}
     gStates.resourceCardPlaySerial=0
     -- New turns start fresh; a save/reload within the turn preserves the ledger.

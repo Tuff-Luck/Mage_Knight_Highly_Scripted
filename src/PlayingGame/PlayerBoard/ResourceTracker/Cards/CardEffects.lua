@@ -244,6 +244,21 @@ return function(deps)
             end
             fameRepSide=multiplied
         end
+        -- Heroic Tale credits all recruitment events this turn, even if the
+        -- recruited Unit was subsequently disbanded. Only the upright paid
+        -- card contributes; returning it or changing its side is reversible.
+        if complete and rule~=nil and rule.recruitmentReward~=nil
+            and unitRecruitmentCount~=nil and unitRecruitmentReward~=nil then
+            local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
+            if active~=nil then
+                local earned=unitRecruitmentReward(rule.recruitmentReward,powered,
+                    unitRecruitmentCount(active.seatPos),repeatLink~=nil and repeatLink.count or 1)
+                if earned~=nil then
+                    fameRepSide={fame=(fameRepSide~=nil and fameRepSide.fame or 0)+earned.fame,
+                        rep=(fameRepSide~=nil and fameRepSide.rep or 0)+earned.rep}
+                end
+            end
+        end
         -- Fame/Reputation earned only when the calculator shows this source's group defeated.
         local defeatSide=rule~=nil and rule.defeatFameRep~=nil and faceUp and costPaid and canApply
             and (powered and rule.defeatFameRep.powered or not powered and rule.defeatFameRep.normal) or nil

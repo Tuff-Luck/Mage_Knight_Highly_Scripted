@@ -59,6 +59,9 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
     if control=="interaction" and rule.interactionReward~=nil then
         selected.interaction=not selected.interaction
         selected.interactionPowered=selected.interaction and record.powered or nil
+    elseif control=="recruitCount" and rule.recruitmentReward~=nil then
+        if unitRecruitmentAdjust~=nil then unitRecruitmentAdjust(current.seatPos,right and -1 or 1) end
+        return
     elseif control=="recruit" and rule.recruitDiscount~=nil and not record.powered then
         selected.recruited=not selected.recruited
     elseif control=="terrain" and rule.selectedTerrainDiscount~=nil and record.powered
