@@ -335,6 +335,10 @@ assert(layout:find("function unitLayoutReconcileBannerCommand(seatPos)",1,true)
     and layout:find("resourceUnitsRetireUnit(previous)",1,true)
     and layout:find("trash.putObject(old)",1,true),
     "Removing Banner of Command must disband the dependent Unit")
+assert(layout:find("unitReplacementDetachAccessories(layout,old,seatPos)",1,true),
+    "Banner-dependent disband shares ordinary Unit accessory cleanup")
+assert(layout:find("obj.guid~=borrowedGUID",1,true),
+    "Temporary Call offer loans cannot claim or displace Command slots")
 assert(event:find("unitLayoutReconcileBannerCommand(seat)",1,true),
     "Settled drops must reconcile Banner of Command ownership")
 print("Official Banner Artifact one-shot, Fear and Command regression checks passed")

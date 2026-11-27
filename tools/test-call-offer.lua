@@ -260,10 +260,44 @@ eq(gStates.callOfferPreview,nil,"spell exit closes the browser")
 eq(first.position[1],36,"spell exit restored offer position")
 eq(inOffer(first),true,"spell exit returns offer membership")
 -- The player can manually recruit the same card with Call to Glory.
+-- Capacity and actual transfer belong to the shared Unit claim service.
+local freeSlot=false
+local busy=false
+local claims=0
+local slotCommand={guid="command"}
+local slotLayout={commands={slotCommand}}
+function unitLayoutFirstFreeCommand(seat)
+    eq(seat,1,"Borrower seat is used for allocation")
+    if freeSlot then return 1,-60,slotCommand,slotLayout end
+end
+function cardFlowUnitClaimBusy() return busy end
+function cardFlowClaimUnitAtSlot(unit,seat,x,layout,command,onSettled)
+    eq(seat,1,"Claim owner")
+    eq(command,slotCommand,"Use allocated Command")
+    eq(layout,slotLayout,"Use shared board layout")
+    eq(gStates.callOfferPreview,nil,"Temporary loan retired before ownership")
+    claims=claims+1
+    unit.setPosition({x,1,-34.74})
+    onSettled(true)
+    return true
+end
 spellInPlay=true
 callOfferSpellEntered(spell.guid,1)
 first.setPosition({-60,1,-34.74})
 callOfferObjectDropped(first)
+eq(gStates.callOfferGloryClaimed,nil,"Full army does not consume Call to Glory")
+eq(gStates.callOfferPreview.unitGUID,first.guid,"Full army keeps the same loan")
+eq(claims,0,"No over-capacity recruitment")
+freeSlot=true
+busy=true
+first.setPosition({-60,1,-34.74})
+callOfferObjectDropped(first)
+eq(gStates.callOfferGloryClaimed,nil,"Busy claim does not consume Call to Glory")
+eq(claims,0,"Busy transfer cannot claim a second Unit")
+busy=false
+first.setPosition({-60,1,-34.74})
+callOfferObjectDropped(first)
+eq(claims,1,"One shared physical claim")
 eq(gStates.callOfferPreview,nil,"recruited Unit stops being loaned")
 eq(gStates.callOfferGloryClaimed,true,"Call to Glory completion is saved")
 eq(first.position[3],-34.74,"recruited Unit remains in army")

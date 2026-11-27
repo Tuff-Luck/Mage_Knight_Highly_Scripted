@@ -168,9 +168,14 @@ unitLayoutSnapshot=function(seatPos)
 	local units={}
 	local unitByGuid={}
 	local objectX={}
+    -- A Call offer loan is not owned until its recruitment is accepted.
+    -- In particular an over-capacity drop must not displace another Unit
+    -- or accidentally change the dependent Banner of Command Unit.
+    local preview=gStates~=nil and gStates.callOfferPreview or nil
+    local borrowedGUID=preview~=nil and preview.seatPos==seatPos and preview.unitGUID or nil
 	for _, obj in pairs(objects) do
 		if unitLayoutIsCommand(obj) then commands[#commands+1]=obj objectX[obj.guid]=obj.getPosition()[1] end
-		if unitLayoutIsUnit(obj) then units[#units+1]=obj unitByGuid[obj.guid]=obj objectX[obj.guid]=obj.getPosition()[1] end
+		if unitLayoutIsUnit(obj) and obj.guid~=borrowedGUID then units[#units+1]=obj unitByGuid[obj.guid]=obj objectX[obj.guid]=obj.getPosition()[1] end
 	end
 	-- Cache each object's X coordinate once. TTS object calls inside sort comparators
 	-- multiply quickly as the Unit/Command count grows.
@@ -532,9 +537,16 @@ function unitLayoutReconcileBannerCommand(seatPos)
     if previous~=nil and previous~=current then
         local old=getObjectFromGUID(previous)
         if old~=nil and unitLayoutObjectInUnitArea(previous,seatPos) then
-            if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
             local trash=getObjectFromGUID(trashCan)
-            if trash~=nil then trash.putObject(old) end
+            if trash==nil then return end
+            -- Disbanding a dependent Unit follows the same accessory cleanup
+            -- as a confirmed replacement: Wounds, attached Banners and mana
+            -- must not be inherited by the next occupant of this column.
+            if unitReplacementDetachAccessories~=nil then
+                unitReplacementDetachAccessories(layout,old,seatPos)
+            end
+            if resourceUnitsRetireUnit~=nil then resourceUnitsRetireUnit(previous) end
+            trash.putObject(old)
         else
             -- A manually removed/destroyed dependent Unit loses the Banner.
             local banner=getObjectFromGUID(GUID.card.bannerOfCommandToken)

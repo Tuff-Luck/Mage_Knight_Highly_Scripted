@@ -363,15 +363,56 @@ function callOfferObjectDropped(obj)
             callOfferEnsureControls(current.seatPos)
             return
         end
+        -- The layout excludes this unowned loan until we accept the claim.
+        -- Use the same free Command allocation and settled recruitment ledger
+        -- as an ordinary offer claim, including expanded Banner/Bonds slots.
+        local slot,x,command,layout=unitLayoutFirstFreeCommand(current.seatPos)
+        if slot==nil or cardFlowUnitClaimBusy() or gStates.unitReplacementPending~=nil then
+            local unit=getObjectFromGUID(guid)
+            if unit~=nil then
+                local display=current.display
+                if display==nil then
+                    local pos=ttsVectorArray(spell.getPosition())
+                    display={position={pos[1]+3.9,math.max(1.8,pos[2]+0.35),pos[3]},
+                        rotation={0,180,0}}
+                end
+                unit.setPositionSmooth(display.position,false,false)
+                unit.setRotationSmooth(display.rotation,false,false)
+                callOfferEnsureControls(current.seatPos)
+            end
+            -- Do not silently disband a Unit (especially one supported by
+            -- Banner of Command). The player can free a slot and retry.
+            if safeBroadcastToColor~=nil and turnOrder~=nil and gStates.turnNumber~=nil then
+                safeBroadcastToColor("Call to Glory: free a Command slot or finish the pending Unit claim, then try again.",
+                    positionToColor(gStates.turnNumber),warningColor)
+            end
+            return
+        end
+        local unit=getObjectFromGUID(guid)
+        if unit==nil then return end
         transferSerial=transferSerial+1
-        -- The player has recruited this physical Unit with Call to Glory.
-        -- Keep the Spell consumed even though its transient browser is gone.
-        gStates.callOfferGloryClaimed=true
-        if unitRecruitmentRecord~=nil then unitRecruitmentRecord(current.seatPos,guid) end
+        local claimSerial=transferSerial
+        -- Retire temporary combat abilities before transferring ownership.
         current.unitGUID=nil
-        if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
-        cleanButtons(getObjectFromGUID(guid),true)
         gStates.callOfferPreview=nil
+        gStates.callOfferGloryClaimed=true
+        if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
+        cleanButtons(unit,true)
+        local accepted=cardFlowClaimUnitAtSlot(unit,current.seatPos,x,layout,command,function(success)
+            if not success and transferSerial==claimSerial then
+                -- Failed settlement must not consume the spell or leave a
+                -- borrowed card permanently stranded outside its offer.
+                gStates.callOfferGloryClaimed=nil
+                current.unitGUID=guid
+                restoreUnit(current,true)
+            end
+        end)
+        if not accepted then
+            gStates.callOfferGloryClaimed=nil
+            current.unitGUID=guid
+            gStates.callOfferPreview=current
+            showControls(current,guid,transferSerial)
+        end
     end,function()
         local live=getObjectFromGUID(guid)
         return live==nil or (live.held_by_color==nil

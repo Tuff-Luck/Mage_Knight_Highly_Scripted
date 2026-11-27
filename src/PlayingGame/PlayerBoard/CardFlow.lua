@@ -309,18 +309,20 @@ function cardFlowClaimUnitAtSlot(claimedCard,seatPos,unitX,layout,commandSource,
     claimedCard.setScale({scale,1,scale})
     claimedCard.setPositionSmooth({unitX,2.0,-34.74},false,false)
     safeWaitFrames("PlayerBoard.CardFlow",function()
-        safeWaitCondition("PlayerBoard.CardFlow",function()
+        local function finish(settled)
             fillWait=false
             -- Record only a completed claim in the player's Unit area.
-            if unitRecruitmentRecord~=nil and objectGUIDInZone(claimedGUID,playerUnitAreas[seatPos]) then
+            local success=settled and objectGUIDInZone(claimedGUID,playerUnitAreas[seatPos])==true
+            if success and unitRecruitmentRecord~=nil then
                 unitRecruitmentRecord(seatPos,claimedGUID)
             end
             scheduleUnitLayoutRefresh(seatPos)
-            if type(onSettled)=="function" then onSettled() end
-        end,function()
+            if type(onSettled)=="function" then onSettled(success) end
+        end
+        safeWaitCondition("PlayerBoard.CardFlow",function() finish(true) end,function()
             local live=getObjectFromGUID(claimedGUID)
             return live==nil or (live.resting and live.isSmoothMoving()==false)
-        end,8)
+        end,8,function() finish(false) end)
     end,5)
     local data=gameCards[claimedGUID]
     if data~=nil then
