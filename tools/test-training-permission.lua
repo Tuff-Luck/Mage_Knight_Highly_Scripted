@@ -104,4 +104,16 @@ eq(broadcasts,1,"authorized Training drop has no warning")
 gStates.trainingOfferPreview={seatPos=2,cardGUID="222222"}
 trainingOfferClicked({color="Red"},"","TrainingOfferControl_222222_next")
 eq(broadcasts,2,"unauthorized Training button still broadcasts")
+-- A second Training copy uses the same quiet event path.
+local alternate={guid="4808f2",type="Card"}
+objects[alternate.guid]=alternate
+gameCards[alternate.guid]={cardType="Advanced Action",resourceKey="training"}
+gStates.trainingOfferPreview=nil
+trainingInPlay=false
+objects.play.getObjects=function() return {alternate} end
+local before=queued
+trainingOfferObjectDropped("Red",card)
+eq(queued,before,"Alternate copy still ignores unauthorized planning")
+trainingOfferObjectDropped("Blue",card)
+eq(queued,before+1,"Alternate copy schedules the same physical browser")
 print("Training permission regressions passed")

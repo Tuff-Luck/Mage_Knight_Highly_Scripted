@@ -190,12 +190,30 @@ eq(methods.throwReason(ordinary),nil,"Normal face-up card is not thrown")
 -- with the Resource Tracker minimized, and regardless of the linked flip.
 env.resourceCardsMaximalEffectLink=methods.link
 local trainingMode=assert(load(extract(reader,
-    "function resourceCardsTrainingMode(seatPos)",
+    "function resourceCardsTrainingMode(seatPos,trainingGUID)",
     "-- Used by Steady Tempo")..
     "\nreturn resourceCardsTrainingMode","Training OFF mode","t",env))()
 local basicTraining,basicUses=trainingMode(1)
 eq(basicTraining,false,"Unpowered copied Training")
 eq(basicUses,3,"Training has three uses while OFF")
+-- The alternate physical copy must read its own entitlement, never the
+-- original Training card's nearby Maximal Effect.
+local alternateTraining=card("4808f2",5)
+objects[alternateTraining.guid]=alternateTraining
+env.gameCards[alternateTraining.guid]={cardType="Advanced Action",resourceKey="training"}
+local originalZoneObjects=zone.getObjects
+zone.getObjects=function() return {maximal,training,alternateTraining} end
+local altPowered,altUses=trainingMode(1,alternateTraining.guid)
+eq(altPowered,false,"Alternate Training does not borrow original mana")
+eq(altUses,1,"Alternate Training does not inherit another card's copies")
+local altMaximal=card("d030d8",5.1)
+objects[altMaximal.guid]=altMaximal
+env.gameCards[altMaximal.guid]={cardType="Advanced Action",resourceKey="maximalEffect"}
+zone.getObjects=function() return {maximal,training,alternateTraining,altMaximal} end
+altPowered,altUses=trainingMode(1,alternateTraining.guid)
+eq(altPowered,false,"Alternate copied Training basic side")
+eq(altUses,3,"Alternate Maximal Effect repeats alternate Training")
+zone.getObjects=originalZoneObjects
 methods.sync(1,{maximal,training},{[training.guid]={count=3,powered=false}})
 eq(methods.marked(training),true,"Linked card displays red X")
 eq(#training.getButtons(),1,"Only one X")

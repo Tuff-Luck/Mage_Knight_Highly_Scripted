@@ -291,7 +291,7 @@ local function claim(state)
     claims[state.trainingGUID]=(claims[state.trainingGUID] or 0)+1
     gStates.trainingOfferClaims=claims
     cleanPreview(gained)
-    gained.UI.setXmlTable({{}})
+    gained.UI.setXml("")
     -- Replace the original hand card in the owning deed inventory. The new
     -- Advanced Action belongs to this player even on the basic discard side.
     for _,player in ipairs(turnOrder) do
