@@ -62,5 +62,44 @@ rewards.modifiers({records=records,objects={unit=unit,reward={guid="reward"}},
     setHighlight=function(obj,status) highlighted[obj.guid]=status end})
 assert(records.unit.status=="green" and records.unit.links[1]=="reward")
 assert(records.reward.status=="purple" and highlighted.reward=="purple")
-assert(highlighted.unit==nil and totals.attack==6)
+assert(highlighted.unit==nil and totals.attack==3)
+local ops=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
+assert(records.reward.resources==nil,"Linked reward must not generate a separate Attack")
+assert(ops.phaseAttackBonus(records.unit,"attack","attack")==3)
+assert(ops.previewAttackBonuses(records,{}).attack==3)
 print("Physical link ambiguity and Faction Reward scan passed")
+
+-- Vial of Toxin also accepts Skills, sideways Deeds and Spells/Artifacts.
+local function oneModifier(mode,kind,cardType,posture,resources,composite,transform)
+    local target={guid="target"}
+    env.gameCards.target=cardType~=nil and {cardType=cardType} or nil
+    local r={target={kind=kind,resources=resources,contributes=true,links={},status="green",
+        compositeAction=composite},reward={kind="factionReward",modifier=mode,links={},status="yellow"}}
+    local t={}
+    for k,v in pairs(resources) do t[k]=v end
+    rewards.modifiers({records=r,objects={target=target,reward={guid="reward"}},
+        footprint=function(obj) return obj end,overlapArea=function() return 5 end,
+        cardPosture=function() return posture end,attackTransforms=transform or {},
+        totals=t,setHighlight=function() end})
+    return r,t
+end
+for _,case in ipairs({{"skill",nil,"upright"},{"card","Spell","upright"},
+    {"card","Artifact","upright"},{"card","Starting","sideways"},{"wound",nil,"sideways"}}) do
+    local r=oneModifier("physicalBoost",case[1],case[2],case[3],{attack=2})
+    assert(r.reward.status=="purple","Any physical Attack source qualifies")
+    assert(ops.phaseAttackBonus(r.target,"attack","attack")==3)
+end
+local elemental=oneModifier("physicalBoost","card","Starting","upright",{attackFire=2})
+assert(elemental.reward.status=="yellow" and elemental.target.phaseAttackBoosts==nil)
+local converted=oneModifier("physicalBoost","unit","Elite Unit","upright",{ranged=3},false,{coldFire=true})
+assert(converted.reward.status=="yellow","Global Cold Fire blocks physical-only modifier")
+for _,mode in ipairs({"addFire","addIce","makeRanged"}) do
+    local r=oneModifier(mode,"card","Starting","upright",{attack=3},true)
+    assert(r.reward.status=="yellow" and r.target.resources.attack==3,
+        "Single-Action modifier rejects a composite Action")
+    r=oneModifier(mode,"card","Starting","sideways",{attack=1})
+    assert(r.reward.status=="yellow","Single-Action modifier rejects sideways")
+    r=oneModifier(mode,"card","Spell","upright",{attack=3})
+    assert(r.reward.status=="yellow","Single-Action modifier rejects Spell")
+end
+print("Faction modifier eligibility and phase-aware linking passed")

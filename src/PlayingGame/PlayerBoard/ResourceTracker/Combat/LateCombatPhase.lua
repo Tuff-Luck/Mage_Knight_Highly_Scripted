@@ -2,7 +2,7 @@
 -- The coordinator owns committed Damage, physical objects, scenario updates and rewards.
 return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCount,
     combatVampiricArmourGain,combatEffectPostDamageSpecs,combatFrozenCopy,
-    attackPhaseSources,combatAttackTotal,combatBossPhasePlan)
+    attackPhaseSources,combatAttackTotal,combatBossPhasePlan,resourceOps)
     -- Joined boss attacks may defeat an ordinary enemy or one head without
     -- defeating the whole group. Per-defeat bonuses count each actual kill,
     -- never every level removed from a still-living boss.
@@ -224,7 +224,13 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
         -- Compare the original printed/current values, never the already
         -- increased values. One bonus per distinct value, excluding Attack 1
         -- from the Skill itself. Stable source order resolves equal values.
-        local seen={[skill.attack or 1]=true}
+        local skillValue=skill.attack or 1
+        if resourceOps~=nil then
+            for _,detail in ipairs(skill.details or {}) do
+                skillValue=skillValue+resourceOps.phaseAttackBonus(skill,detail.key,"attack")
+            end
+        end
+        local seen={[skillValue]=true}
         local ordered={}
         for _,source in ipairs(sources) do
             if source~=skill and source.distinctAttackBonus==nil then ordered[#ordered+1]=source end
@@ -234,9 +240,11 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
             for _,detail in ipairs(source.details or {}) do
                 local family=detail.family
                 local amount=tonumber(source.resources[detail.key]) or 0
+                local effective=amount+(resourceOps~=nil and
+                    resourceOps.phaseAttackBonus(source,detail.key,"attack") or 0)
                 if (family=="attack" or family=="ranged" or family=="siege")
-                    and amount>0 and not seen[amount] then
-                    seen[amount]=true
+                    and amount>0 and not seen[effective] then
+                    seen[effective]=true
                     local bonus=skill.distinctAttackBonus
                     source.resources[detail.key]=amount+bonus
                     source[family]=(source[family] or 0)+bonus

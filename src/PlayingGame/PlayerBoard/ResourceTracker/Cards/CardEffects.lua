@@ -317,6 +317,8 @@ return function(deps)
             combatConversion=complete and rule~=nil and rule.combatConversion or nil,
             defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
             repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,
+            variableEnemyBlockBonus=complete and powered and rule~=nil and rule.enemyIconBlock==true
+                and repeatLink==nil and (tonumber(enemyIconBonus) or 0) or nil,
             swiftDouble=complete and rule~=nil and rule.swiftDouble==true,
             excessBlockArmour=complete and powered and rule~=nil
                 and rule.excessBlockArmour==true,

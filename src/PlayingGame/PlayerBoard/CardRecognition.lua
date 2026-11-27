@@ -2866,7 +2866,7 @@ trackerPrivate.lateCombatPhase=require("PlayingGame.PlayerBoard.ResourceTracker.
     combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCount,
     function(result) return combatVampiricArmourGain(result) end,
     function(...) return combatEffectPostDamageSpecs(...) end,combatFrozenCopy,
-    combatConfig.attackPhaseSources,combatAttackTotal,combatBossPhasePlan)
+    combatConfig.attackPhaseSources,combatAttackTotal,combatBossPhasePlan,combatConfig.resourceOperations)
 
 trackerPrivate.combatResourceDisplay=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CombatResourceDisplay")(
     combatConfig,function(guid) return skillResourceDefinitions[guid] end,
@@ -3834,21 +3834,24 @@ function resourceCardsEffectiveValueSnapshot()
     local current=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
     local scan=current~=nil and resourceCardScanBySeat[current.seatPos] or nil
     return {open=true,tracker=gStates~=nil and gStates.resourceTracker or nil,
-        totals=totals,transform=totals~=nil and scan~=nil and scan.attackTransforms or nil}
+        totals=totals,transform=totals~=nil and scan~=nil and scan.attackTransforms or nil,
+        attackBonuses=scan~=nil and scan.phaseAttackPreview or nil}
 end
 
 function resourceCardsEffectiveValue(category,field,snapshot)
     local state=snapshot or resourceCardsEffectiveValueSnapshot()
     if not state.open then return 0 end
     local tracker,totals,transform=state.tracker,state.totals,state.transform
+    local attackFamily=category=="attack" or category=="ranged" or category=="siege"
+    local wanted=attackFamily and trackerPrivate.resourceTotalsKeyByField[category][field] or nil
+    local bonus=wanted~=nil and state.attackBonuses~=nil and (state.attackBonuses[wanted] or 0) or 0
     if transform==nil or (not transform.coldFire and not transform.siege)
-        or (category~="attack" and category~="ranged" and category~="siege") then
-        return resourceCardsRawValue(tracker,totals,category,field)
+        or not attackFamily then
+        return resourceCardsRawValue(tracker,totals,category,field)+bonus
     end
 
     -- Same key mapping as the Combat Calculator's per-source resources.
-    local wanted=trackerPrivate.resourceTotalsKeyByField[category][field]
-    local amount=0
+    local amount=bonus
     for _,sourceFamily in ipairs(trackerPrivate.attackTransformFamilies) do
         for _,sourceField in ipairs(trackerPrivate.attackTransformFields) do
             local sourceKey=trackerPrivate.resourceTotalsKeyByField[sourceFamily][sourceField]

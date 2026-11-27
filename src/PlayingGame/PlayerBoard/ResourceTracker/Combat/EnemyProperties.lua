@@ -237,18 +237,18 @@ return function(combatConfig)
     -- totalled first and halved once, rounding down.
     local function combatAttackTotal(groups,data,perks,phase)
         local normal,resisted=0,0
+        local operations=combatConfig.resourceOperations
+        local function phaseValue(source,field,asFamily)
+            local value=tonumber(source.resources[field]) or 0
+            return value+(operations~=nil and
+                operations.phaseAttackBonus(source,field,phase,asFamily) or 0)
+        end
         for _,group in ipairs(groups) do
             for _,source in ipairs(group.sources) do
                 if not (source.dueling and source.duelingEligible==false
                     and group.category~="block") then
                     for _,attackType in ipairs(combatConfig.attackTypes) do
-                        local function phaseValue(field,asFamily)
-                            local value=tonumber(source.resources[field]) or 0
-                            local operations=combatConfig.resourceOperations
-                            return value+(operations~=nil and
-                                operations.phaseAttackBonus(source,field,phase,asFamily) or 0)
-                        end
-                        local value=phaseValue(attackType[group.category],group.category)
+                        local value=phaseValue(source,attackType[group.category],group.category)
                         if phase=="range" and combatConfig.artifactCombat.bow then
                             local modeR=combatConfig.bowSourceModes[source.key.."#ranged"] or "double"
                             local modeS=combatConfig.bowSourceModes[source.key.."#siege"] or "none"
@@ -256,12 +256,12 @@ return function(combatConfig)
                                 if modeR=="siege" then value=0
                                 else value=value*2 end
                                 if modeS=="ranged" then
-                                    value=value+2*phaseValue(attackType.siege,"ranged")
+                                    value=value+2*phaseValue(source,attackType.siege,"ranged")
                                 end
                             elseif group.category=="siege" then
                                 if modeS=="ranged" then value=0 end
                                 if modeR=="siege" then
-                                    value=value+phaseValue(attackType.ranged,"siege")
+                                    value=value+phaseValue(source,attackType.ranged,"siege")
                                 end
                             end
                         end

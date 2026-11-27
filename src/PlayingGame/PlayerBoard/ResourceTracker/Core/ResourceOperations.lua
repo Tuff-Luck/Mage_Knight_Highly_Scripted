@@ -44,7 +44,8 @@ end
 function M.uniqueField(resources,families)
     local found
     for field,amount in pairs(resources or {}) do
-        if type(amount)=="number" and amount>0 and families[M.splitKey(field)] then
+        if type(field)=="string" and type(amount)=="number" and amount>0
+            and families[M.splitKey(field)] then
             if found~=nil then return nil end
             found=field
         end
@@ -75,8 +76,9 @@ function M.effectivePhaseAttackBoosts(record,transform)
 end
 
 function M.phaseAttackBonus(source,field,phase,asFamily)
+    if source.phaseAttackBoosts==nil or field==nil then return 0 end
     local amount=tonumber((source.resources or {})[field]) or 0
-    if amount<=0 or source.phaseAttackBoosts==nil then return 0 end
+    if amount<=0 then return 0 end
     local family,element=M.splitKey(field)
     local bonus=0
     for _,spec in ipairs(source.phaseAttackBoosts[field] or {}) do
@@ -86,6 +88,40 @@ function M.phaseAttackBonus(source,field,phase,asFamily)
         end
     end
     return bonus
+end
+
+-- Preview each source in its printed/effective phase for the Resource
+-- Tracker; the Combat Calculator uses its actually allocated phase instead.
+-- Do not inject preview values into the underlying spendable resource pool.
+function M.previewAttackBonuses(records,transform)
+    local totals={}
+    for _,record in pairs(records) do
+        if record.phaseAttackBoosts~=nil then
+            local effective={resources={},phaseAttackBoosts=M.effectivePhaseAttackBoosts(record,transform)}
+            for field,amount in pairs(record.resources or {}) do
+                if type(field)=="string" and type(amount)=="number" then
+                    local key=M.globalAttackKey(field,transform)
+                    effective.resources[key]=(effective.resources[key] or 0)+amount
+                end
+            end
+            for field in pairs(effective.phaseAttackBoosts) do
+                local family=M.splitKey(field)
+                local phase=family=="attack" and "attack" or "range"
+                totals[field]=(totals[field] or 0)+M.phaseAttackBonus(effective,field,phase)
+            end
+        end
+    end
+    return totals
+end
+
+function M.fixedShapeshiftAmount(record,field)
+    local value=tonumber((record.resources or {})[field]) or 0
+    -- Cold Toughness may convert its printed Block 5, never the extra
+    -- Block generated from the enemy's attack icons.
+    if M.splitKey(field)=="block" then
+        value=value-(record.variableEnemyBlockBonus or 0)
+    end
+    return math.max(0,value)
 end
 
 local function copyResources(record)

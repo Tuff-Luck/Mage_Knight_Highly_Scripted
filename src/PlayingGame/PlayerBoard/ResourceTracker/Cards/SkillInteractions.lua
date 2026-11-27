@@ -137,17 +137,9 @@ function M.process(context)
                 if data~=nil and data.cardType=="Starting"
                     and card.is_face_down~=true and cardPosture(card)=="upright"
                     and record~=nil and record.complete==true and record.resources~=nil then
-                    local field=nil
-                    local matches=0
-                    for category,value in pairs(record.resources) do
-                        if type(value)=="number" and value>0 and
-                            (category=="move" or category:sub(1,6)=="attack"
-                                or category:sub(1,5)=="block") then
-                            field=category
-                            matches=matches+1
-                        end
-                    end
-                    if matches==1 then
+                    local field=resourceOps.uniqueField(record.resources,
+                        {move=true,attack=true,block=true})
+                    if field~=nil then
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
                         if area>0 then
                             candidates[#candidates+1]={card=card,field=field,overlap=area}
@@ -183,7 +175,7 @@ function M.process(context)
                 if selected~=nil then
                     local family=choiceCategory(selected)
                     local newField=resourceOps.changeFamily(sourceField,family)
-                    local original=records[best.card.guid].resources[sourceField]
+                    local original=resourceOps.fixedShapeshiftAmount(records[best.card.guid],sourceField)
                     skillTargetLinked(skill,best.card,sourceField,original,newField)
                     local target=records[best.card.guid]
                     target.shapeshiftField=newField

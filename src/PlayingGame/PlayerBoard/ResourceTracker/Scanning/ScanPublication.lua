@@ -27,6 +27,9 @@ function M.publish(context)
     end
     local previous=trackerPrivate.bySeat[seatPos] or {}
     local previousScan=resourceCardScanBySeat[seatPos]
+    local phaseAttackPreview=combatConfig.resourceOperations~=nil
+        and combatConfig.resourceOperations.previewAttackBonuses(records,attackTransforms) or {}
+    local previousPreview=previousScan~=nil and previousScan.phaseAttackPreview or {}
     -- Linking/unlinking can change a card's effective resource family without
     -- a choice click. Clear only assignments whose linked resource disappeared
     -- or changed; identical copied/printed resources retain their target.
@@ -67,7 +70,8 @@ function M.publish(context)
     local totalsChanged=previousScan==nil or combatConfig.scanAwaitingRescan==true
     if not totalsChanged then
         for category in pairs(trackerPrivate.totalsKeys) do
-            if (previousScan.totals[category] or 0)~=(totals[category] or 0) then
+            if (previousScan.totals[category] or 0)~=(totals[category] or 0)
+                or (previousPreview[category] or 0)~=(phaseAttackPreview[category] or 0) then
                 totalsChanged=true
                 break
             end
@@ -108,7 +112,7 @@ function M.publish(context)
     trackerPrivate.bySeat[seatPos]=current
     resourceCardScanBySeat[seatPos]={cards=records,totals=totals,
         moveSplit=moveSplit,enemyPresent=combatEnemyInPlay,
-        attackTransforms=attackTransforms,
+        attackTransforms=attackTransforms,phaseAttackPreview=phaseAttackPreview,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
         ruthlessReadySpent=ruthlessReadySpent,influenceAction=context.influenceAction==true,

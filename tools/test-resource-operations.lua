@@ -103,3 +103,35 @@ eq(ops.phaseAttackBonus(source,"rangedFire","attack"),2,"Linked modifiers follow
 source.resources.rangedFire=0
 eq(ops.phaseAttackBonus(source,"rangedFire","attack"),0,"Ineligible base cannot create standalone bonus")
 print("Linked phase bonuses and repeated Block regressions passed")
+
+local preview=ops.previewAttackBonuses({linked=linked},{siege=true,coldFire=true})
+eq(preview.siegeColdFire,1,"Tracker uses effective early phase, without Toxin")
+eq(ops.previewAttackBonuses({linked=linked},{}).rangedFire,1,"Tracker reflects local converted field")
+eq(linked.resources.rangedFire,3,"Preview never mutates the combat base")
+eq(ops.fixedShapeshiftAmount({resources={blockIce=8},variableEnemyBlockBonus=3},"blockIce"),5,
+    "Cold Toughness transfers only printed Ice Block 5")
+eq(ops.fixedShapeshiftAmount({resources={blockFire=4}},"blockFire"),4,
+    "Terrain-derived One with the Land retains its fixed current value")
+-- Actual calculator must consume linked bonuses before resistance or Sword.
+local cfg={resourceOperations=ops,attackTypes={
+    {key="P",attack="attack",ranged="ranged",siege="siege"},
+    {key="F",attack="attackFire",ranged="rangedFire",siege="siegeFire"}
+},artifactCombat={},bowSourceModes={}}
+local total=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").defences(cfg).attackTotal
+local physical={key="a",resources={ranged=3}}
+ops.linkAttackBonus(physical,"ranged",{early={ranged=2,siege=1},late=3,physicalOnly=true})
+ops.linkAttackBonus(physical,"ranged",{early={ranged=1,siege=1},late=2})
+local group={{sources={physical},category="ranged"}}
+eq(total(group,{},{},"range"),6,"Actual ranged result includes both linked boosts")
+eq(total(group,{},{},"attack"),8,"Actual melee fallback uses later values")
+eq(total(group,{pResist=true},{},"attack"),4,"Resistance applies to entire modified Attack")
+cfg.artifactCombat.sword=true
+eq(total(group,{},{},"attack"),16,"Sword applies to complete linked physical value")
+cfg.artifactCombat.sword=false
+cfg.artifactCombat.bow=true
+eq(total(group,{},{},"range"),12,"Bow doubles complete Ranged source")
+cfg.bowSourceModes["a#ranged"]="siege"
+eq(total(group,{},{},"range"),0,"Converted Ranged no longer spent in Ranged category")
+eq(total({{sources={physical},category="siege"}},{},{},"range"),5,
+    "Bow Siege choice uses Siege-specific linked values")
+print("Production Attack totals and tracker preview regressions passed")
