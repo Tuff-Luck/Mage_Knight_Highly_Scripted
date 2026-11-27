@@ -41,7 +41,7 @@ contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardSca
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'local targetX=-44',"Dodge target buttons beside ordinary Attack source")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'local targetY=-12',"Dodge target alignment")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"),'targetX-withinUse*44',"Powered Dodge targets spaced apart")
-contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'(result.enemyGUID==nil or rule.dodgeAttackSplit==true)',
+contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'(result.enemyGUID==nil or rule.dodgeAttackSplit==true\n                or rule.separateEffectTargetAllSides==true)',
     "Dodge debuff works independently of an Attack assignment")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua"),'{attackReduce=2},key)',"Each Dodge button creates a separate -2 reduction")
 assert(not reader:find('dodgeReductionAmounts',1,true),"No combined Dodge reduction")
