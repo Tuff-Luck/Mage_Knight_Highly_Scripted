@@ -1090,6 +1090,18 @@ function cardEffectIsVertical(card)
 	return math.min(y,180-y)<=10
 end
 
+-- Permanently removed deeds no longer belong to any player's deck.
+-- Hand/offer entry already establishes ownership for a deliberately
+-- recovered card. Time Bending's temporary storage must retain ownership.
+function deedInventoryForgetCard(guid)
+    for _,player in pairs(turnOrder or {}) do
+        local inventory=player.deadDeckInventory or {}
+        for index=#inventory,1,-1 do
+            if inventory[index]==guid then table.remove(inventory,index) end
+        end
+    end
+end
+
 --End-turn card cleanup belongs with deed/card flow rather than Combat. Return the current
 --discard destination because the first loose card becomes the physical discard pile.
 function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
@@ -1124,7 +1136,7 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	end
 
 	--Steady Tempo stays in the play area while its explicit end-turn choice is unresolved.
-	if not linkedThrown and isSteadyTempoGUID~=nil
+	if throwReason==nil and isSteadyTempoGUID~=nil
 		and isSteadyTempoGUID(card.guid)==true and cardEffectIsVertical(card)==true then
 		keepInPlay=true
 		gStates.turnForfeited=false
@@ -1148,6 +1160,13 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 
 	gStates.turnForfeited=false
 	local trash=getObjectFromGUID(trashCan)
+	local thrownWound=throwReason~=nil and card.getGMNotes~=nil and card.getGMNotes()=="Wound"
+	-- Do not clear a saved THROW decision or its marker when the physical
+	-- destination is missing. Leave the card available for manual recovery.
+	if throwReason~=nil and not thrownWound and trash==nil then
+		log("Unable to throw away card "..card.guid..": Trash chest missing.")
+		return cardDestination
+	end
 	local data=gameCards[card.guid]
 	local playableArtifact=data~=nil and data.cardType=="Artifact" and data.full==nil
 	-- A new play must start with no Golden Grail Heal-spend confirmation.
@@ -1166,12 +1185,15 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 		if resourceCardsMaximalEffectMark~=nil then
 			resourceCardsMaximalEffectMark(card,false)
 		end
-		if card.getGMNotes~=nil and card.getGMNotes()=="Wound" then
-			if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+		local guid=card.guid
+		if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+		if thrownWound then
 			card.destruct()
-		elseif trash~=nil then
+		else
+			card.setScale({1.5,1,1.5})
 			trash.putObject(card)
 		end
+		deedInventoryForgetCard(guid)
 		return cardDestination
 	end
 

@@ -252,7 +252,7 @@ do
     local verdictSource=section(rec,"function resourceCardsThrowAwayReason(card)",
         "-- The last End Turn click")
     assert(load(verdictSource,"Shared throw-away verdict","t",cleanupEnv))()
-    local cleanupSource=section(flow,"function cleanupPlayedCardAtEndTurn(",
+    local cleanupSource=section(flow,"function deedInventoryForgetCard(",
         "local MEDITATION_BUTTON_SUFFIXES")
     local cleanup=assert(load(cleanupSource.."\nreturn cleanupPlayedCardAtEndTurn",
         "Mysterious Box cleanup","t",cleanupEnv))()

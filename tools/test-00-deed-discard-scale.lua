@@ -8,7 +8,7 @@ local function read(path)
 end
 
 local source=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
-local first=assert(source:find("function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)",1,true))
+local first=assert(source:find("function deedInventoryForgetCard(",1,true))
 local last=assert(source:find("\nlocal MEDITATION_BUTTON_SUFFIXES=",first,true))
 local env={
     turnOrder={{seatPos=1,deadDeckInventory={"first","second","third"}}},

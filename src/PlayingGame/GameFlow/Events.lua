@@ -2155,6 +2155,21 @@ function __onObjectEnterContainer_raw(bag, obj)
 		if terrainTiles[obj.guid]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	if obj~=nil and mapTokenNeedsArrangement~=nil and mapTokenNeedsArrangement(obj)==true then mapTokenReleaseObject(obj) end
+    -- Manual permanent deed removal has the same ownership consequence
+    -- as linked throws and Artifact breaks. Time Bending is only stored
+    -- in Trash until round end, so its owner must remain recorded.
+    if bag~=nil and obj~=nil and bag.guid==trashCan and obj.type=="Card"
+        and gStates.firstStarted==true then
+        local data=gameCards[obj.guid]
+        local temporary=gStates.timeBendingRemovedSeat~=nil
+            and obj.guid==(gStates.timeBendingRemovedGUID or timeBendingGUID)
+        if not temporary and ((data~=nil and data.full==nil
+            and (data.cardType=="Starting" or data.cardType=="Advanced Action"
+                or data.cardType=="Spell" or data.cardType=="Artifact"))
+            or obj.getGMNotes()=="Wound") then
+            deedInventoryForgetCard(obj.guid)
+        end
+    end
     -- Manual Unit disband is just as meaningful as the scripted full-board
     -- replacement. Retire its activation/Ready history, but keep the Command
     -- token spent until a different Unit actually claims its old slot.

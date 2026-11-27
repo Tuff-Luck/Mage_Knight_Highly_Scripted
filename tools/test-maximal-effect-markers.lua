@@ -260,7 +260,7 @@ methods.beforeEnd(1)
 eq(methods.marked(training),true,
     "End Turn rehydrates red X from physical OFF link before cleanup")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
-local cleanup=extract(flow,"function cleanupPlayedCardAtEndTurn(",
+local cleanup=extract(flow,"function deedInventoryForgetCard(",
     "local MEDITATION_BUTTON_SUFFIXES=")
 env.resourceCardsMaximalEffectMarked=methods.marked
 env.resourceCardsMaximalEffectMark=methods.mark
@@ -286,11 +286,16 @@ local run=assert(load(cleanup.."\nreturn cleanupPlayedCardAtEndTurn",
 eq(run(training,1,nil),nil,"Marked card does not seed discard")
 eq(trashed[1],training.guid,"Marked face-up card was thrown away")
 eq(methods.marked(training),false,"Trashed card cannot retain marker")
+eq(#env.turnOrder[1].deadDeckInventory,2,"Thrown Action removed from deed inventory")
+eq(env.turnOrder[1].deadDeckInventory[1],maximal.guid,"Source remains owned")
+eq(env.turnOrder[1].deadDeckInventory[2],ordinary.guid,"Unrelated deed remains owned")
 run(ordinary,1,nil)
 eq(#trashed,1,"Unmarked face-up card not trashed")
+eq(#env.turnOrder[1].deadDeckInventory,2,"Ordinary discard remains owned")
 ordinary.is_face_down=true
 run(ordinary,1,nil)
 eq(trashed[2],ordinary.guid,"Manually face-down card still thrown away")
+eq(#env.turnOrder[1].deadDeckInventory,1,"Manual throw removes ownership too")
 
 -- The Wound bag is infinite. An explicitly thrown Wound is destroyed
 -- in place; it must never be sent to either Trash or a discard pile.
@@ -299,7 +304,33 @@ local destroyed=0
 wound.is_face_down=true
 wound.getGMNotes=function() return "Wound" end
 wound.destruct=function() destroyed=destroyed+1 end
+table.insert(env.turnOrder[1].deadDeckInventory,wound.guid)
 run(wound,1,nil)
 eq(destroyed,1,"Thrown Wound must be deleted")
 eq(#trashed,2,"Thrown Wound must not enter Trash")
+eq(#env.turnOrder[1].deadDeckInventory,1,"Destroyed Wound no longer owned")
+
+-- Face-down Steady Tempo is a manual throw, not an unresolved placement.
+training.is_face_down=true
+env.gStates.throwAwayCleanupByGUID={}
+table.insert(env.turnOrder[1].deadDeckInventory,training.guid)
+run(training,1,nil)
+eq(trashed[3],training.guid,"Manual Steady Tempo throw overrides pending placement")
+eq(#env.turnOrder[1].deadDeckInventory,1,"Steady Tempo removed from inventory")
+
+-- Missing Trash cannot clear the saved throw decision or ownership.
+objects.trash=nil
+artifactThrown=true
+env.log=function(_message) end
+env.resourceCardsArtifactBreakClear=function(_guid) artifactThrown=false end
+env.turnOrder[1].deadDeckInventory[2]=artifact.guid
+methods.sync(1,{artifact},{})
+run(artifact,1,nil)
+eq(artifactThrown,true,"Missing Trash preserves THROW choice")
+eq(methods.marked(artifact),true,"Missing Trash preserves marker")
+eq(env.turnOrder[1].deadDeckInventory[2],artifact.guid,"Missing Trash preserves ownership")
+objects.trash=trash
+run(artifact,1,nil)
+eq(trashed[4],artifact.guid,"Retry sends Artifact to Trash")
+eq(#env.turnOrder[1].deadDeckInventory,1,"Broken Artifact removed from inventory")
 print("Artifact, linked-card and Wound throw-away regression checks passed")
