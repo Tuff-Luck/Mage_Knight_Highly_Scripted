@@ -26,6 +26,7 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
         local isBlock=attack>0 or spec.noAttack==true or spec.noAttackUnfortified==true
             or spec.cancelOneAttack==true
             or spec.removeAbilities==true or spec.removeOneAttackAbilities==true
+            or spec.stripAttackTrait~=nil or spec.stripAttackColor~=nil
             or spec.destroyIfBlocked==true or spec.destroyIfFullyBlocked==true
         local attackIncrease=tonumber(spec.attackIncrease) or 0
         local special=spec.removeTrait~=nil or spec.convertAttack~=nil or attackIncrease>0
@@ -178,6 +179,16 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
             elseif applied.immune then reason="Arcane Immunity prevents this destruction."
             elseif entry.destroyed~=true then
                 reason="This Fire Block has not been used in a successful Block."
+            end
+        elseif spec.stripAttackTrait~=nil or spec.stripAttackColor~=nil then
+            amount="X"
+            description=spec.stripAttackTrait~=nil
+                and ("Remove "..spec.stripAttackTrait.." from one attack")
+                or ("Remove "..(spec.stripAttackColor=="F" and "Fire" or "Ice").." from one attack")
+            description=description..". Choose the printed attack in the enemy row."
+            if actual.stripAttackTrait==nil and actual.stripAttackColor==nil then
+                reason=applied.iceResistant and "Ice Resistance prevents this effect."
+                    or "This attack modification is unavailable."
             end
         elseif spec.removeOneAttackAbilities==true then
             amount="X"

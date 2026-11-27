@@ -397,7 +397,8 @@ function M.process(context)
         if rule~=nil and rule.enemyEffect~=nil and result.resources~=nil
             and result.powered~=nil and cardPosture(card)=="upright"
             and result.status~="yellow"
-            and (result.enemyGUID==nil or rule.dodgeAttackSplit==true) then
+            and (result.enemyGUID==nil or rule.dodgeAttackSplit==true
+                or rule.separateEffectTargetAllSides==true) then
             local _,category=currentChoice(card.guid,result.powered,choices)
             local spec=combatEffectSpec(rule,result.powered,category)
             if spec~=nil or (result.repeatLink~=nil and result.repeatLink.count>1) then
@@ -459,8 +460,9 @@ function M.process(context)
                 elseif spec~=nil then
                 -- The repeated-effect branch may run without a spec;
                 -- only this ordinary-effect branch reads spec fields.
-                local key=rule.separateEffectTarget and not result.powered
-                    and (card.guid.."#effect") or card.guid
+                local key=rule.separateEffectTargetAllSides and (card.guid.."#effect1")
+                    or (rule.separateEffectTarget and not result.powered
+                        and (card.guid.."#effect") or card.guid)
                 if (tonumber(spec.maxTargets) or 0)>1 then
                     -- Banner of Fear (Lost Legion): at most three different
                     -- enemies are unable to attack. Each target is its own

@@ -424,6 +424,23 @@ return function(deps)
                 end
             end
         end
+        -- Independent, choice-driven effect targets use the same arrow system
+        -- as Dodge and Weave, but keep the printed Block's ordinary target.
+        if rule~=nil and rule.separateEffectTargetAllSides and not rule.dodgeAttackSplit
+            and combatCalcOn and posture=="upright" and resources~=nil then
+            for rowPosition,row in ipairs(rows) do
+                if not row.expanded and combatEffectSpec(rule,powered,row.selected)~=nil then
+                    local part=row.index<0 and ("rep"..(-row.index)) or "effect1"
+                    xml[#xml+1]={tag="Button",attributes={
+                        id="AttackAssignmentSource_"..card.guid.."_0_effect@"..part,
+                        onClick="global/attackAssignmentSourceClicked",
+                        position="-100 "..tostring(-12+(rowPosition-1)*30).." "..buttonDepth,
+                        rotation=uiRotation,width=90,height=90,scale=buttonScale,
+                        colors="#454D5D|#69798E|#444C63|#454D5D",
+                        textColor="#FFFFFF",textAlignment="MiddleCenter"},value="X"}
+                end
+            end
+        end
         -- Dodge and Weave has no option selector: its normal Attack target follows
         -- other Attack cards, while these buttons independently reduce enemy Attacks.
         if rule~=nil and rule.dodgeAttackSplit and combatCalcOn

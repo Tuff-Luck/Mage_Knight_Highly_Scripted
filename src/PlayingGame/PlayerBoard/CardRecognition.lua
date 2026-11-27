@@ -2962,6 +2962,8 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
                     ..": "..tostring(sourceName)
                     ..(selected.cancelAttack and " (cancel one Attack)"
                         or selected.stripAbilities and " (remove abilities)"
+                        or selected.stripTrait and (" (remove "..selected.stripTrait..")")
+                        or selected.stripColor and (" (remove "..selected.stripColor..")")
                         or (" (-"..tostring(selected.amount)..")"))
                     ..". Left-click: cycle target (including Auto). Right-click: next reduction source.")
             end
@@ -3978,6 +3980,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     base="2",autoWounds="A",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
     woundPending="W?",woundTaken="W✓",
+    stripFire="F",stripIce="I",stripSwift="S",stripBrutal="B",stripCumbersome="C",stripPoison="P",stripParalyse="PAR",stripAssassination="ASS",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}
 -- The choice UI and initial-guess tie-breaks follow the Resource Tracker order.
 trackerPrivate.choicePolicy=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ResourceChoices")(

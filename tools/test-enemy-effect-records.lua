@@ -99,3 +99,32 @@ arrows={}
 assert(choose("effect",{},enemies)==nil and pruned==2,
     "Unresolved source with no arrows is not pruned")
 print("Enemy effect record regression passed")
+
+-- Spear Glare removes only one selected modifier or one elemental component.
+dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
+monsterPugs={enemy={},immune={arcaneImmunity=true},ice={iResist=true}}
+gStates={monsterPerks={}}
+local engine=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/EnemyProperties.lua").attacks(
+    {{key="P",label="Physical",block="block"},{key="F",label="Fire",block="blockIce"},
+        {key="I",label="Ice",block="blockFire"},{key="IF",label="Cold Fire",block="blockColdFire"}},
+    function(data,perks,trait) return data[trait]==true end,function() return 0 end)
+local effectsByEnemy={}
+combatEffectAdd(effectsByEnemy,"enemy","spear",{stripAttackTrait="swift",iceSpell=true},"spear#effect1")
+local attacks={{key="P",owner="enemy",value=3,swift=true,brutal=true},
+    {key="IF",owner="enemy",value=5,swift=true,poison=true},
+    {key="P",owner="summon",value=8,swift=true}}
+engine.applyReductions(attacks,effectsByEnemy.enemy,nil,{["spear#effect1"]=1})
+assert(not attacks[1].swift and attacks[1].brutal and attacks[2].swift and attacks[3].swift,
+    "One selected attack loses only selected trait")
+effectsByEnemy={}
+combatEffectAdd(effectsByEnemy,"enemy","spear",{stripAttackColor="F",iceSpell=true},"spear#effect1")
+engine.applyReductions(attacks,effectsByEnemy.enemy,nil,nil)
+assert(attacks[2].key=="I" and attacks[2].block=="blockFire" and attacks[2].poison,
+    "Removing Fire from Cold Fire leaves Ice and offensive modifiers")
+assert(attacks[2].value==5,"Attack value remains unchanged")
+effectsByEnemy={}
+combatEffectAdd(effectsByEnemy,"ice","spear",{stripAttackTrait="poison",iceSpell=true})
+assert(#effectsByEnemy.ice.attackReductions==0,"Ice Resistance blocks blue non-Block effect")
+combatEffectAdd(effectsByEnemy,"immune","spear",{stripAttackTrait="poison",iceSpell=true})
+assert(#effectsByEnemy.immune.attackReductions==1,"Direct attack manipulation follows immunity policy")
+print("Single enemy attack colour and modifier removal passed")

@@ -83,13 +83,23 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
         return ordered
     end
 
+    local function stripEligible(attack,reduction)
+        if reduction.stripOwner~=nil and attack.owner~=reduction.stripOwner then return false end
+        if reduction.stripTrait~=nil then return attack[reduction.stripTrait]==true end
+        if reduction.stripColor~=nil then
+            return attack.key==reduction.stripColor or attack.key=="IF"
+        end
+        return true
+    end
+
     local function combatApplyAttackReductions(attacks,effect,ownerGUID,chosenAttacks)
         for _,reduction in ipairs(combatOrderedReductions(effect)) do
             local sourceKey=reduction.id or tostring(reduction.source)
             local choice=chosenAttacks~=nil and chosenAttacks[sourceKey] or nil
             local target=choice~=nil and attacks[choice] or nil
             if target~=nil and (target.pending or target.cancelled
-                or (ownerGUID~=nil and target.owner~=ownerGUID)) then
+                or (ownerGUID~=nil and target.owner~=ownerGUID)
+                or not stripEligible(target,reduction)) then
                 target=nil
             end
             -- Stale selections fall back to the strongest currently legal attack.
@@ -97,8 +107,10 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                 for _,attack in ipairs(attacks) do
                     if not attack.pending and not attack.cancelled
                         and (ownerGUID==nil or attack.owner==ownerGUID)
+                        and stripEligible(attack,reduction)
                         and (attack.value>0 or reduction.amount<0
-                            or reduction.stripAbilities or reduction.cancelAttack)
+                            or reduction.stripAbilities or reduction.cancelAttack
+                            or reduction.stripTrait~=nil or reduction.stripColor~=nil)
                         and (target==nil or attack.value>target.value) then
                         target=attack
                     end
@@ -111,6 +123,20 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                     for _,trait in ipairs({"swift","brutal","cumbersome","poison",
                         "paralyse","assassination"}) do target[trait]=false end
                     target.abilitiesStripped=true
+                end
+                if reduction.stripTrait~=nil then
+                    target[reduction.stripTrait]=false
+                    target.strippedTraits=target.strippedTraits or {}
+                    target.strippedTraits[reduction.stripTrait]=true
+                end
+                if reduction.stripColor~=nil then
+                    local to=target.key=="IF" and (reduction.stripColor=="F" and "I" or "F") or "P"
+                    for _,kind in ipairs(attackTypes) do
+                        if kind.key==to then
+                            target.key,target.label,target.block=kind.key,kind.label,kind.block
+                            break
+                        end
+                    end
                 end
                 if reduction.firstDamageUnit~=nil then target.firstDamageUnit=reduction.firstDamageUnit end
             end
@@ -131,7 +157,8 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                     combatApplyAttackReductions(summonedAttacks,summoned.effect,summoned.guid)
                     if summoned.effect~=nil and summoned.effect.grantCumbersome==true then
                         for _,attack in ipairs(summonedAttacks) do
-                            if attack.key~="M" and not attack.abilitiesStripped then attack.cumbersome=true end
+                            if attack.key~="M" and not attack.abilitiesStripped
+                                and not (attack.strippedTraits or {}).cumbersome then attack.cumbersome=true end
                         end
                     end
                     for _,attack in ipairs(summonedAttacks) do attacks[#attacks+1]=attack end
@@ -154,7 +181,8 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
         if entry.effect~=nil and entry.effect.grantCumbersome==true then
             for _,attack in ipairs(attacks) do
                 if attack.owner==entry.guid and attack.key~="M"
-                    and not attack.abilitiesStripped then attack.cumbersome=true end
+                    and not attack.abilitiesStripped
+                                and not (attack.strippedTraits or {}).cumbersome then attack.cumbersome=true end
             end
         end
         -- Keep original attack positions for the attack-cycle selector; actual
