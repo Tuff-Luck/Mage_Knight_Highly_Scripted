@@ -652,7 +652,7 @@ local function combatAssignmentSources(seat)
                         explosiveBolt=record.explosiveBolt,
                         dodgeConditional=record.dodgeConditional==true,
                         combatWoundAttack=record.combatWoundAttack,
-                        distinctAttackBonus=record.distinctAttackBonus,
+                        distinctAttackBonus=record.distinctAttackBonus,shieldWallBonus=record.shieldWallBonus,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32",
                         damagePhaseWound=gStates~=nil and gStates.combatWoundApplication~=nil

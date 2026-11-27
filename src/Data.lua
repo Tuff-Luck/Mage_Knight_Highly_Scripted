@@ -2689,7 +2689,7 @@ skillResourceDefinitions={
     ["f30dd4"]={untracked=true}, -- Bonds of Loyalty is an occupied Command slot, not played Influence.
     -- Coral / The Apocalypse Dragon. Permanent movement/reward rules are evaluated separately.
     ["201f72"]={normal={attack=1},distinctAttackBonus=1}, -- Coordinated Attack: one enemy, distinct Attack values.
-    ["82049d"]={normal={block=2},partial=true}, -- Shield Wall: same-enemy bonuses remain manual.
+    ["82049d"]={normal={block=2},shieldWallBonus=1}, -- Shield Wall: qualifying Blocks against same enemy and attack element.
     ["9cf272"]={choices={{influence=2},{key="boost",influence=4,icon="influence",iconOverlay="4"}},partial=true}, -- Tales of Adventure: player removes a shield for +4.
     ["de5b04"]={unitBoost={attack=1,block=1},choices={{attack=1},{block=1},
         {key="twiceAttack",attack=2,icon="attack",iconOverlay="2"},

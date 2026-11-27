@@ -25,6 +25,12 @@ return function(combatConfig)
                 and item.key~="blockPsychic")
     end
 
+    local function itemAmount(attack,item)
+        local bonus=item.wallType==attack.key and item.wallOwner==attack.owner
+            and (item.wallBonus or 0) or 0
+        return (item.value+bonus)*(attack.swift and item.swiftDouble and 2 or 1)
+    end
+
     local function sortItems(items)
         table.sort(items,function(a,b)
             if a.value~=b.value then return a.value>b.value end
@@ -34,7 +40,7 @@ return function(combatConfig)
         end)
     end
 
-    local function combatSolveBlocks(attacks,items,movePool)
+    local function solveVariant(attacks,items,movePool,anchorIndex)
         sortItems(items)
         local targets={}
         local initial={}
@@ -47,8 +53,9 @@ return function(combatConfig)
             -- Type efficiency and Swiftness are constant for this item, not per DP state.
             local options={}
             for index,attack in ipairs(attacks) do
-                if targets[index]>0 and combatBlockLegal(attack,item) then
-                    local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
+                if targets[index]>0 and combatBlockLegal(attack,item)
+                    and (item.fixedAttack==nil or item.fixedAttack==index) then
+                    local amount=itemAmount(attack,item)
                     local efficient=combatBlockEfficient(attack,item)
                     local contribution=amount*(efficient and 2 or 1)
                     if contribution>0 then options[#options+1]={index=index,points=contribution} end
@@ -64,10 +71,10 @@ return function(combatConfig)
                 end
             end
             for _,state in pairs(states) do
-                retain(state.points,state.spent,state.route..string.char(64))
+                if item.fixedAttack==nil then retain(state.points,state.spent,state.route..string.char(64)) end
                 for _,option in ipairs(options) do
                     local index=option.index
-                    if state.points[index]<targets[index] then
+                    if state.points[index]<targets[index] or item.fixedAttack==index then
                         local points={}
                         for j=1,#attacks do points[j]=state.points[j] end
                         points[index]=math.min(targets[index],points[index]+option.points)
@@ -96,7 +103,8 @@ return function(combatConfig)
                         damage=damage+(attack.damageValue or attack.value)*(attack.brutal and 2 or 1)
                     end
                 end
-                score=damage*1000000
+                score=anchorIndex~=nil and state.points[anchorIndex]<targets[anchorIndex]
+                    and math.huge or damage*1000000
                 reductions=noReductions
             else
                 local memo,chosen={},{}
@@ -112,7 +120,8 @@ return function(combatConfig)
                         local threshold=2*leftover*(attack.swift and 2 or 1)
                         local blocked=leftover<=0 or state.points[index]>=threshold
                         local damage=blocked and 0 or math.max(0,(attack.damageValue or attack.value)-reduction)*(attack.brutal and 2 or 1)
-                        local optionScore=damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
+                        local optionScore=(index==anchorIndex and not blocked) and math.huge
+                            or damage*1000000+reduction+scoreMoves(index+1,remaining-reduction)
                         if optionScore<best then best,bestReduction=optionScore,reduction end
                     end
                     memo[key]=best
@@ -130,13 +139,14 @@ return function(combatConfig)
             end
             score=score+state.spent*100
             -- Equal-cost routes must not depend on Lua hash iteration order.
-            if bestScore==nil or score<bestScore
-                or (score==bestScore and state.route<bestState.route) then
+            if score<math.huge and (bestScore==nil or score<bestScore
+                or (score==bestScore and state.route<bestState.route)) then
                 bestScore,bestState,bestReductions=score,state,reductions
             end
         end
         -- Every DP state keeps an unused-item transition, so a winner should always
         -- exist. If none survives, conservatively report no Block/Move allocation.
+        if anchorIndex~=nil and bestState==nil then return nil end
         local planState=bestState or {points=initial,route=string.rep("@",#items)}
         local planReductions=bestReductions or {}
         local plan,used={},{}
@@ -155,14 +165,46 @@ return function(combatConfig)
         end
         local leftover={}
         for index=1,#items do if not used[index] then leftover[#leftover+1]=index end end
-        return plan,items,leftover
+        return plan,items,leftover,bestScore or math.huge
+    end
+
+    local function combatSolveBlocks(attacks,items,movePool)
+        local plan,solved,leftover,best=solveVariant(attacks,items,movePool)
+        local wall
+        for _,item in ipairs(items) do
+            if item.source.shieldWallBonus~=nil then wall=item break end
+        end
+        if wall==nil then return plan,solved,leftover end
+        -- Try each legal Shield Wall anchor. A bonus is only valid when
+        -- the Wall participates in a successful Block against the same
+        -- physical attack owner and element as the qualifying other Block.
+        for index,attack in ipairs(attacks) do
+            if not attack.pending and attack.value>0 and combatBlockLegal(attack,wall) then
+                local candidate={}
+                for i,item in ipairs(items) do
+                    local copy={}
+                    for key,value in pairs(item) do copy[key]=value end
+                    if item==wall then copy.fixedAttack=index
+                    elseif item.value>=2 and item.source~=wall.source
+                        and item.source.key~=wall.source.key then
+                        copy.wallType=attack.key
+                        copy.wallOwner=attack.owner
+                        copy.wallBonus=wall.source.shieldWallBonus
+                    end
+                    candidate[i]=copy
+                end
+                local p,s,l,score=solveVariant(attacks,candidate,movePool,index)
+                if p~=nil and score<best then plan,solved,leftover,best=p,s,l,score end
+            end
+        end
+        return plan,solved,leftover
     end
 
     local function combatBlockSpent(attack,items,used)
         local full,wrong=0,0
         for index,item in ipairs(items) do
             if used[index] and combatBlockLegal(attack,item) then
-                local amount=item.value*(attack.swift and item.swiftDouble and 2 or 1)
+                local amount=itemAmount(attack,item)
                 if combatBlockEfficient(attack,item) then full=full+amount else wrong=wrong+amount end
             end
         end
@@ -243,7 +285,7 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
                 tostring(item.source.key),tostring(item.source.guid),tostring(item.key),tostring(item.value),
                 tostring(item.swiftDouble),tostring(item.part),
                 tostring(item.source.heroPsychicBlock),
-                tostring(item.source.excessBlockArmour)},":")
+                tostring(item.source.excessBlockArmour),tostring(item.source.shieldWallBonus)},":")
         end
         -- Move-source identity matters to the committed phase even when its
         -- total reduction is unchanged (e.g. swapping Move 2 cards).
