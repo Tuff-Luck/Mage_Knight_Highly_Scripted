@@ -100,7 +100,10 @@ local function returnPreview(state,immediate)
     if state==nil or state.cardGUID==nil then return end
     local guid,home=state.cardGUID,state.home
     state.cardGUID,state.home=nil,nil
-    returningPreview[guid]=true
+    -- A delayed settlement from an earlier return must never release or
+    -- relock a newer loan of the same physical offer card.
+    local token={}
+    returningPreview[guid]=token
     local card=getObjectFromGUID(guid)
     cleanPreview(card)
     if card~=nil and home~=nil then
@@ -114,7 +117,8 @@ local function returnPreview(state,immediate)
             card.setPositionSmooth(home.position,false,false)
             card.setRotationSmooth(home.rotation,false,false)
         end
-        safeWaitCondition("Offers.Training",function()
+        local function finishReturn()
+            if returningPreview[guid]~=token then return end
             local live=getObjectFromGUID(guid)
             if live~=nil and objectGUIDInZone(guid,GUID.zone.offer) then
                 live.lock()
@@ -125,10 +129,16 @@ local function returnPreview(state,immediate)
                 end
             end
             returningPreview[guid]=nil
-        end,function()
+            if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+        end
+        -- Like Magic Talent, release the temporary reservation on timeout.
+        -- If the card has already reached the offer, restore its claim UI
+        -- even when physics never reports that it has fully settled.
+        safeWaitCondition("Offers.Training",finishReturn,function()
             local live=getObjectFromGUID(guid)
-            return live==nil or (live.resting and not live.isSmoothMoving())
-        end,8)
+            return returningPreview[guid]~=token or live==nil
+                or (live.resting and not live.isSmoothMoving())
+        end,8,finishReturn)
     else
         returningPreview[guid]=nil
     end
@@ -170,7 +180,7 @@ end
 
 function trainingOfferReservedCard(guid,seatPos)
     local state=currentState()
-    return returningPreview[guid]==true
+    return returningPreview[guid]~=nil
         or state~=nil and (seatPos==nil or state.seatPos==seatPos)
             and (state.cardGUID==guid or (seatPos~=nil and state.sourceGUID==guid))
 end

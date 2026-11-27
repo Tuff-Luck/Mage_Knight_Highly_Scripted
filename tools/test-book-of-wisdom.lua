@@ -268,3 +268,40 @@ eq(borrowedTraining.destroyed,nil,"Borrowed Training is not consumed")
 eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],2,"Two independent exchanges")
 eq(inZone(secondAA.guid,"hand"),true,"Second gained Action enters hand")
 print("Repeated borrowed Training exchange regressions passed")
+
+-- A returning preview can physically reach its offer slot without TTS
+-- reporting resting. Its reservation must expire and the normal claim
+-- control must be restored; an old callback must not clear a newer loan.
+env.trainingOfferClose(true)
+cost.destroyed=false
+cost.position={0,1,0}
+redAA.position={20,1,20}
+redAA.resting=true
+env.turnOrder[1].deadDeckInventory={cost.guid}
+dropCost()
+eq(preview().cardGUID,redAA.guid,"New exchange opens")
+local callbacks={}
+env.safeWaitCondition=function(_scope,done,ready,_timeout,fallback)
+    if ready() then done()
+    else callbacks[#callbacks+1]={done=done,fallback=fallback} end
+end
+redAA.resting=false
+env.trainingOfferSourceReturned(borrowedTraining.guid,false)
+eq(preview(),nil,"Return closes the preview")
+eq(env.trainingOfferReservedCard(redAA.guid),true,"Unsettled return remains reserved")
+eq(type(callbacks[1].fallback),"function","Return must have a timeout callback")
+callbacks[1].fallback()
+eq(env.trainingOfferReservedCard(redAA.guid),false,"Timeout releases only the old reservation")
+eq(redAA.locked,true,"Offer card is locked again")
+eq(redAA.UI.getXmlTable()[1].attributes.id,redAA.guid.."offer","Normal claim restored")
+redAA.resting=true
+dropCost()
+eq(preview().cardGUID,redAA.guid,"Returned card may be borrowed again")
+redAA.resting=false
+env.trainingOfferSourceReturned(borrowedTraining.guid,false)
+eq(env.trainingOfferReservedCard(redAA.guid),true,"Second return is reserved")
+callbacks[1].done()
+eq(env.trainingOfferReservedCard(redAA.guid),true,"Stale completion cannot release new reservation")
+callbacks[2].fallback()
+eq(env.trainingOfferReservedCard(redAA.guid),false,"Second timeout releases current reservation")
+print("Training and Book of Wisdom return timeout regressions passed")
