@@ -266,6 +266,54 @@ run("resource-tracker-unit-management",function()
     print("Unit management and Ready payment regressions passed")
 end)
 
+run("ready-level-policy",function()
+    local env=setmetatable({
+        gameCards={low={level=2},high={level=3},source={cardType="Regular Unit"}},
+        unitResourceDefinitions={source={{key="ready",readyMaxLevel=2}}},
+        cardResourceDefinitions={},
+        unitHistorySourceBase=function(key) return key end
+    },{__index=_G})
+    local policy=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Units/ReadyPolicy.lua","t",env))()
+    eq(policy.sourceLevelLimit("source",1),2,"Read the printed Unit level limit")
+    eq(policy.targetEligible("source","low",1),true,"Level II allowed")
+    eq(policy.targetEligible("source","high",1),false,"Level III rejected")
+end)
+
+run("faction-reward-exchange",function()
+    local env=setmetatable({gStates={manaSource={}}},{__index=_G})
+    local scan=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/FactionRewardScan.lua","t",env))()
+    local token={guid="reward",is_face_down=true}
+    local rule={name="Manual reward"}
+    local function evaluate(selection)
+        local records={}
+        scan.read({
+            objects={reward=token},placements={reward="play"},records=records,current={},totals={},
+            resourceObjectKind=function(obj) return obj==token and "factionReward" or nil end,
+            factionRewardForObject=function(obj) return obj==token and rule or nil end,
+            chosenEffect=function(guid,powered,choices)
+                assert(guid=="reward" and powered==token.is_face_down)
+                return selection and choices[selection] or nil
+            end,
+            effectHasTrackedResource=function(effect) return effect~=nil and effect.influence~=nil end,
+            showChoiceButtons=function(obj,choices,flipped,linked,repeatLink,effect) end,
+            addResourceAmounts=function(record,totals) end,
+            setHighlight=function(obj,status,powered) end
+        })
+        return records.reward
+    end
+    local record=evaluate(1)
+    eq(record.resources.influence,3,"Default exchange remains reversible Influence")
+    eq(record.fameRep,nil,"Influence does not award Fame")
+    record=evaluate(2)
+    eq(record.fameRep.fame,1,"Fame is published by the existing ledger")
+    eq(record.resources.influence,nil,"Fame replaces Influence")
+    eq(evaluate(1).fameRep,nil,"Switching back retracts Fame")
+    token.is_face_down=false
+    record=evaluate(nil)
+    eq(record.complete,false,"Recognition alone is not a completed effect")
+    eq(record.status,"yellow","Unknown effect remains visibly partial")
+end)
+
 if #failures>0 then
     error(table.concat(failures,"\n\n"),0)
 end

@@ -44,7 +44,7 @@ local byType={
         value(2,"influence",2,"Influence 2"),value(3,"move",2,"Move 2")},
     Herbalists={
         value(1,"healing",2,"Heal 2",{manaCost="Green"}),
-        special(2,"Ready a Level I or II Unit",{key="ready"}),
+        special(2,"Ready a Level I or II Unit",{key="ready",readyMaxLevel=2}),
         special(3,"Gain a green mana token",{key="gain"})},
     Foresters={
         value(1,"move",2,"Move 2; forests, hills and swamps cost 1 less (minimum 0)",{terrainEffects={{mode="reduce",terrains={forest=true,hills=true,swamp=true},

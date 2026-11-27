@@ -25,7 +25,9 @@ function M.read(context)
     -- in the Play Area. Face-down is the alternative interaction exchange:
     -- choose +3 Influence or 1 Fame (Fame itself is not a Tracker column).
     -- Do not infer its effect from being stored face-up in inventory.
-    local exchangeChoices={{key="fame"},{influence=3}}
+    -- Default to Influence; Fame must be an explicit choice rather than an
+    -- incidental reward for merely flipping the token.
+    local exchangeChoices={{influence=3},{key="fame"}}
     for guid,token in pairs(objects) do
         if resourceObjectKind(token)=="factionReward" and placements[guid]=="play" then
             local rule=factionRewardForObject(token)
@@ -50,15 +52,20 @@ function M.read(context)
                 choices={{key="move",icon="move",move=effect.move,attack=effect.attack,
                     splitMoveAttack=true}}
             end
+            local fameRep=flipped and rule~=nil and effect~=nil and effect.key=="fame"
+                and {fame=1} or nil
             local contributes=effectHasTrackedResource(effect)
+            local supported=rule~=nil and (flipped or rule.choices~=nil or rule.resources~=nil
+                or rule.modifier~=nil or rule.enemyEffect~=nil or rule.movement~=nil
+                or rule.heroPsychicBlock==true)
             local result={guid=guid,kind="factionReward",known=rule~=nil,
-                complete=rule~=nil,resources=effect,choices=choices,
+                complete=supported==true,resources=effect,choices=choices,fameRep=fameRep,
                 splitTargets=splitMoveAttack and {"block","attack"} or nil,
                 modifier=not flipped and rule~=nil and rule.modifier or nil,
                 powered=flipped,links={},contributes=contributes,
-                status=highlightPolicy.contribution(contributes),
+                status=highlightPolicy.contribution(contributes or fameRep~=nil),
                 nameKey=rule~=nil and rule.name or nil}
-            if rule~=nil and not flipped and (rule.partial or rule.modifier~=nil) then
+            if rule~=nil and not flipped and (not supported or rule.partial or rule.modifier~=nil) then
                 result.status="yellow"
             end
             if not flipped and rule~=nil and rule.movement~=nil
