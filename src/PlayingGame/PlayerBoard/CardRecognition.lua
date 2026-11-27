@@ -5050,11 +5050,6 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
         local ritual=costRule~=nil and costRule.requiredLink~=nil
             and costRule.requiredLink.mode=="throwAway"
             and hasDiscard~=nil and hasDiscard[costSource]==true
-        -- Before End Turn, preserve the most recent authoritative ON scan.
-        -- An OFF reconciliation instead uses manual face-down or Maximal
-        -- Effect's physical fallback rather than guessing at payment links.
-        if discarded==nil and repeats~=nil and resourceCardsPanelOpen()
-            and prior[card.guid]=="ritualAttack" then ritual=true end
         prior[card.guid]=repeated and "maximalEffect"
             or ritual and "ritualAttack" or nil
         if discarded~=nil and prior[card.guid]~=nil then
@@ -5228,17 +5223,9 @@ function resourceCardsMaximalEffectBeforeEndTurn(seatPos)
     end
     -- Rebuild only at the start of a new cleanup, never during recovery.
     if gStates~=nil then gStates.throwAwayCleanupByGUID=nil end
-    local repeats=nil
-    if resourceCardsPanelOpen() then
-        local scan=resourceCardScanBySeat[seatPos]
-        if scan~=nil and scan.cards~=nil then
-            repeats={}
-            for guid,record in pairs(scan.cards) do
-                if record.repeatLink~=nil then repeats[guid]=record.repeatLink end
-            end
-        end
-    end
-    resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats)
+    -- Use the live physical links in either tracker mode. A queued scan
+    -- may not have reconciled a just-moved payment or departed source.
+    resourceCardsMaximalEffectSyncMarks(seatPos,cards)
     -- Save the link verdict before the source and target cards start moving.
     -- Physical face-down and Artifact THROW states are already persisted or
     -- reconstructible, so only linked consumptions require this snapshot.
@@ -5411,7 +5398,12 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
         end
     end
     table.sort(skills,function(a,b) return a.guid<b.guid end)
-    return trackerPrivate.scanPayments.resolve({
+    -- The normal scan derives Amulet permissions from its own candidates.
+    -- Use the same policy here and restore the live calculator state even
+    -- if an offer entitlement query re-enters this read-only pass.
+    local previous= combatConfig.amuletMana
+    combatConfig.amuletMana=trackerPrivate.scanObservation.amuletPermissions(cards,cardPosture)
+    local ok,repeats,discarded,paid=pcall(trackerPrivate.scanPayments.resolve,{
         seatPos=seatPos,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,
         footprints=footprints,placements=placements,trackerPrivate=trackerPrivate,
         resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
@@ -5419,6 +5411,9 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
         effectManaPossibilities=effectManaPossibilities,resolveActionLinks=resolveActionLinks,
         linkOnly=true,directOnly=directOnly
     })
+    combatConfig.amuletMana=previous
+    if not ok then error(repeats,0) end
+    return repeats,discarded,paid
 end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.

@@ -20,22 +20,22 @@ function M.resolve(context)
     -- reliable order; give them one shared ordinal instead of inventing one.
     -- Subsequent real zone entries are recorded immediately at entry time.
     if not context.linkOnly then
-    gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
-    gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
-    local missingOrder=false
-    for _,card in ipairs(cards) do
-        if gStates.resourceCardPlayOrder[card.guid]==nil then
-            missingOrder=true break
-        end
-    end
-    if missingOrder then
-        gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial+1
+        gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
+        gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
+        local missingOrder=false
         for _,card in ipairs(cards) do
             if gStates.resourceCardPlayOrder[card.guid]==nil then
-                gStates.resourceCardPlayOrder[card.guid]=gStates.resourceCardPlaySerial
+                missingOrder=true break
             end
         end
-    end
+        if missingOrder then
+            gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial+1
+            for _,card in ipairs(cards) do
+                if gStates.resourceCardPlayOrder[card.guid]==nil then
+                    gStates.resourceCardPlayOrder[card.guid]=gStates.resourceCardPlaySerial
+                end
+            end
+        end
     end
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)

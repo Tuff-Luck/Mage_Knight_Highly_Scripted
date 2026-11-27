@@ -166,6 +166,19 @@ function M.observe(context)
     return objects, placements, monsters, playMonsters, combatMonsters, enemyEntries, inventoryCrystalCounts, cards, wounds, skills, manaObjects, footprints, unitPaymentMana, enemyEffects, pendingWingsNight, deferredUnfortifiedUnitEffects, unitCombatBoost, preventUnitDamage, allUnitResistances, heroFirstWoundIgnored, heroPsychicBlock, hasUnits
 end
 
+-- Shared live Amulet permission policy, also used by link-only scans.
+function M.amuletPermissions(cards,cardPosture)
+    local permissions={gold=false,black=false}
+    for _,card in ipairs(cards) do
+        local data=gameCards[card.guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule~=nil and rule.artifactMana~=nil and cardPosture(card)=="upright" then
+            permissions[rule.artifactMana]=true
+        end
+    end
+    return permissions
+end
+
 function M.prepare(context)
     local seatPos, cards, skills = context.seatPos, context.cards, context.skills
     local placements, hasUnits, combatMonsters = context.placements, context.hasUnits, context.combatMonsters
@@ -173,17 +186,7 @@ function M.prepare(context)
     local combatUnitSiteRestriction, combatOneUnitChosen, combatOneUnitSelect = context.combatUnitSiteRestriction, context.combatOneUnitChosen, context.combatOneUnitSelect
     local combatUnitSitePermits, unitResourceDefinitions, clearHighlight = context.combatUnitSitePermits, context.unitResourceDefinitions, context.clearHighlight
     -- Scan active Amulet permissions before resolving ANY physical mana.
-    -- The card itself is a free artifact effect; no mana should be attached.
-    combatConfig.amuletMana.gold=false
-    combatConfig.amuletMana.black=false
-    for _,card in ipairs(cards) do
-        local data=gameCards[card.guid]
-        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-        if rule~=nil and rule.artifactMana~=nil
-            and cardPosture(card)=="upright" then
-            combatConfig.amuletMana[rule.artifactMana]=true
-        end
-    end
+    combatConfig.amuletMana=M.amuletPermissions(cards,cardPosture)
 
     combatConfig.artifactCombat.sword=false
     combatConfig.artifactCombat.bow=false

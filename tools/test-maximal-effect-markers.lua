@@ -91,6 +91,8 @@ setmetatable(env,{__index=_G})
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- Exercise the actual shared read-only payment/link snapshot.
 env.trackerPrivate.scanPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPayments.lua","t",env))()
+env.trackerPrivate.scanObservation=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua","t",env))()
+env.combatConfig.amuletMana={gold=false,black=false}
 local manaPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ManaPayments.lua","t",env))()
 env.trackerPrivate.bestManaCard=manaPayments.bestManaCard
 env.trackerPrivate.bannerCardForm=function(_guid) return nil end
@@ -123,6 +125,24 @@ return {
     throwReason=resourceCardsThrowAwayReason
 }]],"Maximal Effect marks","t",env))()
 eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic uses")
+-- Verify link-only permission refresh and restoration independently of the
+-- cached calculator's current Amulet flags.
+local amulet=card("amulet",10)
+env.gameCards.amulet={cardType="Artifact",resourceKey="testAmulet"}
+env.cardResourceDefinitions.testAmulet={artifactMana="gold"}
+local originalZone=zone.getObjects
+local originalResolve=env.trackerPrivate.scanPayments.resolve
+local originalPermissions=env.combatConfig.amuletMana
+zone.getObjects=function() return {maximal,training,amulet} end
+env.trackerPrivate.scanPayments.resolve=function(context)
+    eq(env.combatConfig.amuletMana.gold,true,"Live Amulet grants Gold in link-only scan")
+    return originalResolve(context)
+end
+methods.link(1,training.guid)
+eq(env.combatConfig.amuletMana,originalPermissions,"Calculator permission table restored")
+eq(env.combatConfig.amuletMana.gold,false,"Link-only scan leaves cached flags unchanged")
+env.trackerPrivate.scanPayments.resolve=originalResolve
+zone.getObjects=originalZone
 
 -- Artifacts use the same existing red X, driven by the saved Throw state.
 -- Recover removes it; repeated recalculation must not duplicate the marker.
@@ -185,6 +205,16 @@ env.gStates.preEndTurn=true
 methods.beforeEnd(1)
 eq(env.gStates.throwAwayCleanupByGUID[ritualCost.guid],"ritualAttack",
     "Ritual Attack cost must be saved before End Turn moves its source")
+-- Cached ON scan says the link is paid, but the live target is now tilted.
+ritualCost.posture="discard"
+methods.beforeEnd(1)
+eq(env.gStates.throwAwayCleanupByGUID[ritualCost.guid],nil,
+    "End Turn rejects a stale cached throw-away after physical rearrangement")
+eq(methods.marked(ritualCost),false,"Stale marker cleared before cleanup")
+ritualCost.posture="upright"
+methods.beforeEnd(1)
+eq(env.gStates.throwAwayCleanupByGUID[ritualCost.guid],"ritualAttack",
+    "Restored physical payment is saved independently of cached scan")
 env.trackerPrivate.throwAwayLinksByGUID={}
 eq(methods.throwReason(ritualCost),"ritualAttack",
     "Resumed cleanup must still throw the Ritual Attack cost")
