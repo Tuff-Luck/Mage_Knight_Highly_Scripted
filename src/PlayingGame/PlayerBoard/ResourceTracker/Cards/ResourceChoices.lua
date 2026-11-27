@@ -58,6 +58,47 @@ return function(trackerPrivate,getSelections,choiceLetters,cardPosture)
         return false
     end
 
+    -- A selected paid option is not proof of payment. Keep the physical
+    -- delivery receipt separately from reversible resource preferences.
+    -- Application one is shared by the ordinary and repeated card modes.
+    local function woundChoicePaid(guid,category,index)
+        local data=gameCards~=nil and gameCards[guid] or nil
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        if rule==nil or rule.woundPaymentChoice==nil
+            or rule.woundPaymentChoice~=category then return true end
+        local receipts=gStates~=nil and gStates.cardWoundPayments or nil
+        local paid=receipts~=nil and receipts[guid] or nil
+        return paid~=nil and paid[tostring(index or 1)]~=nil
+    end
+
+    local pendingWoundPayments={}
+    local function payWoundChoice(guid,category,index,seat,color)
+        if woundChoicePaid(guid,category,index) then return true end
+        if gStates==nil or gStates.preEndTurn==true then return false end
+        local state=gStates
+        local turn=state.turnNumber
+        local row=tostring(index or 1)
+        local key=guid..":"..row
+        if pendingWoundPayments[key] then return false end
+        pendingWoundPayments[key]=true
+        -- A single Wound is acknowledged synchronously by the shared
+        -- delivery service; its settling callback never grants resources.
+        combatDealCalculatedWounds(seat,{{key=key,hand=1}},
+            function(_key,destination,woundGUID)
+                if gStates~=state or state.turnNumber~=turn or destination~="hand"
+                    or woundGUID==nil then return end
+                state.cardWoundPayments=state.cardWoundPayments or {}
+                local paid=state.cardWoundPayments[guid] or {}
+                paid[row]=woundGUID
+                state.cardWoundPayments[guid]=paid
+            end,
+            function(success,reason)
+                pendingWoundPayments[key]=nil
+                if not success then safeBroadcastToColor(reason,color,warningColor) end
+            end)
+        return woundChoicePaid(guid,category,index)
+    end
+
     -- Use the first option on each card from the outset. A previously selected
     -- resource is reused on both card sides whenever that side supports it;
     -- otherwise display its first option without overwriting the preference.
@@ -69,7 +110,8 @@ return function(trackerPrivate,getSelections,choiceLetters,cardPosture)
             -- upright/strong effects continue to use the printed-action preference.
             local preferred=sideways and stored.sideways or nil
             if not choiceAvailable(choices,preferred) then preferred=stored.effect end
-            if choiceAvailable(choices,preferred) then
+            if choiceAvailable(choices,preferred)
+                and (sideways or woundChoicePaid(guid,preferred,1)) then
                 for _,effect in ipairs(choices) do
                     if choiceCategory(effect)==preferred then return effect,preferred end
                 end
@@ -225,6 +267,8 @@ return function(trackerPrivate,getSelections,choiceLetters,cardPosture)
         choiceCategory=choiceCategory,
         choiceAvailable=choiceAvailable,
         currentChoice=currentChoice,
+        woundChoicePaid=woundChoicePaid,
+        payWoundChoice=payWoundChoice,
         chosenEffect=chosenEffect,
         trackerChoiceScores=trackerChoiceScores,
         guessInitialCardChoice=guessInitialCardChoice

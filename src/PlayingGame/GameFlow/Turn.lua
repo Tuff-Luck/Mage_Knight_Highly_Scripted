@@ -774,6 +774,7 @@ local function turnFinishCompletedTurnUI()
     callOfferClose(false)
     magicTalentClose(false)
     gStates.ancientsOfferClaims=nil
+    gStates.cardWoundPayments=nil
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()

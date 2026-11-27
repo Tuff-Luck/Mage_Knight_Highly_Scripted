@@ -55,7 +55,7 @@ contains(actionLinks,'and (source.is_face_down~=true or repeated~=nil)',
 
 -- Explicit Blood Rage Wound confirmation cannot be guessed from a
 -- prior resource total, nor reused for every Maximal Effect repetition.
-contains(data,'woundConfirmation=true',"Blood Rage manual payment")
+contains(data,'woundConfirmation=true',"Blood Rage explicit payment")
 contains(source("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ResourceChoices.lua"),
     'rule.woundConfirmation==true and not sideways',
     "No initial Wound auto-selection")
@@ -68,10 +68,14 @@ local setup=[[
 local combatConfig={}
 local gameCards={["878d84"]={resourceKey="bloodRage"},
     ["05ef61"]={resourceKey="ritualAttack"}}
-local cardResourceDefinitions={bloodRage={woundConfirmation=true},
+local cardResourceDefinitions={bloodRage={woundConfirmation=true,woundPaymentChoice="wound"},
     ritualAttack={}}
+local paidRows={[1]=true}
+local trackerPrivate={choicePolicy={woundChoicePaid=function(guid,key,index)
+    return guid=="878d84" and key=="wound" and paidRows[index]==true
+end}}
 local selectedResourceByGUID={
-    ["878d84"]={effect="wound",repeatChoices={[1]="wound"}},
+    ["878d84"]={effect="wound",repeatChoices={[1]="wound",[2]="wound"}},
     ["05ef61"]={repeatChoices={[2]="blue"}}
 }
 local function choiceCategory(choice)

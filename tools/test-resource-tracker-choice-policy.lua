@@ -29,6 +29,8 @@ local policy=assert(load(table.concat({
     [[return {rank=resourceChoiceRank,column=resourceChoiceColumn,
         sideChoices=sideChoices,category=choiceCategory,available=choiceAvailable,
         current=currentChoice,scores=trackerChoiceScores,
+        woundPaid=trackerPrivate.choicePolicy.woundChoicePaid,
+        payWound=trackerPrivate.choicePolicy.payWoundChoice,
         nearby=trackerPrivate.nearbyCardChoice,guess=guessInitialCardChoice}]]
 },"\n"),"Actual choice policy","t",env))()
 local function eq(actual,expected,label)
@@ -111,4 +113,40 @@ restored.played=nil
 guess(choices,rule,false)
 eq(restored.played.effect,"move","New guess must write to current table")
 eq(selected.played.sideways,"move","Retired table must remain unchanged")
+-- Wound-priced selections require a physical receipt, not just a
+-- restored option. One receipt cannot pay multiple copied applications.
+env.gameCards={played={resourceKey="bloodRage"}}
+env.cardResourceDefinitions={bloodRage={woundPaymentChoice="wound",woundConfirmation=true}}
+local rage={{key="attack",attack=2},{key="wound",attack=5}}
+restored.played={effect="wound"}
+_,key=policy.current("played",false,rage,false)
+eq(key,"attack","Stored but unpaid option falls back")
+local delivered=0
+local fail=false
+env.combatDealCalculatedWounds=function(seat,allocations,onCard,onDone)
+    eq(seat,1,"Wound owner")
+    eq(allocations[1].hand,1,"Printed cost is one Wound to hand")
+    if fail then onDone(false,"missing bag") return end
+    delivered=delivered+1
+    onCard(allocations[1].key,"hand","wound"..delivered)
+    onDone(true)
+end
+env.safeBroadcastToColor=function(_message,_color,_tint) end
+eq(policy.payWound("played","attack",1,1,"Red"),true,"No Wound for free attack")
+eq(delivered,0,"Free option does not deal")
+eq(policy.payWound("played","wound",nil,1,"Red"),true,"First application paid")
+eq(delivered,1,"One Wound delivered")
+_,key=policy.current("played",false,rage,false)
+eq(key,"wound","Paid option contributes")
+eq(policy.payWound("played","wound",1,1,"Red"),true,"Normal and first repeated row share receipt")
+eq(delivered,1,"Existing payment is not dealt twice")
+eq(policy.woundPaid("played","wound",2),false,"Second application is unpaid")
+fail=true
+eq(policy.payWound("played","wound",2,1,"Red"),false,"Failed extraction leaves second use unpaid")
+eq(policy.woundPaid("played","wound",2),false,"Failed extraction records no receipt")
+fail=false
+eq(policy.payWound("played","wound",2,1,"Red"),true,"Second use gets independent Wound")
+eq(delivered,2,"Exactly two Wounds delivered")
+states.cardWoundPayments=nil
+eq(policy.woundPaid("played","wound",1),false,"Turn cleanup retires receipts")
 print("Resource Tracker initial choice, spatial priority and selection preservation passed")

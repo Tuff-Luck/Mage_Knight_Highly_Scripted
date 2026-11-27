@@ -1150,10 +1150,10 @@ cardResourceDefinitions={
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
     bloodRage={
         normalChoices={{key="attack",attack=2},{key="wound",attack=5,
-            tooltip="Take 1 Wound into your hand, then explicitly select W to confirm Attack 5."}},
+            tooltip="Select W to take 1 Wound into your hand and gain Attack 5."}},
         poweredChoices={{key="attack",attack=4},{key="wound",attack=9,
-            tooltip="Take 1 Wound into your hand, then explicitly select W to confirm Attack 9."}},
-        woundConfirmation=true},
+            tooltip="Select W to take 1 Wound into your hand and gain Attack 9."}},
+        woundConfirmation=true,woundPaymentChoice="wound"},
     -- The default never assumes the Wound cost was paid; W explicitly confirms it.
     inNeed={normal={influence=3},powered={influence=5},
         woundBonus={normal=1,powered=2}}, -- Lost Legion: Wounds in hand and on Units
@@ -1240,8 +1240,8 @@ cardResourceDefinitions={
         movementEffects={normal={jumpTwoSpaces=true,ignoreRampagers=true}}},
     -- Firestorm's Wound is an inherent casting cost. The strong-side option
     -- stays uncounted until the player explicitly confirms taking it.
-    spellFireball={normal={rangedFire=5},woundConfirmation=true,poweredChoices={
-        {key="woundPending",icon="other",tooltip="Firestorm: take 1 Wound before using Siege Fire Attack 8."},
+    spellFireball={normal={rangedFire=5},woundConfirmation=true,woundPaymentChoice="woundTaken",poweredChoices={
+        {key="woundPending",icon="other",tooltip="Firestorm: select W to take 1 Wound and gain Siege Fire Attack 8."},
         {key="woundTaken",siegeFire=8,icon="siege",
             tooltip="Wound taken: Siege Fire Attack 8 is available."}}},
     spellSnowstorm={normal={rangedIce=5},powered={siegeIce=8}},

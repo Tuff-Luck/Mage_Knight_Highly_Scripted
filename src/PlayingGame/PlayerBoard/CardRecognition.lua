@@ -4090,15 +4090,17 @@ combatConfig.repeatChoiceFor=function(guid,powered,choices,index)
     local stored=selectedResourceByGUID[guid]
     local key=stored~=nil and stored.repeatChoices~=nil
         and stored.repeatChoices[index] or nil
-    if choiceAvailable(choices,key) then
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if choiceAvailable(choices,key)
+        and (rule==nil or rule.woundPaymentChoice~=key
+            or trackerPrivate.choicePolicy.woundChoicePaid(guid,key,index)) then
         for _,choice in ipairs(choices) do
             if choiceCategory(choice)==key then return choice,key end
         end
     end
     -- A single Wound confirmation on the original Action must not silently
     -- confirm TWO/THREE new Wounds when that Action is repeated.
-    local data=gameCards[guid]
-    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
     if rule~=nil and rule.woundConfirmation==true then
         return choices[1],choiceCategory(choices[1])
     end
