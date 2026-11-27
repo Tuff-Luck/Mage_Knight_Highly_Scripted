@@ -347,5 +347,13 @@ settlePending()
 eq(gStates.callOfferGloryClaimed,nil,"invalidated Spell cannot recruit")
 eq(gStates.callOfferPreview,nil,"invalidated Spell closes loan")
 eq(second.position[1],31.2,"invalidated drop restores Unit")
+-- A Spell previewed by Book of Wisdom must not itself borrow a Unit.
+spell.setRotation({0,180,0})
+trainingOfferReservedCard=function(guid,_seat) return guid==spell.guid end
+callOfferSpellEntered(spell.guid,1)
+callOfferSpellChanged()
+eq(gStates.callOfferPreview,nil,"exchange preview cannot open Call browser")
+eq(callOfferBorrowedUnitForSeat(1),nil,"exchange preview has no Unit source")
+trainingOfferReservedCard=nil
 assert(stopped>0,"borrowed Unit activation was released")
 print("Call Offer browser regressions passed")

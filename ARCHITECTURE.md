@@ -106,7 +106,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/PlayerBoard/ResourceTracker/Core/TrackerLifecycle.lua` | Coalesced settled-object scans and per-seat generation cancellation. Uses existing protected waits; no independent tracker state. Panel open/close, turn handoff, saved choice serialization and startup restoration. Mutates the coordinator's live tables through supplied reset callbacks; retains public entry points. |
 | `src/PlayingGame/GameFlow/Teams.lua` | Authoritative seat team and scenario faction membership, allied sites and ownership checks. |
 | `src/PlayingGame/Offers/CallOffer.lua` | Physical Unit loan and offer browse/return lifecycle for Call to Arms and Call to Glory. |
-| `src/PlayingGame/Offers/TrainingOffer.lua` | Training cost selection and physical Advanced Action browse/claim/return lifecycle. |
+| `src/PlayingGame/Offers/TrainingOffer.lua` | Training and Book of Wisdom cost selection and physical matching-colour deed exchange, browse/claim/return lifecycle. |
 | `src/PlayingGame/Offers/MagicTalentOffer.lua` | Magic Talent physical Spell borrow/claim/return and casting lifecycle. |
 | `src/PlayingGame/PlayerBoard/Scale.lua` | Player-board play-area and component scaling. |
 | `src/PlayingGame/PlayerBoard/Units/UnitResources.lua` | Static Unit ability resource definitions. |

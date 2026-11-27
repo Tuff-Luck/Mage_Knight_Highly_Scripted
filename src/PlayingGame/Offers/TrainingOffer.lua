@@ -1,10 +1,28 @@
--- Training: physically browse matching Advanced Actions, borrowing each
--- real Offer card and returning unchosen candidates to their original slot.
--- The cost Action remains visible until the player explicitly takes a card.
--- No borrowed Advanced Action contributes to the Resource Tracker.
+-- Training and Book of Wisdom: physical matching-colour deed exchanges.
+-- Both keep the hand cost and real Offer preview inert until Take commits.
+-- Training basic gains to discard; its stronger side and both Book sides
+-- gain to hand. The broken Book exchanges for a Spell and a crystal.
+local function isBook(guid)
+    local data=gameCards[guid]
+    return data~=nil and data.resourceKey=="artifactBookOfWisdom"
+end
 local function isTraining(guid)
     local data=gameCards[guid]
     return data~=nil and data.resourceKey=="training"
+end
+local function isExchange(guid)
+    return isTraining(guid) or isBook(guid)
+end
+local function exchangeName(guid)
+    return isBook(guid) and "Book of Wisdom" or "Training"
+end
+local function exchangeMode(seatPos,guid)
+    if isBook(guid) then
+        local broken=resourceCardsArtifactBroken(guid,getObjectFromGUID(guid))
+        return broken,1,broken and "Spell" or "Advanced Action",true
+    end
+    local powered,uses=resourceCardsTrainingMode(seatPos,guid)
+    return powered,uses,"Advanced Action",powered
 end
 local browseSerial=0
 local trainingMoveSerial=0
@@ -111,6 +129,8 @@ local function returnPreview(state,immediate)
             local live=getObjectFromGUID(guid)
             return live==nil or (live.resting and not live.isSmoothMoving())
         end,8)
+    else
+        returningPreview[guid]=nil
     end
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
@@ -132,26 +152,32 @@ end
 function trainingOfferReservedCard(guid,seatPos)
     local state=currentState()
     return returningPreview[guid]==true
-        or state~=nil and state.seatPos==seatPos
-            and (state.sourceGUID==guid or state.cardGUID==guid)
+        or state~=nil and (seatPos==nil or state.seatPos==seatPos)
+            and (state.cardGUID==guid or (seatPos~=nil and state.sourceGUID==guid))
 end
 
-local function matchesSource(sourceData,offerData)
+local function matchesSource(sourceData,offerData,offerType)
     if sourceData==nil or offerData==nil
-        or offerData.cardType~="Advanced Action" then return false end
+        or offerData.cardType~=(offerType or "Advanced Action") then return nil end
     for _,color in ipairs(sourceData.color or {}) do
         for _,other in ipairs(offerData.color or {}) do
-            if color==other then return true end
+            if color==other then return color end
         end
     end
-    return false
+    return nil
+end
+
+local function offerAvailable(guid)
+    return not returningPreview[guid]
+        and (magicTalentReservedCard==nil or not magicTalentReservedCard(guid))
 end
 
 local function borrow(state,index)
     local guid=state.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local training=getObjectFromGUID(state.trainingGUID)
-    if card==nil or training==nil or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
+    if card==nil or training==nil or not offerAvailable(guid)
+        or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     state.index=index
     state.cardGUID=guid
     state.home={position=ttsVectorArray(card.getPosition()),
@@ -184,7 +210,9 @@ end
 
 local function cycle(state,delta)
     local present={}
-    for _,card in ipairs(mainOfferCardsByType("Advanced Action")) do present[card.guid]=true end
+    for _,card in ipairs(mainOfferCardsByType(state.offerType or "Advanced Action")) do
+        if offerAvailable(card.guid) then present[card.guid]=true end
+    end
     if state.cardGUID~=nil then present[state.cardGUID]=true end
     local oldIndex,count=state.index or 1,#state.order
     for step=1,count do
@@ -205,8 +233,9 @@ end
 
 local function trainingValid(seatPos,trainingGUID)
     local card=trainingGUID~=nil and getObjectFromGUID(trainingGUID) or nil
-    if card==nil or not isTraining(trainingGUID) or seatPos==nil
+    if card==nil or not isExchange(trainingGUID) or seatPos==nil
         or not objectGUIDInZone(trainingGUID,playerPlayAreas[seatPos]) then return false end
+    if isBook(trainingGUID) then return cardEffectIsVertical(card) end
     -- A sideways Training is only the generic +1 Action, not its printed
     -- replacement effect. A face-down copy is valid only when Maximal Effect
     -- is explicitly repeating that card.
@@ -221,13 +250,13 @@ local function trainingCandidates(seatPos)
     local candidates={}
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     for _,card in ipairs(zone~=nil and zone.getObjects() or {}) do
-        if isTraining(card.guid) then candidates[#candidates+1]=card end
+        if isExchange(card.guid) then candidates[#candidates+1]=card end
     end
     return candidates
 end
 
 local function startTraining(seatPos,source)
-    if currentState()~=nil then return end
+    if currentState()~=nil or currentSeat()~=seatPos then return end
     local details=gameCards[source.guid]
     if details==nil or (details.cardType~="Starting"
         and details.cardType~="Advanced Action")
@@ -238,7 +267,7 @@ local function startTraining(seatPos,source)
     local training,nearest
     for _,candidate in ipairs(trainingCandidates(seatPos)) do
         if candidate.guid~=source.guid and trainingValid(seatPos,candidate.guid) then
-            local _,uses=resourceCardsTrainingMode(seatPos,candidate.guid)
+            local _,uses=exchangeMode(seatPos,candidate.guid)
             local at=ttsVectorArray(candidate.getPosition())
             local dx,dz=math.abs(at[1]-from[1]),math.abs(at[3]-from[3])
             local distance=dx*dx+dz*dz
@@ -251,33 +280,56 @@ local function startTraining(seatPos,source)
     end
     if training==nil then return end
     local trainingGUID=training.guid
+    local _,_,offerType=exchangeMode(seatPos,trainingGUID)
     local order={}
-    for _,offer in ipairs(mainOfferCardsByType("Advanced Action")) do
-        if matchesSource(details,gameCards[offer.guid]) then
+    for _,offer in ipairs(mainOfferCardsByType(offerType)) do
+        if offerAvailable(offer.guid) and matchesSource(details,gameCards[offer.guid],offerType) then
             order[#order+1]=offer.guid
         end
     end
     if #order==0 then
-        safeBroadcastToColor("Training: no matching Advanced Action is in the offer.",
+        safeBroadcastToColor(exchangeName(trainingGUID)..": no matching "..offerType.." is in the offer.",
             positionToColor(gStates.turnNumber),warningColor)
         return
     end
     fromHand[source.guid]=nil
     local state={seatPos=seatPos,sourceGUID=source.guid,
-        order=order,index=1,trainingGUID=trainingGUID}
+        order=order,index=1,trainingGUID=trainingGUID,offerType=offerType}
     gStates.trainingOfferPreview=state
-    if not borrow(state,1) then gStates.trainingOfferPreview=nil end
+    if not borrow(state,1) then
+        fromHand[source.guid]=seatPos
+        gStates.trainingOfferPreview=nil
+    end
+end
+
+-- A Book's bonus is the acquired Spell's colour. Reuse the same inventory
+-- count, placement and crystal draw helpers as the existing mine reward.
+local function bookCrystal(seatPos,color)
+    local index=gStates.turnNumber
+    local player=turnOrder[index]
+    if player==nil or player.seatPos~=seatPos or mineCrystalCount(index,color)>=3 then return end
+    local key=mineCrystalBagKey[color]
+    local bag=key~=nil and getObjectFromGUID(GUID.bag.mana[key]) or nil
+    if bag==nil or bag.getQuantity()==0 then
+        safeBroadcastToColor("Book of Wisdom: collect the "..color.." crystal manually.",
+            positionToColor(index),warningColor)
+        return
+    end
+    takeManaCrystal(bag,{position=mineInventoryPosition(index,color),smooth=false})
 end
 
 local function claim(state)
-    if currentState()~=state or not trainingValid(state.seatPos,state.trainingGUID) then return end
+    if currentState()~=state or currentSeat()~=state.seatPos
+        or not trainingValid(state.seatPos,state.trainingGUID) then return end
     local gained=getObjectFromGUID(state.cardGUID)
     local source=getObjectFromGUID(state.sourceGUID)
-    if gained==nil or source==nil or not objectGUIDInZone(source.guid,playerPlayAreas[state.seatPos])
-        or not matchesSource(gameCards[source.guid],gameCards[gained.guid]) then return end
-    local powered,repeatCount=resourceCardsTrainingMode(state.seatPos,state.trainingGUID)
+    local powered,repeatCount,offerType,toHand=exchangeMode(state.seatPos,state.trainingGUID)
+    if offerType~=(state.offerType or "Advanced Action") then return end
+    local color=source~=nil and gained~=nil
+        and matchesSource(gameCards[source.guid],gameCards[gained.guid],offerType) or nil
+    if color==nil or not objectGUIDInZone(source.guid,playerPlayAreas[state.seatPos]) then return end
     if ((gStates.trainingOfferClaims or {})[state.trainingGUID] or 0)>=repeatCount then return end
-    local destination=getObjectFromGUID(powered
+    local destination=getObjectFromGUID(toHand
         and handZones[state.seatPos] or deedDeckDiscardZones[state.seatPos])
     if destination==nil then return end
     browseSerial=browseSerial+1
@@ -307,10 +359,10 @@ local function claim(state)
             break
         end
     end
-    source.destruct() -- Training's cost is thrown away, not discarded.
+    source.destruct() -- Both exchanges throw away the hand Action.
     gained.unlock()
     if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(gained) end
-    if powered then
+    if toHand then
         animateDeedCardToHand(gained,state.seatPos,0)
     else
         local p=ttsVectorArray(destination.getPosition())
@@ -321,6 +373,7 @@ local function claim(state)
             scheduleDeedPileDescriptionRefresh(state.seatPos,"discard")
         end,5)
     end
+    if isBook(state.trainingGUID) and powered then bookCrystal(state.seatPos,color) end
     -- Offer compaction must happen *after* the claimed card has crossed
     -- the offer boundary; otherwise it still occupies its old slot.
     local function refill()
@@ -330,7 +383,7 @@ local function claim(state)
         return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
     end,8,refill)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
-    mainUIUpdate("Training Advanced Action Claimed")
+    mainUIUpdate(exchangeName(state.trainingGUID).." "..offerType.." Claimed")
     if claims[state.trainingGUID]<repeatCount then
         safeBroadcastToColor("Training: choose another Action from your hand for the next use.",
             positionToColor(gStates.turnNumber),warningColor)
@@ -356,7 +409,7 @@ function trainingOfferObjectDropped(playerColor,obj)
     local seatPos=currentSeat()
     if seatPos==nil then return end
     local active=currentState()
-    if isTraining(obj.guid) then
+    if isExchange(obj.guid) then
         trainingOfferScheduleCardCheck()
         -- A different Training copy can itself be a legitimate hand cost.
     end
@@ -364,13 +417,13 @@ function trainingOfferObjectDropped(playerColor,obj)
         local guid=obj.guid
         safeWaitCondition("Offers.Training",function()
             local state=currentState()
-            if state==nil or state.cardGUID~=guid then return end
+            if state~=active or state.cardGUID~=guid then return end
             local held=getObjectFromGUID(guid)
             if held==nil then return end
             state.display=ttsVectorArray(held.getPosition())
             state.rotation=ttsVectorArray(held.getRotation())
-            local powered=resourceCardsTrainingMode(state.seatPos,state.trainingGUID)
-            if objectGUIDInZone(guid,powered and handZones[state.seatPos]
+            local _,_,_,toHand=exchangeMode(state.seatPos,state.trainingGUID)
+            if objectGUIDInZone(guid,toHand and handZones[state.seatPos]
                 or deedDeckDiscardZones[state.seatPos]) then
                 claim(state)
             else trainingOfferEnsureControls() end
@@ -411,8 +464,22 @@ function trainingOfferScheduleCardCheck()
         safeWaitCondition("Offers.Training",function()
             if serial~=trainingMoveSerial then return end
             local state=currentState()
-            if state~=nil and not trainingValid(state.seatPos,state.trainingGUID) then
-                trainingOfferClose(false)
+            if state~=nil then
+                if not trainingValid(state.seatPos,state.trainingGUID) then
+                    trainingOfferClose(false)
+                else
+                    local _,_,offerType=exchangeMode(state.seatPos,state.trainingGUID)
+                    if offerType~=(state.offerType or "Advanced Action") then
+                        -- Changing the Book's Throw/Recover side changes the
+                        -- eligible offer, not the cost. Reopen for that side.
+                        local source=getObjectFromGUID(state.sourceGUID)
+                        trainingOfferClose(false)
+                        if source~=nil then
+                            fromHand[source.guid]=state.seatPos
+                            startTraining(state.seatPos,source)
+                        end
+                    end
+                end
             end
             -- Claims belong to each physical copy until turn cleanup;
             -- lifting or turning one card must not reset the other's uses.
@@ -432,7 +499,13 @@ function trainingOfferRestoreOnLoad()
     if not trainingValid(state.seatPos,state.trainingGUID)
         or getObjectFromGUID(state.sourceGUID)==nil
         or getObjectFromGUID(state.cardGUID)==nil then
-        trainingOfferClose(true)
+        -- An invalid preview must not reset completed claims on other cards.
+        trainingOfferClose(false)
+        return
+    end
+    local _,_,offerType=exchangeMode(state.seatPos,state.trainingGUID)
+    if offerType~=(state.offerType or "Advanced Action") then
+        trainingOfferClose(false)
         return
     end
     browseSerial=browseSerial+1

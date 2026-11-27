@@ -492,6 +492,7 @@ function extraTurnOptions(playerIndex)
 	if playArea~=nil then
 		for _, obj in pairs(playArea.getObjects()) do
 			if obj.guid==GUID.card.timeBending and obj.is_face_down==false
+                and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(obj.guid,details.seatPos))
                 and cardEffectIsVertical(obj)==true
                 and resourceCardsTimeBendingPaid(details.seatPos,obj)==true then
 				timeBendingAvailable=true

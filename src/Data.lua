@@ -1334,9 +1334,9 @@ cardResourceDefinitions={
     -- backwards compatibility; attached half Banners remain spent-on-flip.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
         poweredChoices={{key="other"}}},
-    artifactBookOfWisdom={artifactMode=true,requiredLink={mode="throwAway"},
+    artifactBookOfWisdom={artifactMode=true,
         normalChoices={{key="other"}},poweredChoices={{key="other"}},
-        manualSecondary="Choose the matching-colour card from the appropriate offer manually."},
+        manualSecondary="Use the matching-colour offer exchange to take the new card."},
     -- These amulets change terrain routing in their matching round, not Move
     -- points. The same ability is active on both sides of the artifact.
     artifactAmuletDarkness={artifactMode=true,artifactMana="black",

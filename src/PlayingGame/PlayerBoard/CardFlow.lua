@@ -338,6 +338,8 @@ function processCardClaim(player, mouseButton, id, rewindReady)
 			local claimedCard=getObjectFromGUID(id:sub(1, 6))
 			if claimedCard~=nil then
 				local source=id:sub(7, string.len(id))
+				if source=="offer" and ((trainingOfferReservedCard~=nil and trainingOfferReservedCard(claimedCard.guid))
+					or (magicTalentReservedCard~=nil and magicTalentReservedCard(claimedCard.guid))) then return end
 				local cardClaimRewindOwner="Card claim "..tostring(claimedCard.guid)
 				--Left-click card claims can update offers/rewards immediately while the physical card then travels
 				--through the Deed-transfer queue. Protect the whole claim so a failed rewind-store never applies
@@ -1092,6 +1094,10 @@ end
 --discard destination because the first loose card becomes the physical discard pile.
 function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 	if card==nil or card.type~="Card" or turnOrder[playerIndex]==nil then return cardDestination end
+	-- Offer previews/loans remain owned by their browser, not the player's
+	-- deed deck. The browser returns them during turn cleanup.
+	if (trainingOfferReservedCard~=nil and trainingOfferReservedCard(card.guid))
+		or (magicTalentReservedCard~=nil and magicTalentReservedCard(card.guid)) then return cardDestination end
 	local keepInPlay=false
 	-- The decision belongs to the card state/link resolver, not its red X.
 	-- Keep a fallback for independently loaded older Global scripts.

@@ -31,6 +31,7 @@ end
 local function talentInPlay(seat,talentGUID)
     local card=talentGUID~=nil and getObjectFromGUID(talentGUID) or nil
     return seat~=nil and card~=nil and isTalent(talentGUID)
+        and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(talentGUID,seat))
         and (card.is_face_down~=true or maximalEntitlement(seat,talentGUID)~=nil)
         and cardEffectIsVertical(card)
         and objectGUIDInZone(talentGUID,playerPlayAreas[seat])
@@ -64,7 +65,10 @@ end
 local function offerOrder(color,previewGUID)
     local order={}
     for _,card in ipairs(mainOfferCardsByType("Spell")) do
-        if matching(card.guid,color) then order[#order+1]=card.guid end
+        if matching(card.guid,color)
+            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid)) then
+            order[#order+1]=card.guid
+        end
     end
     if previewGUID~=nil and matching(previewGUID,color) then
         local found=false

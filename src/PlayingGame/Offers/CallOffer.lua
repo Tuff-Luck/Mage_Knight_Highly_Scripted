@@ -9,6 +9,12 @@ local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
 end
 
+-- A Training/Book exchange preview is never a played Spell, even though
+-- its physical card temporarily sits in the play area.
+local function exchangePreview(guid)
+    return trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid)
+end
+
 -- Shared object-UI navigation builder, used by Training's Advanced Action
 -- offer preview without changing the existing Unit browser's lifecycle.
 function callOfferAppendBrowseControls(xml,guid,prefix,callback,includeClaim)
@@ -130,7 +136,7 @@ function callOfferEnsureControls(seatPos)
         or (seatPos~=nil and state.seatPos~=seatPos) then return end
     local spell=getObjectFromGUID(state.spellGUID)
     local unit=getObjectFromGUID(state.unitGUID)
-    if spell==nil or not cardEffectIsVertical(spell) or unit==nil
+    if spell==nil or exchangePreview(state.spellGUID) or not cardEffectIsVertical(spell) or unit==nil
         or not objectGUIDInZone(state.spellGUID,playerPlayAreas[state.seatPos])
         or objectGUIDInZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
     local previous,nextButton=false,false
@@ -221,7 +227,7 @@ publishPublicUICallbacks({
         if guid==nil then guid,direction=id:match("^CallOfferControl_([0-9a-f]+)_(next)$") end
         if guid~=state.unitGUID then return end
         local spell=getObjectFromGUID(state.spellGUID)
-        if not cardEffectIsVertical(spell)
+        if exchangePreview(state.spellGUID) or not cardEffectIsVertical(spell)
             or not objectGUIDInZone(state.spellGUID,playerPlayAreas[state.seatPos]) then return end
         if legalPlayerCheck(player.color,state.seatPos,"NoDummyException")~=true then return end
         selectRelative(state,direction=="previous" and -1 or 1)
@@ -230,7 +236,8 @@ publishPublicUICallbacks({
 
 -- Only a genuine, played Spell creates a temporary offer display.
 function callOfferSpellEntered(spellGUID,seatPos)
-    if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil then return end
+    if spellGUID~=SPELL_GUID or seatPos==nil or gStates==nil
+        or exchangePreview(spellGUID) then return end
     -- Moving the already-used Spell must never grant a second Call to Glory.
     -- This saved flag is independent of the preview (which ends on recruitment).
     if gStates.callOfferGloryClaimed==true then return end
@@ -259,6 +266,10 @@ end
 -- exit during drag is not evidence that the Spell has been discarded.
 function callOfferSpellChanged()
     if gStates==nil then return end
+    if exchangePreview(SPELL_GUID) then
+        callOfferClose(false)
+        return
+    end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell~=nil and (spell.held_by_color~=nil or spell.resting~=true
         or spell.isSmoothMoving()==true) then return end
@@ -320,6 +331,7 @@ function callOfferSpellLeft(spellGUID,seatPos)
 end
 
 function callOfferBorrowedUnitForSeat(seatPos)
+    if exchangePreview(SPELL_GUID) then return nil end
     local state=previewState()
     if state==nil or state.seatPos~=seatPos then return nil end
     if not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
@@ -338,7 +350,7 @@ function callOfferObjectDropped(obj)
         local current=previewState()
         if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
         local spell=getObjectFromGUID(current.spellGUID)
-        if not cardEffectIsVertical(spell)
+        if exchangePreview(current.spellGUID) or not cardEffectIsVertical(spell)
             or not objectGUIDInZone(current.spellGUID,playerPlayAreas[current.seatPos]) then
             callOfferClose(false)
             return
@@ -373,7 +385,7 @@ function callOfferRestoreOnLoad()
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)
-    if unit==nil or not cardEffectIsVertical(spell)
+    if unit==nil or exchangePreview(SPELL_GUID) or not cardEffectIsVertical(spell)
         or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
         callOfferClose(true)
         return

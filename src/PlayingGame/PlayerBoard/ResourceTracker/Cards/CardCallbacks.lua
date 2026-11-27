@@ -163,6 +163,12 @@ function M.artifactBreak(player,value,id,resourceCardsDetailsOpen,cardPosture,ca
         or not cardInSeatPlayArea(guid,current.seatPos)
         or combatConfig.phaseObjectLocked(guid) then return end
     local broken=resourceCardsArtifactBroken(guid,card)
+    if data.resourceKey=="artifactBookOfWisdom"
+        and ((gStates.trainingOfferClaims or {})[guid] or 0)>0 then
+        safeBroadcastToColor("Book of Wisdom: exchange already completed. Use Rewind to undo.",
+            player.color,warningColor)
+        return
+    end
     if not broken and combatEnemyInPlay then
         if data.resourceKey=="artifactDruidicStaff" then
             safeBroadcastToColor("Druidic Staff: Throw requires two different "
@@ -192,6 +198,9 @@ function M.artifactBreak(player,value,id,resourceCardsDetailsOpen,cardPosture,ca
     resourceCardsMaximalEffectMark(card,not broken)
     choiceExpandedByGUID[guid]=nil
     resourceCardsSourceChanged()
+    if data.resourceKey=="artifactBookOfWisdom" and trainingOfferScheduleCardCheck~=nil then
+        trainingOfferScheduleCardCheck()
+    end
 end
 
 function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,factionRewardForObject,cardPosture,cardCanPlaySideways,trackerPrivate,currentChoice,choiceCategory,combatCalcOn,combatCumbersomeActive,combatEnemyInPlay,choiceAvailable,inventorySetChoice,choiceExpandedByGUID,showChoiceButtons,selectedResourceByGUID,sideChoices,resourceCardsMoveRole,combatForgetPhysicalSourceTargets,queueSeat)

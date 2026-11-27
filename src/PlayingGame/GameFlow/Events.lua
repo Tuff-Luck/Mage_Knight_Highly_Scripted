@@ -1977,8 +1977,9 @@ local function handleClaimZoneLeave(ctx)
 	--briefly sweep over the AA/Spell source Decks while its boundary moves; clearing a Deck here
 	--would erase the persistent resize controls/table labels hosted on the Spell source.
 	if obj.type=="Card" and offerClaimSource(zone.guid,obj)~=nil
-        and (magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid)) then
-        obj.UI.setXmlTable({{}})
+        and (magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid))
+        and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(obj.guid)) then
+        obj.UI.setXml("")
     end
 
 	if zone.guid==GUID.zone.unitOffer and refreshUnitOfferHighlights~=nil then
@@ -2084,7 +2085,7 @@ function __onObjectLeaveZone_raw(zone, obj)
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
     end
-    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="training" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and (gameCards[ctx.objGUID].resourceKey=="training" or gameCards[ctx.objGUID].resourceKey=="artifactBookOfWisdom") and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
     end
     if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="magicTalent" and ctx.playerZoneKind=="play" then
@@ -2552,7 +2553,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         -- The new face may not yet be applied when onObjectRotate fires.
         callOfferScheduleSpellCheck()
     end
-    if gameCards[cardGUID]~=nil and gameCards[cardGUID].resourceKey=="training" then trainingOfferScheduleCardCheck() end
+    if gameCards[cardGUID]~=nil and (gameCards[cardGUID].resourceKey=="training" or gameCards[cardGUID].resourceKey=="artifactBookOfWisdom") then trainingOfferScheduleCardCheck() end
     if gameCards[cardGUID]~=nil and gameCards[cardGUID].resourceKey=="magicTalent" then magicTalentScheduleCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
