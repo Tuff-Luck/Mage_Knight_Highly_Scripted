@@ -286,6 +286,26 @@ run("resource-tracker-unit-management",function()
     eq(active,false,"Ordinary Influence mode")
     eq(spent,0,"No paid Ready without Action")
     eq(totals.influence,11,"Ordinary mode preserves Influence")
+
+    -- Manual purchases reduce the shared budget, while manual resource
+    -- corrections can fund costs without creating a physical combat source.
+    env.gStates.resourceTracker={influence={generated=-2,reputation=5,cityShields=4}}
+    env.gStates.unitReadyLinks={}
+    env.gStates.startingCardSelections.def.influenceHealing=3
+    records={def={complete=true,powered=true,influenceAction=true,resources={influence=6}}}
+    totals={influence=6,healing=0}
+    scan.payReadyInfluence({records=records,totals=totals})
+    eq(totals.healing,2,"Manual spending reduces affordable Heal")
+    eq(totals.influence,2,"Raw total excludes only automated costs")
+    eq(records.def.influenceSpent,6,"All physical Influence already spent")
+    env.gStates.resourceTracker.influence.generated=2
+    env.gStates.startingCardSelections.def.influenceHealing=2
+    records={def={complete=true,powered=true,influenceAction=true,resources={influence=2}}}
+    totals={influence=2,healing=0}
+    scan.payReadyInfluence({records=records,totals=totals})
+    eq(totals.healing,2,"Positive manual correction funds Heal")
+    eq(totals.influence,-2,"Manual credit is not counted twice in display")
+    eq(records.def.influenceSpent,2,"Only real sources receive reservations")
     print("Unit management and Ready payment regressions passed")
 end)
 

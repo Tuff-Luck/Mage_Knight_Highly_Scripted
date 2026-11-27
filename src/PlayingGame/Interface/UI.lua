@@ -2393,6 +2393,11 @@ function resourceTracker(player, mouseButton, id)
             if (isDown and (current>0 or id:sub(1,16)=="InfluAmountReput" or id:sub(1,16)=="InfluAmountPlain"))
                 or (isUp and (category~="move" or resourceCardsEffectiveMove()<99)) then
                 gStates.resourceTracker[category][field]=gStates.resourceTracker[category][field]+(isDown and -1 or 1)
+                if category=="influence" and field=="generated" then
+                    -- Reprice existing Ready/Heal payments and refresh combat
+                    -- reservations when manual purchases or corrections change.
+                    resourceCardsSourceChanged()
+                end
                 refreshResourceTrackerText()
             end
         end
@@ -2455,7 +2460,7 @@ local function trackerSpendableInfluence()
     local shields=canModifyInfluence and currentCityShieldInfluence(current) or 0
     gStates.resourceTracker.influence.cityShields=shields
     local interactionTotal=math.max(0,base+(reputation==-99 and 0 or reputation)+shields)
-    if reputation==-99 or specialAction then interactionTotal=0 end
+    if reputation==-99 or specialAction or combat then interactionTotal=0 end
     return interactionTotal,base,generated,reputation,shields,canModifyInfluence
 end
 

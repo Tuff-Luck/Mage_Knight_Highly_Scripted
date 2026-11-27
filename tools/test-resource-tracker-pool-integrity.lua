@@ -54,7 +54,17 @@ assert(interaction==0 and base==6 and rep==0 and shields==0,
 special=false
 combat=true
 interaction,base,generated,rep,shields=spendable()
-assert(base==6 and rep==0 and shields==0,"Combat Influence remains unmodified")
+assert(interaction==0 and base==6 and rep==0 and shields==0,
+    "Combat Influence remains unmodified and cannot advertise Interaction")
+combat=false
+influenceEnv.gStates.resourceTracker.influence.generated=-3
+interaction,base=spendable()
+assert(base==3 and interaction==8,"Manual spending reduces ordinary and Interaction budget")
+influenceEnv.gStates.resourceTracker.influence.reputation=-99
+interaction,base=spendable()
+assert(base==3 and interaction==0,"No Interaction does not erase ordinary Influence")
+influenceEnv.gStates.resourceTracker.influence.generated=0
+influenceEnv.gStates.resourceTracker.influence.reputation=3
 -- Unplayed Reputation and Shields must never bias the default card resource choice.
 local scoreEnv={
     gStates={resourceTracker={

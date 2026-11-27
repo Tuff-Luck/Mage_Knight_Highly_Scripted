@@ -177,6 +177,17 @@ function M.replace(record,totals,from,to,amount)
     end
 end
 
+-- Manual adjustments are signed: a negative amount represents points
+-- already spent, including spending more than the currently played cards.
+-- Only ordinary Influence belongs here, never Reputation or City Shields.
+function M.influenceAdjustment(tracker)
+    return tonumber(tracker and tracker.influence and tracker.influence.generated) or 0
+end
+
+function M.influenceBudget(totals,tracker)
+    return (tonumber(totals and totals.influence) or 0)+M.influenceAdjustment(tracker)
+end
+
 -- Record the scan-local share of generated Influence already paid for
 -- non-combat effects. Keep printed/resource values intact for card controls.
 -- Stable source order keeps the same remaining combat pool across rescans.

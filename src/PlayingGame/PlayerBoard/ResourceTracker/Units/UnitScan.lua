@@ -403,7 +403,8 @@ function M.payReadyInfluence(context)
         if a.owner~=b.owner then return a.owner<b.owner end
         return a.number<b.number
     end)
-    local availableInfluence=totals.influence or 0
+    local generatedInfluence=tonumber(totals.influence) or 0
+    local availableInfluence=resourceOps.influenceBudget(totals,gStates.resourceTracker)
     for _,payment in ipairs(readyPayments) do
         if gStates.unitReadyLinks[payment.key]~=nil then
             if ruthlessReadySpent+payment.cost<=availableInfluence then
@@ -419,7 +420,7 @@ function M.payReadyInfluence(context)
     for owner,spent in pairs(ruthlessReadyBySource) do
         if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
     end
-    totals.influence=availableInfluence-ruthlessReadySpent
+    totals.influence=generatedInfluence-ruthlessReadySpent
     -- Readying and Heal share a single pool; the already-linked Ready gets
     -- priority. Trim unavailable Heal conversions instead of creating points.
     for _,guid in ipairs(actionSources) do
@@ -430,7 +431,8 @@ function M.payReadyInfluence(context)
         if rule~=nil and rule.influenceAction~=nil and selected~=nil then
             local cost=rule.influenceAction.healCost
             local requested=math.max(0,math.floor(tonumber(selected.influenceHealing) or 0))
-            local healing=math.min(requested,math.max(0,math.floor(totals.influence/cost)))
+            local budget=resourceOps.influenceBudget(totals,gStates.resourceTracker)
+            local healing=math.min(requested,math.max(0,math.floor(budget/cost)))
             selected.influenceHealing=healing
             record.influenceHealing=healing
             totals.influence=totals.influence-healing*cost
@@ -439,7 +441,11 @@ function M.payReadyInfluence(context)
     end
     -- The combat calculator reads individual records rather than the tracker
     -- total. Allocate the same payments there so Ready/Heal cannot also Block.
-    resourceOps.allocateInfluenceSpend(records,availableInfluence-totals.influence)
+    -- Negative manual adjustments also represent unavailable points.
+    -- Positive adjustments can pay for effects, but never create a
+    -- targetable physical combat source.
+    resourceOps.allocateInfluenceSpend(records,generatedInfluence-totals.influence
+        +math.max(0,-resourceOps.influenceAdjustment(gStates.resourceTracker)))
     return ruthlessReadySpent,readyNeedsRescan,#actionSources>0
 end
 

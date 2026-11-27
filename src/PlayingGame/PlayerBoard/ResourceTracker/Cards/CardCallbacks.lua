@@ -1,5 +1,6 @@
 -- Player-facing card, Skill and Artifact choice callbacks, interaction rewards, Ready links and Throw/Recover. Uses live selections and coordinator helpers; public protected UI names remain unchanged.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 local moveOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.MoveRoleOptions")
 
 function M.healUnits(player,value,id,combatCalcOn,combatEnemyInPlay,trackerPrivate,cardPosture,cardInSeatPlayArea)
@@ -92,7 +93,7 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
         and record.influenceAction then
         local used=math.max(0,tonumber(record.influenceHealing) or 0)
         if right then selected.influenceHealing=math.max(0,used-1)
-        elseif (tonumber(scan.totals.influence) or 0)>=rule.influenceAction.healCost then
+        elseif resourceOps.influenceBudget(scan.totals,gStates.resourceTracker)>=rule.influenceAction.healCost then
             selected.influenceHealing=used+1
         else return end
     elseif control=="ruthlessReady" and rule.readyWithInfluence~=nil
@@ -116,7 +117,7 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
             end
             if spec.maxUses~=nil and index>spec.maxUses then return end
             if links[guid.."#ready"..index]==nil
-                and (tonumber(scan.totals.influence) or 0)<spec.costPerLevel then return end
+                and resourceOps.influenceBudget(scan.totals,gStates.resourceTracker)<spec.costPerLevel then return end
             attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
                 rule.readyWithInfluence.maxLevel)
         end

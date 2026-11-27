@@ -1,5 +1,6 @@
 -- Ready source validation, target eligibility and public Ready interaction policy.
 local M={}
+local resourceOps=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
 
 function M.sourceValid(sourceKey,seatPos,unitResourceDefinitions,unitManaDecision,cardInSeatPlayArea,cardPosture,combatEnemyInPlay,currentChoice,choiceCategory,inventorySetChoice,trackerPrivate,sideChoices,combatConfig,selectedResourceByGUID)
     if type(sourceKey)~="string" or gStates==nil then return false end
@@ -170,7 +171,7 @@ function M.targetEligible(sourceKey,unitGUID,seatPos)
     local old=link~=nil and gameCards[link.unitGUID] or nil
     local credit=old~=nil and (tonumber(old.level) or 0)
         *rule.readyWithInfluence.costPerLevel or 0
-    return (tonumber(scan.totals.influence) or 0)+credit>=cost
+    return resourceOps.influenceBudget(scan.totals,gStates.resourceTracker)+credit>=cost
 end
 
 function M.sourceClicked(player,value,id,combatEnemyInPlay,unitResourceDefinitions)
