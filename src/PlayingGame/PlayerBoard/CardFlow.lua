@@ -1642,7 +1642,7 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 	local offerSize=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=offerSize
 	local offerList={{}, {}}
-	local borrowedHomes=magicTalentOfferLoanHomes~=nil and magicTalentOfferLoanHomes() or {}
+	local borrowedHomes=deedOfferReservedHomes~=nil and deedOfferReservedHomes() or {}
 	local movedCards={}
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
 	if offerZone==nil then return movedCards end
@@ -1661,7 +1661,7 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 	end
 
 	for _,obj in pairs(offerZone.getObjects()) do
-		if obj.type=="Card" then
+		if obj.type=="Card" and borrowedHomes[obj.guid]==nil then
 			local cardSpot=obj.getPosition()
 			if cardSpot~=nil then
 				local row=math.floor(((-cardSpot[3]-10.2)/6)+0.5)

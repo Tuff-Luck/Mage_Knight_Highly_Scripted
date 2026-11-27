@@ -64,19 +64,26 @@ local function currentSeat()
 end
 
 local function maximalEntitlement(seat,talentGUID)
-    return not isTome(talentGUID) and resourceCardsMaximalEffectLink~=nil
+    return not isTome(talentGUID) and cardSession(talentGUID)==nil
+        and resourceCardsMaximalEffectLink~=nil
         and resourceCardsMaximalEffectLink(seat,talentGUID) or nil
 end
 
 local function talentInPlay(seat,talentGUID)
     local card=talentGUID~=nil and getObjectFromGUID(talentGUID) or nil
-    return seat~=nil and card~=nil and isTalent(talentGUID)
-        and cardSession(talentGUID)==nil
-        and not returning[talentGUID]
-        and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(talentGUID,seat))
-        and (card.is_face_down~=true or maximalEntitlement(seat,talentGUID)~=nil)
-        and cardEffectIsVertical(card)
-        and objectGUIDInZone(talentGUID,playerPlayAreas[seat])
+    if seat==nil or card==nil or not isTalent(talentGUID)
+        or returning[talentGUID]
+        or (trainingOfferReservedCard~=nil and trainingOfferReservedCard(talentGUID,seat))
+        or (card.is_face_down==true and maximalEntitlement(seat,talentGUID)==nil)
+        or not cardEffectIsVertical(card)
+        or not objectGUIDInZone(talentGUID,playerPlayAreas[seat]) then return false end
+    local owner=cardSession(talentGUID)
+    if owner==nil then return true end
+    -- Only a confirmed stronger Magic Talent loan is an eligible nested
+    -- source. Browsing an Action never activates its own offer browser.
+    return gameCards[talentGUID].resourceKey=="magicTalent"
+        and (owner.ancientsLoans or {})[talentGUID]==true
+        and magicTalentOfferCastSide(seat,talentGUID)==true
 end
 
 local function talentsInPlay(seat)
@@ -272,12 +279,14 @@ end
 local function strongColor(seat,useIndex,copy,talentGUID)
     if magicTalentManaPayments==nil then return nil end
     local payments=browserManaPayments(seat,talentGUID)
-    if copy~=nil and copy.powered==true then
-        -- Maximal Effect provides Magic Talent's strong side for free.
-        -- Its two *additional* mana payments must still be distinct.
+    local borrowed=cardSession(talentGUID)~=nil
+        and magicTalentOfferCastSide(seat,talentGUID)==true
+    if (copy~=nil and copy.powered==true) or borrowed then
+        -- A granted stronger side is free; each application still needs
+        -- one distinct extra coloured mana matching the gained Spell.
         local choices,seen={},{}
         local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
-        local sourcePayments=resourceCardsMaximalEffectSourceManaGUIDs~=nil
+        local sourcePayments=copy~=nil and resourceCardsMaximalEffectSourceManaGUIDs~=nil
             and resourceCardsMaximalEffectSourceManaGUIDs(seat,copy.sourceGUID) or {}
         for _,payment in ipairs(payments) do
             if seen[payment.guid]~=true and sourcePayments[payment.guid]~=true
@@ -288,7 +297,7 @@ local function strongColor(seat,useIndex,copy,talentGUID)
                 choices[#choices+1]=payment.color
             end
         end
-        if #choices<(copy.count or 1) then return nil end
+        if #choices<(copy~=nil and copy.count or 1) then return nil end
         return choices[useIndex or 1]
     end
     local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
@@ -455,12 +464,18 @@ end
 
 -- The offer card keeps its GUID and is never cloned. Retire the calculator
 -- source BEFORE the card is returned; delayed scans must not recreate targets.
+local closeSession
 local function returnPreview(s,immediate)
     if s==nil or s.cardGUID==nil then return end
     local guid,home=s.cardGUID,s.home
     local token={}
     s.cardGUID,s.home=nil,nil
     returning[guid]=token
+    -- Retire dependent previews before physically restoring their source.
+    -- A confirmed child gain remains owned, never returned to the offer.
+    local child=state(guid)
+    if child~=nil then closeSession(child,immediate) end
+    if trainingOfferSourceReturned~=nil then trainingOfferSourceReturned(guid,immediate) end
     if s.talentGUID~=nil then bumpBrowse(s) end
     if guid=="2eb8e8" and callOfferClose~=nil then callOfferClose(immediate) end
     if combatForgetPhysicalSourceTargets~=nil then combatForgetPhysicalSourceTargets(guid) end
@@ -495,7 +510,7 @@ local function returnPreview(s,immediate)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
 
-local function closeSession(s,immediate)
+closeSession=function(s,immediate)
     if not liveSession(s) then return end
     sessions()[s.talentGUID]=nil
     local preview=s.cardGUID
@@ -790,7 +805,9 @@ local function confirmAncients(s,action,guid)
                 bumpBrowse(s)
                 ensureAncientsRepeatControls(s)
                 if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
-                if s.mode=="ancients" then magicTalentScheduleCheck() end
+                -- The final loan can itself be a Magic Talent source.
+                -- Schedule discovery even when this parent is completed.
+                magicTalentScheduleCheck()
             end
         end,function(ok,reason)
             s.woundPending=nil
@@ -1023,6 +1040,11 @@ local function startSource(seat,talentGUID)
         if cost~=nil and #offerOrder(color)>0 then
             start(seat,"tome",color,cost,nil,nil,talentGUID)
         end
+    elseif cardSession(talentGUID)~=nil then
+        -- Blood of Ancients supplies only the stronger side, never the
+        -- basic discard-and-borrow option of Magic Talent.
+        local paid=strongColor(seat,1,nil,talentGUID)
+        if paid~=nil then start(seat,"strong",paid,nil,nil,nil,talentGUID) end
     elseif entitlement~=nil and entitlement.powered==true then
         local paid=strongColor(seat,1,entitlement,talentGUID)
         if paid~=nil then start(seat,"strong",paid,nil,entitlement,nil,talentGUID) end

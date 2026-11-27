@@ -843,6 +843,16 @@ function setDeedOfferSizeForSetup(value)
 	return true
 end
 
+-- Logical offer membership is shared by all deed browsers. The values
+-- are the original home tables so compaction can update their positions.
+function deedOfferReservedHomes()
+    local homes=magicTalentOfferLoanHomes~=nil and magicTalentOfferLoanHomes() or {}
+    for guid,home in pairs(trainingOfferLoanHomes~=nil and trainingOfferLoanHomes() or {}) do
+        homes[guid]=home
+    end
+    return homes
+end
+
 function offerAdjust(player, mouseButton, id)
 	if mouseButton~="-1" or OfferPause==true then return end
 	local delta=id=="e4372aOfferUp" and 1 or id=="e4372aOfferDown" and -1 or nil
@@ -858,10 +868,10 @@ function offerAdjust(player, mouseButton, id)
 
     -- A committed loan still occupies its home column. Shrinking through
     -- that column would remove an in-use card from the public offer.
-    if delta<0 and magicTalentOfferLoanHomes~=nil then
-        for _,home in pairs(magicTalentOfferLoanHomes()) do
+    if delta<0 then
+        for _,home in pairs(deedOfferReservedHomes()) do
             if math.floor(((home.position[1]-21.6)/4.8)+0.5)==oldSize then
-                safeBroadcastToColor("Finish the borrowed Spell before removing its offer slot.",
+                safeBroadcastToColor("Finish the active deed selection before removing its offer slot.",
                     player.color,warningColor)
                 return
             end

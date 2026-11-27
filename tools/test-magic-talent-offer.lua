@@ -687,3 +687,63 @@ eq(discarded.payment1,"borrower","First cost assigned")
 eq(discarded.payment2,"borrower","Second cost assigned")
 eq(discarded.borrower,nil,"Paid borrowed source still not thrown away")
 print("Borrowed repeat cost regressions passed")
+
+-- A confirmed Blood of Ancients loan of Magic Talent opens a dependent
+-- stronger browser, using one extra coloured mana, not a second power mana.
+magicTalentClose(true)
+gStates.ancientsOfferClaims=nil
+maximalCopy=nil
+ancients.setPosition({0,1,0})
+talent.setPosition({10,1,-20})
+alternate.setPosition({0,1,-40})
+tome.setPosition({0,1,-40})
+redAction.setPosition({15,1,-20})
+blueAction.setPosition({20,1,-20})
+dualAction.setPosition({25,1,-20})
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+blue.setPosition({20,1,-20})
+mainOfferCardsByType=function(kind)
+    local out={}
+    local candidates=kind=="Advanced Action" and {talent,redAction,blueAction,dualAction}
+        or {red1,red2,blue}
+    for _,obj in ipairs(candidates) do if inZone(obj.guid,"offer") then out[#out+1]=obj end end
+    return out
+end
+bySource={[ancients.guid]={{guid="parentRed",color="Red"}}}
+magicTalentSync()
+local parent=assert(gStates.magicTalentPreviews[ancients.guid])
+eq(parent.cardGUID,talent.guid,"Parent browses Magic Talent")
+bySource[talent.guid]={{guid="extra",color="Blue"}}
+magicTalentSync()
+eq(gStates.magicTalentPreviews[talent.guid],nil,"Unconfirmed Magic Talent never starts a child")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..talent.guid.."_useAncientsHand")
+local nested=assert(gStates.magicTalentPreviews[talent.guid],"Confirmed loan opens child")
+eq(nested.mode,"strong","Nested Magic Talent uses stronger side")
+eq(nested.cardGUID,blue.guid,"One extra Blue mana selects Blue Spell")
+eq(magicTalentOfferLoanHomes()[talent.guid]~=nil,true,"Parent Action home reserved")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blue.guid.."_claim")
+eq(inZone(blue.guid,"discard"),true,"Nested gain goes to discard")
+eq(nested.mode,"claimed","Child completes exactly once")
+eq(magicTalentReservedCard(talent.guid),true,"Parent loan remains public property")
+magicTalentClose(true)
+eq(inZone(talent.guid,"offer"),true,"Borrowed source returns")
+eq(inZone(blue.guid,"discard"),true,"Claimed Spell stays owned")
+eq(gStates.magicTalentPreviews,nil,"All dependent sessions retired")
+
+-- Cancel a pending child by removing its parent.
+gStates.ancientsOfferClaims=nil
+blue.setPosition({20,1,-20})
+bySource={[ancients.guid]={{guid="parentRed",color="Red"}},
+    [talent.guid]={{guid="extra",color="Blue"}}}
+magicTalentSync()
+parent=assert(gStates.magicTalentPreviews[ancients.guid])
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..talent.guid.."_useAncientsHand")
+nested=assert(gStates.magicTalentPreviews[talent.guid])
+eq(nested.cardGUID,blue.guid,"Child preview active")
+ancients.setPosition({0,1,-40})
+magicTalentSync()
+eq(next(gStates.magicTalentPreviews or {}),nil,"Parent departure retires dependent session")
+eq(inZone(blue.guid,"offer"),true,"Pending child Spell returns")
+eq(inZone(talent.guid,"offer"),true,"Parent Action returns")
+print("Nested Magic Talent browser regressions passed")

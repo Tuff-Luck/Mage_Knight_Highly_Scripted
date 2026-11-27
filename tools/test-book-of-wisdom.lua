@@ -185,3 +185,45 @@ eq(preview(),nil,"sideways Book cancels exchange")
 eq(cost.destroyed,false,"cancel does not destroy cost")
 eq(inZone(redSpell.guid,"offer"),true,"cancel restores offer Spell")
 print("Book of Wisdom exchange regressions passed")
+
+-- Borrowed Training still throws only the owned matching hand Action.
+env.trainingOfferClose(true)
+book.rotation={0,90,0}
+cost.destroyed=false
+cost.position={0,1,0}
+redAA.position={20,1,20}
+local borrowedTraining=card("666666",{0,1,0})
+cards[#cards+1]=borrowedTraining
+objects[borrowedTraining.guid]=borrowedTraining
+env.gameCards[borrowedTraining.guid]={cardType="Advanced Action",resourceKey="training",color={"Green"}}
+local confirmed=false
+env.magicTalentReservedCard=function(guid) return guid==borrowedTraining.guid end
+env.magicTalentInactivePreview=function(guid) return guid==borrowedTraining.guid and not confirmed end
+env.magicTalentOfferCastSide=function(_seat,guid)
+    if guid==borrowedTraining.guid and confirmed then return true end
+end
+env.resourceCardsTrainingMode=function(_seat,guid)
+    return env.magicTalentOfferCastSide(1,guid)==true,1
+end
+dropCost()
+eq(preview(),nil,"Unconfirmed borrowed Training is inert")
+confirmed=true
+dropCost()
+eq(preview().trainingGUID,borrowedTraining.guid,"Confirmed loan is an eligible source")
+eq(preview().cardGUID,redAA.guid,"Training borrows matching Action")
+local homes=env.trainingOfferLoanHomes()
+eq(homes[redAA.guid]~=nil,true,"Pending exchange occupies its logical slot")
+homes[redAA.guid].position={25,1,20}
+env.trainingOfferSourceReturned(borrowedTraining.guid,true)
+eq(preview(),nil,"Returning parent cancels child preview")
+eq(cost.destroyed,false,"Cancelled exchange preserves cost")
+eq(redAA.position[1],25,"Preview returns to reflowed home")
+dropCost()
+take(redAA)
+eq(cost.destroyed,true,"Confirmed Training throws owned cost")
+eq(borrowedTraining.destroyed,nil,"Borrowed Training not destroyed")
+eq(inZone(redAA.guid,"hand"),true,"Borrowed stronger side gains to hand")
+eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],1,"Completed claim recorded")
+env.trainingOfferSourceReturned(borrowedTraining.guid,true)
+eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],1,"Parent return does not reset claim")
+print("Borrowed Training exchange regressions passed")

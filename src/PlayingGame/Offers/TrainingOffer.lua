@@ -135,13 +135,32 @@ local function returnPreview(state,immediate)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
 end
 
+local function closeExchange(state,immediate)
+    if currentState()~=state then return end
+    browseSerial=browseSerial+1
+    gStates.trainingOfferPreview=nil
+    returnPreview(state,immediate==true)
+end
+
+-- An outstanding exchange preview belongs to its source. Returning a
+-- borrowed Training must cancel only that preview, not completed claims.
+function trainingOfferSourceReturned(guid,immediate)
+    local state=currentState()
+    if state~=nil and state.trainingGUID==guid then closeExchange(state,immediate) end
+end
+
+-- The preview still occupies its logical offer slot until Take commits.
+function trainingOfferLoanHomes()
+    local state=currentState()
+    if state~=nil and state.cardGUID~=nil and state.home~=nil then
+        return {[state.cardGUID]=state.home}
+    end
+    return {}
+end
+
 function trainingOfferClose(immediate)
     local state=currentState()
-    if state~=nil then
-        browseSerial=browseSerial+1
-        returnPreview(state,immediate==true)
-        gStates.trainingOfferPreview=nil
-    end
+    if state~=nil then closeExchange(state,immediate) end
     if immediate==true and gStates~=nil then
         gStates.trainingOfferClaims=nil
         fromHand={}
@@ -210,11 +229,30 @@ end
 
 local function cycle(state,delta)
     local present={}
+    local sourceData=gameCards[state.sourceGUID]
+    local positions={}
+    local order={}
     for _,card in ipairs(mainOfferCardsByType(state.offerType or "Advanced Action")) do
-        if offerAvailable(card.guid) then present[card.guid]=true end
+        if card.guid~=state.cardGUID and offerAvailable(card.guid)
+            and matchesSource(sourceData,gameCards[card.guid],state.offerType) then
+            present[card.guid]=true
+            positions[card.guid]=ttsVectorArray(card.getPosition())[1]
+            order[#order+1]=card.guid
+        end
     end
-    if state.cardGUID~=nil then present[state.cardGUID]=true end
-    local oldIndex,count=state.index or 1,#state.order
+    if state.cardGUID~=nil and state.home~=nil then
+        present[state.cardGUID]=true
+        positions[state.cardGUID]=state.home.position[1]
+        order[#order+1]=state.cardGUID
+    else return end
+    table.sort(order,function(a,b)
+        if positions[a]==positions[b] then return a<b end
+        return positions[a]<positions[b]
+    end)
+    state.order=order
+    local oldIndex=1
+    for i,guid in ipairs(order) do if guid==state.cardGUID then oldIndex=i break end end
+    local count=#order
     for step=1,count do
         local index=((oldIndex-1+step*delta)%count)+1
         local guid=state.order[index]
@@ -236,6 +274,13 @@ local function trainingValid(seatPos,trainingGUID)
     if card==nil or not isExchange(trainingGUID) or seatPos==nil
         or (magicTalentInactivePreview~=nil and magicTalentInactivePreview(trainingGUID))
         or not objectGUIDInZone(trainingGUID,playerPlayAreas[seatPos]) then return false end
+    if magicTalentReservedCard~=nil and magicTalentReservedCard(trainingGUID) then
+        -- Only the confirmed borrowed stronger Training is an exchange
+        -- source. A pending or returning Action must never destroy a cost.
+        return isTraining(trainingGUID) and magicTalentOfferCastSide~=nil
+            and magicTalentOfferCastSide(seatPos,trainingGUID)==true
+            and card.is_face_down~=true and cardEffectIsVertical(card)
+    end
     if isBook(trainingGUID) then return cardEffectIsVertical(card) end
     -- A sideways Training is only the generic +1 Action, not its printed
     -- replacement effect. A face-down copy is valid only when Maximal Effect
@@ -325,6 +370,7 @@ local function claim(state)
         or not trainingValid(state.seatPos,state.trainingGUID) then return end
     local gained=getObjectFromGUID(state.cardGUID)
     local source=getObjectFromGUID(state.sourceGUID)
+    if source~=nil and magicTalentReservedCard~=nil and magicTalentReservedCard(source.guid) then return end
     local powered,repeatCount,offerType,toHand=exchangeMode(state.seatPos,state.trainingGUID)
     if offerType~=(state.offerType or "Advanced Action") then return end
     local color=source~=nil and gained~=nil
