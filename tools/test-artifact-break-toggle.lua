@@ -236,6 +236,7 @@ end
 do
     local disposed,brokenByGUID={},{}
     local box={guid="085e69",type="Card",is_face_down=false}
+    box.setScale=function(_value) end
     local trash={putObject=function(card) disposed[#disposed+1]=card.guid end}
     local cleanupEnv=setmetatable({
         gStates={bannercard={}},trackerPrivate={},turnOrder={{deadDeckInventory={}}},
