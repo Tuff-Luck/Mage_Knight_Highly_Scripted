@@ -167,6 +167,34 @@ function M.resolve(context)
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget,borrowedRepeats)
+    -- A direct Maximal Effect target can be face down. Its printed effect
+    -- mana remains payable even though ordinary card power is forbidden.
+    -- Do not reassign a token already owned by another card or Skill.
+    local repeatedManaCards={}
+    for _,card in ipairs(cards) do
+        local repeated=repeatByTarget[card.guid]
+        if repeated~=nil and not repeated.borrowed and specialPaymentByCard[card.guid]~=nil then
+            repeatedManaCards[#repeatedManaCards+1]=card
+            -- The repeat source supplies the side; coloured mana on the
+            -- target only selects effects, never powers that target.
+            powered[card.guid]=nil
+            powerManaColorsByCard[card.guid]=nil
+        end
+    end
+    if #repeatedManaCards>0 then
+        for _,mana in ipairs(manaObjects) do
+            if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
+                and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
+                local color=manaColor(mana)
+                local best=trackerPrivate.bestManaCard(mana,repeatedManaCards,footprints,function(card)
+                    local spec=specialPaymentByCard[card.guid]
+                    return cardPosture(card)=="upright"
+                        and (spec.colors[color]~=nil or (color=="Gold" and resourceCardsGoldAllowed()))
+                end)
+                if best~=nil then spendMana(best,color,mana.guid) end
+            end
+        end
+    end
     resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget,discarded,hasDiscard)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.

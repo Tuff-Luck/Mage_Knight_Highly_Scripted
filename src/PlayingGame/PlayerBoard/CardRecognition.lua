@@ -5665,13 +5665,15 @@ local function renderSeat(seatPos)
     local function paidManaChoices(guid,rule,strong,boost,repeatLink)
         local freeSide
         if magicTalentOfferCastSide~=nil then freeSide=magicTalentOfferCastSide(seatPos,guid) end
-        local needPower=freeSide==nil and powered[guid]==true and boost==nil
-        local spec=freeSide~=nil and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
+        repeatLink=repeatLink or repeatByTarget[guid]
+        local granted=freeSide~=nil or repeatLink~=nil
+        local needPower=not granted and powered[guid]==true and boost==nil
+        local spec=granted and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
         local candidates=effectManaByCard[guid] or {}
         local goldAllowed=resourceCardsGoldAllowed()
-        -- Free borrowed repeats need a separate printed effect payment for
-        -- each row, not a single valid option multiplied by the repeat count.
-        if freeSide~=nil and repeatLink~=nil and repeatLink.borrowed then
+        -- Direct and borrowed repeats share the same independent printed
+        -- effect payments. Maximal Effect itself supplies the copied side.
+        if repeatLink~=nil then
             repeatLink.effectManaSpec=spec
             repeatLink.effectManaPayments=candidates
             repeatLink.effectManaGoldAllowed=goldAllowed

@@ -543,7 +543,9 @@ function M.process(context)
                             or data.cardType=="Spell" or data.cardType=="Artifact")
                         and powered[card.guid]==true
                         and card.is_face_down~=true and cardPosture(card)=="upright"
-                        and target~=nil and target.resources~=nil then
+                        and target~=nil and target.resources~=nil
+                        and target.repeatLink==nil
+                        and (magicTalentOfferCastSide==nil or magicTalentOfferCastSide(seatPos,card.guid)==nil) then
                         local powerColors=powerManaColorsByCard[card.guid] or {}
                         local definition=cardResourceDefinitions[data.resourceKey]
                         if definition~=nil and definition.effectManaChoice~=nil then

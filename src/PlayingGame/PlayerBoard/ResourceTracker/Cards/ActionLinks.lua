@@ -74,10 +74,14 @@ return function(deps)
                 and cardPosture(source)=="upright" then
                 local target=nearestOverlap(source,function(candidate)
                     local other=gameCards[candidate.guid]
+                    local otherRule=other~=nil and cardResourceDefinitions[other.resourceKey] or nil
                     return other~=nil
                         and (other.cardType=="Starting" or other.cardType=="Advanced Action")
                         and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
-                        and (not manaPowered[candidate.guid] or other.resourceKey=="bloodOfAncients")
+                        -- Additional mana may look like ordinary power before
+                        -- Maximal Effect determines the target's actual side.
+                        and (not manaPowered[candidate.guid] or other.resourceKey=="bloodOfAncients"
+                            or (otherRule~=nil and otherRule.effectManaChoice~=nil))
                         and #links[candidate.guid]==0
                         and (magicTalentReservedCard==nil or not magicTalentReservedCard(candidate.guid))
                         and cardPosture(candidate)=="upright"
