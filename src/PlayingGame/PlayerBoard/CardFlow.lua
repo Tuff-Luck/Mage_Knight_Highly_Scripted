@@ -1883,14 +1883,18 @@ function scheduleCoralQuickWittedBottom(delayFrames)
 	coralQuickWittedShufflePause=safeWaitFrames("CardFlow",function() coralQuickWittedShufflePause=nil coralSetAsideQuickWitted() end, delayFrames or 5)
 end
 
--- Deal confirmed calculator Wounds one at a time. Each card is acknowledged
--- immediately by GUID, so a save/reload during transfer does not duplicate it.
-function combatDealCalculatedWounds(seat,allocations,onCard,onDone)
-    local bag=nil
-    for _,obj in ipairs(getObjects()) do
-        if obj.getGMNotes()=="Wound Cards"
-            and math.ceil((obj.getPosition()[1]+80)/40)==seat then
-            bag=obj break
+-- Shared physical Wound delivery for combat, printed costs and manual
+-- Wound/Poison bag draws. Each successful card is acknowledged by GUID.
+-- The selected manual bag retains its own template; calculated costs use
+-- the player's normal Wound bag.
+function combatDealCalculatedWounds(seat,allocations,onCard,onDone,sourceBag)
+    local bag=sourceBag
+    if bag==nil then
+        for _,obj in ipairs(getObjects()) do
+            if obj.getGMNotes()=="Wound Cards"
+                and math.ceil((obj.getPosition()[1]+80)/40)==seat then
+                bag=obj break
+            end
         end
     end
     if bag==nil then
@@ -1916,6 +1920,21 @@ function combatDealCalculatedWounds(seat,allocations,onCard,onDone)
         if card==nil then
             if onDone then onDone(false,"Wound Cards bag failed to produce a card") end
             return
+        end
+        -- A Wound dealt directly to discard never crosses the hand zone.
+        -- Register it immediately just like a newly acquired deed, before
+        -- notifying the caller's combat or printed-cost ledger.
+        for _,player in ipairs(turnOrder or {}) do
+            if player.seatPos==seat then
+                local inventory=player.deadDeckInventory or {}
+                local found=false
+                for _,guid in ipairs(inventory) do
+                    if guid==card.guid then found=true break end
+                end
+                if not found then inventory[#inventory+1]=card.guid end
+                player.deadDeckInventory=inventory
+                break
+            end
         end
         if onCard then onCard(entry.key,entry.to,card.guid) end
         safeWaitFrames("PlayerBoard.CardFlow",dealNext,3)
@@ -2138,12 +2157,17 @@ end
 -- Wound dealing helper
 function DealWound(paramaters)
 	local woundbag=getObjectFromGUID(paramaters.guid)
+	if woundbag==nil or paramaters.player==nil then return end
+	local notes=woundbag.getGMNotes()
+	if notes~="Wound Cards" and notes~="Poison Cards" then return end
 	local playerPosition=math.ceil((woundbag.getPosition()[1]+80)/40)
 	if legalPlayerCheck(paramaters.player.color, playerPosition)==true then
-		woundbag.takeObject({position={(playerPosition*40)-91, 2.98, -48.40}})
-		if paramaters.id=="DealPoison" then
-			woundbag.takeObject({position={(playerPosition*40)-110.54, 2, -43.20}})
-		end
+		combatDealCalculatedWounds(playerPosition,{{key="manual",hand=1,
+			discard=paramaters.id=="DealPoison" and 1 or 0}},nil,function(success,reason)
+			if not success then
+				safeBroadcastToColor(reason,paramaters.player.color,warningColor)
+			end
+		end,woundbag)
 	end
 end
 

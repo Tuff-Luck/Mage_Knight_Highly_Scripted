@@ -356,8 +356,16 @@ function playerBoardZoneEnterSettled(ctx)
 		local woundX=woundPosition[1]
 		if woundPosition[3]>=-37 and ((woundX>-65.3 and woundX<-42.7) or (woundX>-25.3 and woundX<-2.7) or
 			(woundX>14.7 and woundX<37.3) or (woundX>54.7 and woundX<77.3)) then
-			getObjectFromGUID("ab56f3").takeObject({position={woundX, woundPosition[2], -33.29}, smooth=false})
-			obj.destruct()
+			local bag=getObjectFromGUID("ab56f3")
+			local token=bag~=nil and safeTakeObject("PlayerBoard.Events",bag,
+				{position={woundX, woundPosition[2], -33.29}, smooth=false}) or nil
+			-- Do not lose a Wound if the replacement token cannot be taken.
+			if token~=nil then
+				local guid=obj.guid
+				if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(obj) end
+				obj.destruct()
+				deedInventoryForgetCard(guid)
+			end
 		end
 	end
 

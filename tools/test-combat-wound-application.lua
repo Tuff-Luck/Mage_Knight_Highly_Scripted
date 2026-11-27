@@ -33,7 +33,7 @@ safeTakeObject=function(_,container,args)
     return {guid=guid}
 end
 safeWaitFrames=function(_,callback) callback() end
-isolated(cardflow,"function combatDealCalculatedWounds(seat,allocations,onCard,onDone)",
+isolated(cardflow,"function combatDealCalculatedWounds(seat,allocations,onCard,onDone,sourceBag)",
     "-- Wound dealing helper")
 
 gStates={turnNumber=1}
@@ -78,6 +78,10 @@ eq(#(function() local t={} for guid in pairs(ledger.cards) do t[#t+1]=guid end r
     3,"only hand cards are eligible post-Damage sources")
 eq(dealt[1].position[3],-48.4,"hand positioning")
 eq(dealt[3].position[3],-43.2,"poison-discard positioning")
+eq(#turnOrder[1].deadDeckInventory,5,"All delivered Wounds become owned deeds")
+local owned={}
+for _,guid in ipairs(turnOrder[1].deadDeckInventory) do owned[guid]=true end
+eq(owned[dealt[3].guid],true,"Poison discard Wound is owned without a hand event")
 resourceCardsApplyCombatWounds({color="Red"})
 eq(#dealt,5,"second click cannot deal again")
 
@@ -1133,3 +1137,36 @@ eq(rejected,1,"snapshot failure callback invoked")
 eq(rewindTransactionCanStartFresh(),true,"snapshot failure releases pending state")
 
 print("Combat Wound application regressions passed")
+
+-- Manual bag draws share the transfer service but do not enter the
+-- calculator's damage-phase ledger.
+do
+    local before=#dealt
+    local poison={getGMNotes=function() return "Poison Cards" end,
+        getPosition=function() return {-50,2,-45} end}
+    local originalTake=safeTakeObject
+    safeTakeObject=function(_module,container,args)
+        eq(container,poison,"Manual Poison uses the selected bag")
+        local guid=string.format("w%05d",#dealt+1)
+        dealt[#dealt+1]={guid=guid,position=args.position}
+        return {guid=guid}
+    end
+    local originalGet=getObjectFromGUID
+    getObjectFromGUID=function(guid) return guid=="poison" and poison or nil end
+    legalPlayerCheck=function(_color,seat) return seat==1 end
+    gStates={turnNumber=1}
+    turnOrder={{seatPos=1,deadDeckInventory={}}}
+    isolated(cardflow,"function DealWound(paramaters)","-- Public UI callback ownership")
+    DealWound({guid="poison",player={color="Red"},id="DealPoison"})
+    eq(#dealt,before+2,"Manual Poison deals two Wounds")
+    eq(dealt[before+1].position[3],-48.4,"Manual Poison hand")
+    eq(dealt[before+2].position[3],-43.2,"Manual Poison discard")
+    eq(#turnOrder[1].deadDeckInventory,2,"Both manual Wounds registered")
+    eq(gStates.combatWoundApplication,nil,"No fabricated combat damage entry")
+    safeTakeObject=function(_module,_container,_args) return nil end
+    DealWound({guid="poison",player={color="Red"},id="DealPoison"})
+    eq(#turnOrder[1].deadDeckInventory,2,"Failed extraction never adds ownership")
+    safeTakeObject=originalTake
+    getObjectFromGUID=originalGet
+end
+print("Shared manual and calculated Wound delivery regressions passed")
