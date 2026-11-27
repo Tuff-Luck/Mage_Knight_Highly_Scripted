@@ -58,7 +58,7 @@ eq(unique,25,"Distinct official artifacts")
 assert(physical>=25,"Official alternate physical states are missing")
 
 local section=between(data,"    -- Full-size Artifacts use a saved Break toggle",
-    "    -- Wound-taking bonuses require")
+    "    -- Default to the combat Wound ledger;")
 local defs=assert(load("return {\n"..section.."\n}"))()
 eq(defs.artifactAmuletSun.artifactMana,"gold","Sun permits Gold")
 eq(defs.artifactAmuletDarkness.artifactMana,"black","Darkness permits Black")
