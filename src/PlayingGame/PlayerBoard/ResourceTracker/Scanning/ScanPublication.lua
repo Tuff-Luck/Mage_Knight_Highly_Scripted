@@ -68,6 +68,7 @@ function M.publish(context)
     end
     -- The prior candidate may have been withheld while reconciling Unit history.
     local totalsChanged=previousScan==nil or combatConfig.scanAwaitingRescan==true
+        or (previousScan.totals.recruitDiscount or 0)~=(totals.recruitDiscount or 0)
     if not totalsChanged then
         for category in pairs(trackerPrivate.totalsKeys) do
             if (previousScan.totals[category] or 0)~=(totals[category] or 0)

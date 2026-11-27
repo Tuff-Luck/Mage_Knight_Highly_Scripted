@@ -562,14 +562,13 @@ function M.process(context)
             result.links[#result.links+1]=manaLink.skillGUID
             result.convertedMana=manaLink.converted
         end
-        -- The recruitment-cost change is not performed by the offer script:
-        -- the player chooses when to use these two extra Influence points.
-        local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)
+        -- A recruitment discount is not a generated resource. Keep it out
+        -- of ordinary Influence (Learning, Heal/Ready and combat conversion).
+        local recruitBonus=not combatEnemyInPlay and cardPosture(card)=="upright"
+            and card.is_face_down~=true and resourceCardsRecruitInfluenceBonus(card.guid,rule,result) or 0
         if recruitBonus>0 then
-            local adjusted={}
-            for key,value in pairs(result.resources) do adjusted[key]=value end
-            adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus
-            result.resources=adjusted
+            result.recruitDiscount=recruitBonus
+            totals.recruitDiscount=(totals.recruitDiscount or 0)+recruitBonus
         end
         result.choices=choices -- Also authoritative for payment-restricted click validation.
         if cardProfile~=nil then cardProfile=trackerPrivate.profileCheckpoint("cards.recognition",cardProfile) end

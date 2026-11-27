@@ -24,7 +24,7 @@ assert(trackerUI:find('local canModifyInfluence=not combat and not specialAction
 assert(trackerUI:find('showRow("InfluAmountPlain",influenceBase>0,34)',1,true)
     and trackerUI:find('setResourceTrackerText("InfluAmountPlainText",{RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})',1,true),
     "The headline Influence row must exclude Interaction modifiers")
-assert(trackerUI:find('refreshUnitOfferHighlights(interactionTotal)',1,true),
+assert(trackerUI:find('refreshUnitOfferHighlights(recruitmentTotal)',1,true),
     "Unit affordability uses Interaction Influence, not Learning's ordinary pool")
 assert(trackerUI:find('showRow("InfluAmountReput",canModifyInfluence and reputation~=0)',1,true),
     "Reputation must be hidden until Influence is available")
@@ -65,6 +65,28 @@ interaction,base=spendable()
 assert(base==3 and interaction==0,"No Interaction does not erase ordinary Influence")
 influenceEnv.gStates.resourceTracker.influence.generated=0
 influenceEnv.gStates.resourceTracker.influence.reputation=3
+
+local raw={influence=6,recruitDiscount=2}
+influenceEnv.resourceCardsCurrentTotals=function() return raw end
+local ordinary,ordinaryBase,_,_,_,_,recruitBudget,discount=spendable()
+assert(ordinary==11 and ordinaryBase==6 and recruitBudget==13 and discount==2,
+    "Recruitment bonus applies to Unit affordability only")
+influenceEnv.gStates.resourceTracker.influence.reputation=-99
+ordinary,ordinaryBase,_,_,_,_,recruitBudget=spendable()
+assert(ordinary==0 and ordinaryBase==6 and recruitBudget==0,
+    "Recruitment discount cannot bypass No Interaction")
+influenceEnv.gStates.resourceTracker.influence.reputation=-5
+raw.influence=1
+ordinary,ordinaryBase,_,_,_,_,recruitBudget=spendable()
+assert(ordinary==0 and recruitBudget==0,
+    "Discount cannot erase a negative Interaction balance before flooring")
+influenceEnv.gStates.resourceTracker.influence.reputation=3
+raw.influence=6
+special=true
+ordinary,ordinaryBase,_,_,_,_,recruitBudget,discount=spendable()
+assert(ordinary==0 and ordinaryBase==6 and recruitBudget==0 and discount==0,
+    "Separate Action cannot use the recruitment discount")
+special=false
 -- Unplayed Reputation and Shields must never bias the default card resource choice.
 local scoreEnv={
     gStates={resourceTracker={

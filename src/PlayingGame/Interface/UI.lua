@@ -2461,7 +2461,20 @@ local function trackerSpendableInfluence()
     gStates.resourceTracker.influence.cityShields=shields
     local interactionTotal=math.max(0,base+(reputation==-99 and 0 or reputation)+shields)
     if reputation==-99 or specialAction or combat then interactionTotal=0 end
-    return interactionTotal,base,generated,reputation,shields,canModifyInfluence
+    -- Recruitment-only reductions must not inflate the headline or the
+    -- ordinary Interaction total. Compute against the signed pool before
+    -- flooring, so negative Reputation cannot be erased by the discount.
+    local recruitDiscount=not combat and not specialAction
+        and math.max(0,tonumber(raw.recruitDiscount) or 0) or 0
+    local recruitmentTotal=interactionTotal
+    if recruitDiscount>0 and base+recruitDiscount>0 then
+        local recruitRep=gStates.resourceTracker.influence.reputation or 0
+        local recruitShields=canModifyInfluence and shields or currentCityShieldInfluence(current)
+        recruitmentTotal=recruitRep==-99 and 0
+            or math.max(0,base+recruitDiscount+recruitRep+recruitShields)
+    end
+    return interactionTotal,base,generated,reputation,shields,canModifyInfluence,
+        recruitmentTotal,recruitDiscount
 end
 
 -- nil: the Resource Tracker is closed, so show only site eligibility.
@@ -2470,13 +2483,14 @@ function resourceTrackerAvailableInfluence()
     -- A player with an enemy in the Play Area is in combat, not an
     -- interaction; combat Influence must not advertise affordable recruits.
     if resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() then return nil end
-    return trackerSpendableInfluence()
+    local _,_,_,_,_,_,recruitmentTotal=trackerSpendableInfluence()
+    return recruitmentTotal
 end
 
 function refreshResourceTrackerText()
     if not resourceCardsPanelOpen() or gStates.resourceTracker==nil or gStates.moveCost==nil then return end
-    local interactionTotal,influenceBase,influenceGenerated,reputation,shields,canModifyInfluence=
-        trackerSpendableInfluence()
+    local interactionTotal,influenceBase,influenceGenerated,reputation,shields,canModifyInfluence,
+        recruitmentTotal,recruitDiscount=trackerSpendableInfluence()
     local rawTotals=resourceCardsCurrentTotals() or {}
     local valueSnapshot=resourceCardsEffectiveValueSnapshot~=nil and resourceCardsEffectiveValueSnapshot() or nil
     local healingGenerated=tonumber(rawTotals.healing) or 0
@@ -2557,6 +2571,9 @@ function refreshResourceTrackerText()
     local interactionDisplay=reputation==-99 and "No Interaction" or tostring(interactionTotal)
     setResourceTrackerText("InfluInteractionTotalText",{"{en}Interaction total : {it}Totale interazione : {ru}Итого взаимодействие: {zh-tw}互動總計：{zh-cn}互动总计：{ko}상호작용 합계 : {es}Total interacción : {fr}Total interaction : {pt-br}Total interação : {de}Interaktion gesamt : ",
             interactionDisplay})
+    showRow("InfluRecruitmentTotal",recruitDiscount>0 and recruitmentTotal~=interactionTotal)
+    setResourceTrackerText("InfluRecruitmentTotalText",{"{en}Recruitment total : {it}Totale reclutamento : {ru}Итого найм: {zh-tw}招募總計：{zh-cn}招募总计：{ko}모집 합계 : {es}Total reclutamiento : {fr}Total recrutement : {pt-br}Total recrutamento : {de}Rekrutierung gesamt : ",
+            recruitmentTotal})
 
     showRow("HealiAmountPlain",healingTotal>0,34)
     setResourceTrackerText("HealiAmountPlainText",{RESOURCE_TRACKER_FIELDS.HealiAmountPlain[3],healingTotal})
@@ -2578,7 +2595,7 @@ function refreshResourceTrackerText()
     end
     resourceTrackerVisibleHeight=visibleHeight
     resourceTrackerSyncLayout(true)
-    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights(interactionTotal) end
+    if refreshUnitOfferHighlights~=nil then refreshUnitOfferHighlights(recruitmentTotal) end
 end
 
 function resetResourceTrackerState()

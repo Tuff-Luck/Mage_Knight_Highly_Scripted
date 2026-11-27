@@ -276,8 +276,8 @@ combatConfig.startingCardConditionalFameRep=function()
 end
 
 -- The basic Ruthless Coercion recruitment discount is player-declared.
--- Give the player two more Influence to spend manually rather than
--- attempting to identify or discount the recruited Unit's offer cost.
+-- It increases recruitment affordability only, never generated Influence.
+-- Claiming and paying for the Unit remain manual.
 local function resourceCardsRecruitInfluenceBonus(guid,rule,record)
     if rule==nil or rule.recruitDiscount==nil or record==nil
         or record.powered==true or record.complete~=true

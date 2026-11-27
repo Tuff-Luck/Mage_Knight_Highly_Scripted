@@ -65,15 +65,31 @@ state.startingCardSelections[guid].recruited=false
 eq(select(2,reward()),0,"Unselecting restores Reputation")
 eq(bonus(guid,rule,basic),0,"Unselecting removes extra Influence")
 
--- The bonus must be applied before the resource scan adds the card's
--- contribution to totals, rather than directly changing the Unit offer.
+-- Run the actual discount-accounting block in isolation.
 local playedCards=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/PlayedCardScan.lua")
-local bonusCall=assert(playedCards:find(
-    "local recruitBonus=resourceCardsRecruitInfluenceBonus(card.guid,rule,result)",1,true))
-local addTotals=assert(playedCards:find("addResourceAmounts(result,totals)",bonusCall,true))
-assert(addTotals>bonusCall,"Recruitment bonus must precede totals accounting")
-assert(playedCards:find("adjusted.influence=(tonumber(adjusted.influence) or 0)+recruitBonus",
-    bonusCall,true),"Recruitment bonus must change the card's own Influence")
+local discountCode=section(playedCards,
+    "local recruitBonus=not combatEnemyInPlay",
+    "result.choices=choices")
+local printed={influence=2}
+local discountEnv=setmetatable({
+    card={guid=guid,is_face_down=false},rule=rule,
+    result={complete=true,powered=false,resources=printed},totals={influence=0},
+    cardPosture=function() return "upright" end,
+    resourceCardsRecruitInfluenceBonus=function() return 2 end
+},{__index=_G})
+local discount=assert(load(discountCode,"Recruitment-only discount","t",discountEnv))
+discount()
+eq(discountEnv.totals.recruitDiscount,2,"Separate recruitment budget")
+eq(discountEnv.result.resources.influence,2,"No general Influence granted")
+eq(printed.influence,2,"Printed card unchanged")
+discountEnv.totals={}
+discountEnv.combatEnemyInPlay=true
+discount()
+eq(discountEnv.totals.recruitDiscount,nil,"Discount does not apply in combat")
+discountEnv.combatEnemyInPlay=false
+discountEnv.cardPosture=function() return "sideways" end
+discount()
+eq(discountEnv.totals.recruitDiscount,nil,"Sideways card cannot grant discount")
 
 -- The actual on-card click toggles declaration and requests a recalculation.
 local clickCode=section(recognition,
