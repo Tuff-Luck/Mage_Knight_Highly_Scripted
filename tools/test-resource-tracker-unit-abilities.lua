@@ -263,6 +263,29 @@ run("resource-tracker-unit-management",function()
     eq(records.abc.readyInfluenceSpent,2,"Payment attributed to source")
     eq(cancelled[1],"abc#ready2","Unaffordable second Ready cancelled")
     eq(rescan,true,"Cancelled activation requests a new scan")
+    -- Peaceful Moment's one Ready and Heal conversions share generated Influence.
+    env.gameCards.def={resourceKey="peaceful"}
+    env.gameCards.elite={level=4}
+    env.cardResourceDefinitions.peaceful={influenceAction={healCost=2},
+        readyWithInfluence={maxLevel=4,costPerLevel=2,maxUses=1,requiresAction=true}}
+    env.gStates.startingCardSelections={def={influenceAction=true,influenceHealing=2}}
+    env.gStates.unitReadyLinks={["def#ready1"]={unitGUID="elite"}}
+    records={def={complete=true,powered=true,influenceAction=true}}
+    totals={influence=11,healing=1}
+    local active
+    spent,rescan,active=scan.payReadyInfluence({records=records,totals=totals})
+    eq(active,true,"Special Action active")
+    eq(spent,8,"Level IV Ready costs eight")
+    eq(totals.influence,1,"Remaining Influence pays only one Heal")
+    eq(totals.healing,2,"One purchased Heal added to existing Healing")
+    eq(records.def.influenceHealing,1,"Displayed paid Heal matches real budget")
+    eq(env.gStates.startingCardSelections.def.influenceHealing,1,"Unaffordable Heal removed")
+    records.def.influenceAction=nil
+    totals={influence=11}
+    spent,rescan,active=scan.payReadyInfluence({records=records,totals=totals})
+    eq(active,false,"Ordinary Influence mode")
+    eq(spent,0,"No paid Ready without Action")
+    eq(totals.influence,11,"Ordinary mode preserves Influence")
     print("Unit management and Ready payment regressions passed")
 end)
 

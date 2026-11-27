@@ -3781,6 +3781,13 @@ function resourceCardsCombatAssignmentClick(id,mouseButton)
 end
 
 -- The tracker belongs to the active Mage Knight, not everyone whose cards are on the table.
+function resourceCardsInfluenceActionActive()
+    if not resourceCardsPanelOpen() or turnOrder==nil or gStates.turnNumber==nil then return false end
+    local player=turnOrder[gStates.turnNumber]
+    local scan=player~=nil and resourceCardScanBySeat[player.seatPos] or nil
+    return scan~=nil and scan.influenceAction==true
+end
+
 function resourceCardsCurrentTotals()
     if not resourceCardsPanelOpen() or turnOrder==nil or gStates.turnNumber==nil then return nil end
     local player=turnOrder[gStates.turnNumber]
@@ -5801,8 +5808,8 @@ local function renderSeat(seatPos)
         end,
     })
 
-    local ruthlessReadySpent,readyNeedsRescan
-    ruthlessReadySpent,readyNeedsRescan=
+    local ruthlessReadySpent,readyNeedsRescan,influenceAction
+    ruthlessReadySpent,readyNeedsRescan,influenceAction=
         trackerPrivate.unitScan.payReadyInfluence({
         records=records, totals=totals,
     })
@@ -5834,7 +5841,8 @@ local function renderSeat(seatPos)
         terrainModifierPrecedes=terrainModifierPrecedes, totals=totals, movementEffects=movementEffects,
         attackTransforms=attackTransforms, resourceCardsSyncInteractionPower=resourceCardsSyncInteractionPower,
         combatConfig=combatConfig, current=current, enemyEffects=enemyEffects,
-        ruthlessReadySpent=ruthlessReadySpent, ignoreSiteFortifications=ignoreSiteFortifications,
+        ruthlessReadySpent=ruthlessReadySpent, influenceAction=influenceAction,
+        ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState, cards=cards, cardPosture=cardPosture, preventUnitDamage=preventUnitDamage,
         allUnitResistances=allUnitResistances, heroFirstWoundIgnored=heroFirstWoundIgnored,
         heroPsychicBlock=heroPsychicBlock, usesCurrentHexBlock=usesCurrentHexBlock,

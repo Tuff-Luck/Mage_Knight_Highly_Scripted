@@ -49,6 +49,8 @@ function M.publish(context)
     local previousSplit=previousScan~=nil and previousScan.moveSplit or nil
     local enemyStateChanged=previousScan==nil
         or previousScan.enemyPresent~=combatEnemyInPlay
+    local influenceActionChanged=previousScan==nil
+        or (previousScan.influenceAction==true)~=(context.influenceAction==true)
     local moveSplitChanged=previousSplit==nil
         or previousSplit.movement~=moveSplit.movement
         or previousSplit.combat~=moveSplit.combat
@@ -109,7 +111,7 @@ function M.publish(context)
         attackTransforms=attackTransforms,
         terrainModifiers=terrainModifiers,movementEffects=movementEffects,
         enemyEffects=enemyEffects,fameRepBase=fameRepBase,
-        ruthlessReadySpent=ruthlessReadySpent,
+        ruthlessReadySpent=ruthlessReadySpent,influenceAction=context.influenceAction==true,
         ignoreSiteFortifications=ignoreSiteFortifications,
         unitState=unitState,gloryBroken=(function()
             for _,card in ipairs(cards) do
@@ -152,7 +154,7 @@ function M.publish(context)
     -- Refresh conversion counters against the just-published shared budget,
     -- not the preceding scan used during the initial card UI pass.
     for guid,record in pairs(records) do
-        if record.combatConversion~=nil and context.objects[guid]~=nil then
+        if (record.combatConversion~=nil or record.influenceAction) and context.objects[guid]~=nil then
             context.showChoiceButtons(context.objects[guid],record.choices,record.powered,
                 nil,nil,record.resources,record.repeatLink,record.shapeshiftField)
         end
@@ -172,7 +174,7 @@ function M.publish(context)
     if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.reputation",resourceProfile) end
     -- Redraw movement when ability flags change, even if total Move stays equal.
     if totalsChanged or terrainChanged or transformChanged or moveSplitChanged
-        or enemyStateChanged or reputationBefore~=reputationAfter then
+        or enemyStateChanged or influenceActionChanged or reputationBefore~=reputationAfter then
         refreshResourceTrackerText()
     end
     if resourceProfile~=nil then resourceProfile=trackerPrivate.profileCheckpoint("resources.trackerText",resourceProfile) end

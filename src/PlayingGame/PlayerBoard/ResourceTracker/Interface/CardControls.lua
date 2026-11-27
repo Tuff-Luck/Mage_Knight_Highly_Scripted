@@ -155,6 +155,9 @@ return function(deps)
         end
         local special=gStates~=nil and gStates.startingCardSelections~=nil
             and gStates.startingCardSelections[card.guid] or nil
+        local influenceAction=rule~=nil and rule.influenceAction~=nil
+            and not combatEnemyInPlay and special~=nil and special.influenceAction==true
+        local influenceHealing=influenceAction and (special.influenceHealing or 0) or 0
         local readyLinks={}
         if rule~=nil and (rule.readyWithInfluence~=nil or rule.simultaneousReady==true) then
             for sourceKey in pairs(gStates~=nil and gStates.unitReadyLinks or {}) do
@@ -168,6 +171,7 @@ return function(deps)
         -- Keep the Ready control for undo while links exist; otherwise show it
         -- only if the active Unit layout has a spent, eligible target.
         local canReadyUnit=rule~=nil and rule.readyWithInfluence~=nil and powered
+            and (not rule.readyWithInfluence.requiresAction or influenceAction)
             and attackAssignmentsHasReadyTarget~=nil
             and attackAssignmentsHasReadyTarget(
                 turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber]~=nil
@@ -189,6 +193,7 @@ return function(deps)
                 ..":"..table.concat(conversion.elementUses or {},",")) or "")
             ..(special~=nil and (":START:"..tostring(special.interaction)..":"
                 ..tostring(special.recruited)..":"..tostring(special.terrain)) or "")
+            ..":INFL_ACTION:"..tostring(influenceAction)..":"..tostring(influenceHealing)
             ..":READY:"..tostring(readyCount)..":"..table.concat(readyLinks,",")
             ..":READY_ELIGIBLE:"..tostring(canReadyUnit)
             ..":ARTIFACT_BREAK:"..tostring(isArtifact and resourceCardsArtifactBroken(card.guid,card))
@@ -598,6 +603,18 @@ return function(deps)
             elseif rule.recruitDiscount~=nil and not powered then
                 startingControl("recruit","-2 REC",
                     special~=nil and special.recruited==true,135,-125)
+            elseif rule.influenceAction~=nil then
+                if not combatEnemyInPlay then
+                    startingControl("influenceAction","ACT",influenceAction,135,-125)
+                    if influenceAction then
+                        startingControl("influenceHeal","HEAL "..tostring(influenceHealing),
+                            influenceHealing>0,135,-55)
+                        if powered and (canReadyUnit or readyCount>0) then
+                            startingControl("ruthlessReady","RDY "..tostring(readyCount),
+                                readyCount>0,135,15)
+                        end
+                    end
+                end
             elseif rule.readyWithInfluence~=nil and powered
                 and (canReadyUnit or readyCount>0) then
                 startingControl("ruthlessReady","RDY "..tostring(readyCount),

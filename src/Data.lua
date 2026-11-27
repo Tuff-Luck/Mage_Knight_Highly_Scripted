@@ -1143,7 +1143,9 @@ cardResourceDefinitions={
         combatMoveSuppressHealing=true},
     diplomacy={normal={influence=2},powered={influence=4},combatConversion="diplomacy"},
     heroicTale={normal={influence=3},powered={influence=6}}, -- Other effects remain manual
-    peacefulMoment={normal={influence=3},powered={influence=6}}, -- Healing/refresh remains manual
+    peacefulMoment={normal={influence=3},powered={influence=6},
+        influenceAction={healCost=2},
+        readyWithInfluence={maxLevel=4,costPerLevel=2,maxUses=1,requiresAction=true}},
     learning={normal={influence=2},powered={influence=4}}, -- Optional Advanced Action purchase does not change Influence
     bloodRage={
         normalChoices={{key="attack",attack=2},{key="wound",attack=5,

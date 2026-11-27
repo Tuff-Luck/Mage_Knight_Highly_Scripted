@@ -2449,12 +2449,13 @@ local function trackerSpendableInfluence()
     local raw=resourceCardsCurrentTotals() or {}
     local generated=tonumber(raw.influence) or 0
     local base=generated+(gStates.resourceTracker.influence.generated or 0)
-    local canModifyInfluence=not combat and base>0
+    local specialAction=resourceCardsInfluenceActionActive~=nil and resourceCardsInfluenceActionActive()
+    local canModifyInfluence=not combat and not specialAction and base>0
     local reputation=canModifyInfluence and (gStates.resourceTracker.influence.reputation or 0) or 0
     local shields=canModifyInfluence and currentCityShieldInfluence(current) or 0
     gStates.resourceTracker.influence.cityShields=shields
     local interactionTotal=math.max(0,base+(reputation==-99 and 0 or reputation)+shields)
-    if reputation==-99 then interactionTotal=0 end
+    if reputation==-99 or specialAction then interactionTotal=0 end
     return interactionTotal,base,generated,reputation,shields,canModifyInfluence
 end
 

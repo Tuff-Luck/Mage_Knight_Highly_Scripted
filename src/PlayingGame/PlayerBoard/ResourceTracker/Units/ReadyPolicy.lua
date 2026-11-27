@@ -89,8 +89,11 @@ function M.sourceValid(sourceKey,seatPos,unitResourceDefinitions,unitManaDecisio
         and (gStates.unitReadyLinks==nil or gStates.unitReadyLinks[sourceKey]==nil) then return false end
     if rule.unitReadyAlways==true then return sourceKey==guid end
     if rule.readyWithInfluence~=nil then
-        return record.powered==true
-            and sourceKey:match("^"..guid.."#ready%d+$")~=nil
+        local index=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))
+        local spec=rule.readyWithInfluence
+        return record.powered==true and index~=nil and index>=1
+            and (spec.maxUses==nil or index<=spec.maxUses)
+            and (not spec.requiresAction or record.influenceAction==true)
     end
     if rule.simultaneousReady==true then
         local index=tonumber(sourceKey:match("^"..guid.."#ready(%d+)$"))

@@ -377,6 +377,11 @@ function M.payReadyInfluence(context)
     local ruthlessReadyBySource={}
     local readyNeedsRescan=false
     local readyPayments={}
+    local actionSources={}
+    for guid,record in pairs(records) do
+        if record.influenceAction then actionSources[#actionSources+1]=guid end
+    end
+    table.sort(actionSources)
     for key,link in pairs(gStates.unitReadyLinks or {}) do
         local owner=key:match("^([0-9a-f]+)#ready%d+$")
         local record=owner~=nil and records[owner] or nil
@@ -385,6 +390,9 @@ function M.payReadyInfluence(context)
         local unit=link~=nil and gameCards[link.unitGUID] or nil
         if record~=nil and record.complete and record.powered and rule~=nil
             and rule.readyWithInfluence~=nil and unit~=nil
+            and (not rule.readyWithInfluence.requiresAction or record.influenceAction)
+            and (rule.readyWithInfluence.maxUses==nil
+                or (tonumber(key:match("#ready(%d+)$")) or 0)<=rule.readyWithInfluence.maxUses)
             and (tonumber(unit.level) or 99)<=rule.readyWithInfluence.maxLevel then
             readyPayments[#readyPayments+1]={key=key,owner=owner,
                 cost=(tonumber(unit.level) or 0)*rule.readyWithInfluence.costPerLevel,
@@ -412,7 +420,24 @@ function M.payReadyInfluence(context)
         if records[owner]~=nil then records[owner].readyInfluenceSpent=spent end
     end
     totals.influence=availableInfluence-ruthlessReadySpent
-    return ruthlessReadySpent,readyNeedsRescan
+    -- Readying and Heal share a single pool; the already-linked Ready gets
+    -- priority. Trim unavailable Heal conversions instead of creating points.
+    for _,guid in ipairs(actionSources) do
+        local record=records[guid]
+        local data=gameCards[guid]
+        local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+        local selected=(gStates.startingCardSelections or {})[guid]
+        if rule~=nil and rule.influenceAction~=nil and selected~=nil then
+            local cost=rule.influenceAction.healCost
+            local requested=math.max(0,math.floor(tonumber(selected.influenceHealing) or 0))
+            local healing=math.min(requested,math.max(0,math.floor(totals.influence/cost)))
+            selected.influenceHealing=healing
+            record.influenceHealing=healing
+            totals.influence=totals.influence-healing*cost
+            totals.healing=(totals.healing or 0)+healing
+        end
+    end
+    return ruthlessReadySpent,readyNeedsRescan,#actionSources>0
 end
 
 return M

@@ -74,8 +74,27 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
             end
             selected.terrain=terrains[index%#terrains+1]
         end
+    elseif control=="influenceAction" and rule.influenceAction~=nil then
+        if scan.enemyPresent then return end
+        selected.influenceAction=not selected.influenceAction
+        if selected.influenceAction then
+            -- The player can choose only one such Action this turn.
+            for other,selection in pairs(gStates.startingCardSelections) do
+                if other~=guid then selection.influenceAction=nil end
+            end
+        else
+            selected.influenceHealing=nil
+        end
+    elseif control=="influenceHeal" and rule.influenceAction~=nil
+        and record.influenceAction then
+        local used=math.max(0,tonumber(record.influenceHealing) or 0)
+        if right then selected.influenceHealing=math.max(0,used-1)
+        elseif (tonumber(scan.totals.influence) or 0)>=rule.influenceAction.healCost then
+            selected.influenceHealing=used+1
+        else return end
     elseif control=="ruthlessReady" and rule.readyWithInfluence~=nil
-        and record.powered then
+        and record.powered
+        and (not rule.readyWithInfluence.requiresAction or record.influenceAction) then
         local links=gStates.unitReadyLinks or {}
         if right then
             local highest=0
@@ -87,9 +106,14 @@ function M.startingControl(player,value,id,resourceCardsDetailsOpen,cardPosture,
         else
             -- A new click chooses a fresh independent Ready source; old links
             -- and their dependent activation history remain intact.
-            if (tonumber(scan.totals.influence) or 0)<2 then return end
+            local spec=rule.readyWithInfluence
             local index=1
-            while links[guid.."#ready"..index]~=nil do index=index+1 end
+            if spec.maxUses~=1 then
+                while links[guid.."#ready"..index]~=nil do index=index+1 end
+            end
+            if spec.maxUses~=nil and index>spec.maxUses then return end
+            if links[guid.."#ready"..index]==nil
+                and (tonumber(scan.totals.influence) or 0)<spec.costPerLevel then return end
             attackAssignmentsBeginUnitReady(guid,guid.."#ready"..index,player.color,
                 rule.readyWithInfluence.maxLevel)
         end

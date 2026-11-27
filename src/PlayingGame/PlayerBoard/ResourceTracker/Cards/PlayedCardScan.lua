@@ -120,6 +120,15 @@ function M.process(context)
             skillLinksByTarget[card.guid],linkedChoices,repeatByTarget[card.guid],
             discardBoostBySource[card.guid],woundCount,enemyBonus,
             spellCastingPaid[card.guid]==true)
+        -- A separate Action (Peaceful Moment) spends generated Influence, not
+        -- the interaction modifiers. A sideways or unpaid card cannot authorise it.
+        local specialSelection=(gStates.startingCardSelections or {})[card.guid]
+        if rule~=nil and rule.influenceAction~=nil and result.complete
+            and cardPosture(card)=="upright" and card.is_face_down~=true
+            and not combatEnemyInPlay and specialSelection~=nil
+            and specialSelection.influenceAction==true then
+            result.influenceAction=true
+        end
         if rule~=nil and rule.grailFamePerHealing~=nil
             and not result.powered and result.complete
             and cardPosture(card)=="upright" then
