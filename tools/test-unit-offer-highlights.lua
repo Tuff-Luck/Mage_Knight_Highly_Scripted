@@ -110,4 +110,59 @@ local eventFile=assert(io.open("src/PlayingGame/GameFlow/Events.lua","r"))
 local eventSource=eventFile:read("*a") eventFile:close()
 assert(eventSource:find("refreshUnitOfferForEnemyZoneChange(ctx)",1,true),
     "Enemy zone changes must refresh glow even when Resource Tracker is closed")
+-- Refugee Camp uses the cheapest normal recruitment icon. Synthetic
+-- camp/oasis and scenario-specific sites must not reduce the surcharge.
+gStates.tacticShown=false
+local d,e,f=unit("dddddd"),unit("eeeeee"),unit("ffffff")
+offer={a,b,c,d,e,f}
+gameCards={
+    aaaaaa={recruit={"city","keep","camp","village","oasis"},influence=5},
+    bbbbbb={recruit={"city","mage tower","camp"},influence=5},
+    cccccc={recruit={"city","camp"},influence=5},
+    dddddd={recruit={"keep","city","camp"},influence=5},
+    eeeeee={recruit={"monastery","camp"},influence=5},
+    ffffff={recruit={"glade","hidden valley","camp","mage tower"},influence=5}}
+turnOrder[1].avatarLocation="camp"
+budget=4
+refreshUnitOfferHighlights()
+for _,obj in ipairs(offer) do
+    assert(obj.color~=nil and obj.color[1]<0.8,"Every Camp Unit is legal, none affordable")
+end
+budget=5
+refreshUnitOfferHighlights()
+assert(a.color[1]==1,"Village eligibility overrides all Camp surcharges")
+for _,obj in ipairs({b,c,d,e,f}) do
+    assert(obj.color[1]<0.8,"Non-village Units still require extra Influence")
+end
+budget=6
+refreshUnitOfferHighlights()
+for _,obj in ipairs({a,b,d,e,f}) do
+    assert(obj.color[1]==1,"Keep/Mage Tower/Monastery surcharge is exactly one")
+end
+assert(c.color[1]<0.8,"City-only Unit requires three extra Influence")
+budget=7
+refreshUnitOfferHighlights()
+assert(c.color[1]<0.8,"City-only Unit is still unaffordable at cost plus two")
+budget=8
+refreshUnitOfferHighlights()
+assert(c.color[1]==1,"City-only Unit is affordable at cost plus three")
+budget=nil
+refreshUnitOfferHighlights()
+for _,obj in ipairs(offer) do
+    assert(obj.color[1]<0.8,"Closed tracker keeps legal Camp Units dark")
+end
+budget=8
+combatObjects={{guid="enemy1"}}
+refreshUnitOfferHighlights()
+for _,obj in ipairs(offer) do
+    assert(obj.color==nil,"Combat suppresses Camp highlights")
+end
+combatObjects={}
+turnOrder[1].avatarLocation="city"
+budget=5
+refreshUnitOfferHighlights()
+assert(c.color[1]==1,"Ordinary city recruitment uses printed cost")
+turnOrder[1].avatarLocation="keep"
+refreshUnitOfferHighlights()
+assert(d.color[1]==1,"Ordinary keep recruitment uses printed cost")
 print("Unit offer site and affordability highlights: PASS")
