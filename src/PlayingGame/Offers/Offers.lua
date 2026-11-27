@@ -298,6 +298,25 @@ local function unitOfferEnemyPresent(player)
     return resourceCardsEnemyPresent~=nil and resourceCardsEnemyPresent() or false
 end
 
+-- Refugee Camps use the cheapest printed recruitment category, not the
+-- synthetic camp/oasis entries used for site eligibility.
+local function unitOfferInfluenceCost(player,info)
+    local cost=tonumber(info.influence)
+    if cost==nil or player.avatarLocation~="camp" then return cost end
+    local surcharge=nil
+    for _,site in ipairs(info.recruit) do
+        if site=="village" then return cost end
+        if site=="keep" or site=="mage tower" or site=="monastery" then
+            surcharge=1
+        elseif site=="city" and surcharge==nil then
+            surcharge=3
+        end
+    end
+    -- Unknown recruitment categories stay legal, but cannot be priced.
+    if surcharge==nil then return nil end
+    return cost+surcharge
+end
+
 function refreshUnitOfferHighlights(availableInfluence)
     if availableInfluence==nil and resourceTrackerAvailableInfluence~=nil then
         availableInfluence=resourceTrackerAvailableInfluence()
@@ -315,7 +334,7 @@ function refreshUnitOfferHighlights(availableInfluence)
             local info=gameCards~=nil and gameCards[unit.guid] or nil
             if info~=nil and type(info.recruit)=="table" and #info.recruit>0
                 and unitRecruitableAtCurrentLocation(playerIndex,unit)==true then
-                local cost=tonumber(info.influence)
+                local cost=unitOfferInfluenceCost(player,info)
                 local status=availableInfluence~=nil and cost~=nil
                     and availableInfluence>=cost and "affordable" or "legal"
                 nextGlow[unit.guid]=status
