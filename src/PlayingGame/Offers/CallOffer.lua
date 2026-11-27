@@ -113,24 +113,8 @@ local function showControls(state,guid,serial)
             table.remove(xml,i)
         end
     end
-    -- Rotate the parent Button, not its child Image: TTS object UI ignores
-    -- child Image rotation in this layout. Up/Down become left/right at 90 degrees.
-    local images={"Overkill Down","Overkill Up"}
-    for _,entry in ipairs({
-        {direction="previous",image=images[1],x="-135"},
-        {direction="next",image=images[2],x="135"}
-    }) do
-        local id="CallOfferControl_"..guid.."_"..entry.direction
-        xml[#xml+1]={tag="Button",attributes={
-            id=id,onClick="global/callOfferCycleClicked",
-            position=entry.x.." 0 -35",rotation="0 0 0",
-            width=95,height=110,scale="0.40 0.40",
-            color="rgba(0,0,0,0.0)"},
-            children={{tag="Image",attributes={
-                id=id.."Image",image=entry.image,
-                preserveAspect="true",raycastTarget="false"
-            }}}}
-    end
+    local images=callOfferAppendBrowseControls(xml,guid,"CallOfferControl_",
+        "callOfferCycleClicked",false)
     -- Object-attached UI has its own image registry. Passing these existing
     -- assets prevents an unregistered-image white square on moved Unit cards.
     local assets=resourceCardsExistingImageAssetsFor(unit.UI,images)
@@ -146,7 +130,8 @@ function callOfferEnsureControls(seatPos)
         or (seatPos~=nil and state.seatPos~=seatPos) then return end
     local spell=getObjectFromGUID(state.spellGUID)
     local unit=getObjectFromGUID(state.unitGUID)
-    if spell==nil or spell.is_face_down==true or unit==nil
+    if spell==nil or not cardEffectIsVertical(spell) or unit==nil
+        or not objectGUIDInZone(state.spellGUID,playerPlayAreas[state.seatPos])
         or objectGUIDInZone(unit.guid,playerUnitAreas[state.seatPos]) then return end
     local previous,nextButton=false,false
     for _,node in ipairs(unit.UI.getXmlTable() or {}) do
@@ -235,6 +220,9 @@ publishPublicUICallbacks({
         local guid,direction=id:match("^CallOfferControl_([0-9a-f]+)_(previous)$")
         if guid==nil then guid,direction=id:match("^CallOfferControl_([0-9a-f]+)_(next)$") end
         if guid~=state.unitGUID then return end
+        local spell=getObjectFromGUID(state.spellGUID)
+        if not cardEffectIsVertical(spell)
+            or not objectGUIDInZone(state.spellGUID,playerPlayAreas[state.seatPos]) then return end
         if legalPlayerCheck(player.color,state.seatPos,"NoDummyException")~=true then return end
         selectRelative(state,direction=="previous" and -1 or 1)
     end
@@ -248,7 +236,7 @@ function callOfferSpellEntered(spellGUID,seatPos)
     if gStates.callOfferGloryClaimed==true then return end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell==nil or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
-    if spell.is_face_down==true then
+    if spell.is_face_down==true or not cardEffectIsVertical(spell) then
         callOfferClose(false)
         return
     end
@@ -279,8 +267,8 @@ function callOfferSpellChanged()
         gStates.callOfferGloryClaimed=nil
         return
     end
-    if spell.is_face_down==true then
-        -- A face-down Spell is inert, but flipping it does not undo recruitment.
+    if spell.is_face_down==true or not cardEffectIsVertical(spell) then
+        -- A face-down or sideways Spell is inert, but rotating it does not undo recruitment.
         callOfferClose(false)
         return
     end
@@ -336,7 +324,7 @@ function callOfferBorrowedUnitForSeat(seatPos)
     if state==nil or state.seatPos~=seatPos then return nil end
     if not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return nil end
     local spell=getObjectFromGUID(SPELL_GUID)
-    if spell==nil or spell.is_face_down==true then return nil end
+    if not cardEffectIsVertical(spell) then return nil end
     return state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
 end
 
@@ -345,9 +333,16 @@ function callOfferObjectDropped(obj)
     local state=previewState()
     if state==nil or obj==nil or obj.guid~=state.unitGUID then return end
     local guid=obj.guid
+    local serial=transferSerial
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
-        if current==nil or current.unitGUID~=guid then return end
+        if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
+        local spell=getObjectFromGUID(current.spellGUID)
+        if not cardEffectIsVertical(spell)
+            or not objectGUIDInZone(current.spellGUID,playerPlayAreas[current.seatPos]) then
+            callOfferClose(false)
+            return
+        end
         if not objectGUIDInZone(guid,playerUnitAreas[current.seatPos]) then
             -- Repositioning the borrowed Unit is NOT recruitment. Keep its
             -- controls, combat links and new browsing position intact.
@@ -378,7 +373,7 @@ function callOfferRestoreOnLoad()
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)
-    if unit==nil or spell==nil or spell.is_face_down==true
+    if unit==nil or not cardEffectIsVertical(spell)
         or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
         callOfferClose(true)
         return
