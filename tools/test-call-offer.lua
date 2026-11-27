@@ -264,6 +264,15 @@ eq(inOffer(first),true,"spell exit returns offer membership")
 local freeSlot=false
 local busy=false
 local claims=0
+local replacementRequests=0
+function unitReplacementBegin(player,guid,seat,source)
+    eq(player.color,"Red","Dropper owns replacement request")
+    eq(guid,first.guid,"Borrowed Unit is the candidate")
+    eq(source,"callOffer","Special recruitment uses replacement panel")
+    replacementRequests=replacementRequests+1
+    gStates.unitReplacementPending={source=source,claimGUID=guid,seatPos=seat}
+    return true
+end
 local slotCommand={guid="command"}
 local slotLayout={commands={slotCommand}}
 function unitLayoutFirstFreeCommand(seat)
@@ -284,10 +293,15 @@ end
 spellInPlay=true
 callOfferSpellEntered(spell.guid,1)
 first.setPosition({-60,1,-34.74})
-callOfferObjectDropped(first)
+callOfferObjectDropped(first,"Red")
+eq(replacementRequests,1,"Full army requests shared replacement selection")
 eq(gStates.callOfferGloryClaimed,nil,"Full army does not consume Call to Glory")
 eq(gStates.callOfferPreview.unitGUID,first.guid,"Full army keeps the same loan")
 eq(claims,0,"No over-capacity recruitment")
+eq(callOfferRecruitmentCandidate(first.guid,1),first,"Loan is a valid replacement candidate")
+callOfferCycleClicked({color="Red"},"","CallOfferControl_111111_next")
+eq(gStates.callOfferPreview.unitGUID,first.guid,"Cannot change the candidate during selection")
+gStates.unitReplacementPending=nil
 freeSlot=true
 busy=true
 first.setPosition({-60,1,-34.74})

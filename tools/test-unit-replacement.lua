@@ -238,7 +238,7 @@ local env={
             "Old Unit history and physical Command must be readied after the rewind point")
         newClaimed=true
         candidate.offered=false
-        if onSettled then onSettled() end
+        if onSettled then onSettled(true) end
         return true
     end,
     resourceUnitsRetireUnit=function(guid)
@@ -314,3 +314,16 @@ assert(state.unitReplacementPending==nil and attrs["UnitReplacement:active"]=="f
 assert(#owner.buttons==0,"Completed replacement must clear the hit area")
 assert(not candidate.offered,"The new Unit must leave the offer only after clicking a Unit")
 print("Full Unit Area replacement, cancellation and Command ownership regressions passed")
+
+-- Source-specific replacement candidates must be revalidated, not treated as
+-- still being physically in the offer. Reuse the same normal replacement UI.
+candidate.offered=false
+local sourceValid=true
+env.callOfferRecruitmentCandidate=function(guid,seat)
+    if sourceValid and guid==candidate.guid and seat==1 then return candidate end
+end
+assert(env.unitReplacementBegin({color="Red"},candidate.guid,1,"callOffer"))
+assert(state.unitReplacementPending.source=="callOffer")
+sourceValid=false
+env.unitReplacementRestoreOnLoad()
+assert(state.unitReplacementPending==nil,"Invalidated Spell closes saved replacement selection")

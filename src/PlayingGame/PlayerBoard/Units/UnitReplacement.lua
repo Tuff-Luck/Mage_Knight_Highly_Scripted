@@ -21,7 +21,10 @@ local function replacementPlayerAllowed(player,state)
         and gStates.turnNumber==state.turnNumber
 end
 
-local function replacementOfferUnit(guid)
+local function replacementOfferUnit(guid,seatPos,source)
+    if source=="callOffer" then
+        return callOfferRecruitmentCandidate~=nil and callOfferRecruitmentCandidate(guid,seatPos) or nil
+    end
     local unit=guid~=nil and getObjectFromGUID(guid) or nil
     local data=guid~=nil and gameCards[guid] or nil
     if unit==nil or data==nil
@@ -149,14 +152,14 @@ function unitReplacementEnsureControls(seatPos)
     end
 end
 
-function unitReplacementBegin(player,claimGUID,seatPos)
+function unitReplacementBegin(player,claimGUID,seatPos,source)
     if replacementState()~=nil or gStates==nil or player==nil
         or legalPlayerCheck(player.color,seatPos)~=true then return false end
-    if replacementOfferUnit(claimGUID)==nil then return false end
+    if replacementOfferUnit(claimGUID,seatPos,source)==nil then return false end
     local slot=unitLayoutFirstFreeCommand(seatPos)
     if slot~=nil then return false end
     local state={seatPos=seatPos,turnNumber=gStates.turnNumber,
-        claimGUID=claimGUID,candidates={},selectedGUID=nil}
+        claimGUID=claimGUID,source=source,candidates={},selectedGUID=nil}
     gStates.unitReplacementPending=state
     replacementRender(state)
     return true
@@ -175,7 +178,7 @@ function unitReplacementRestoreOnLoad()
         return
     end
     if state.turnNumber~=gStates.turnNumber
-        or replacementOfferUnit(state.claimGUID)==nil then
+        or replacementOfferUnit(state.claimGUID,state.seatPos,state.source)==nil then
         unitReplacementClose()
         return
     end
@@ -265,7 +268,7 @@ end
 
 local function replacementValid(state)
     if state==nil or state.turnNumber~=gStates.turnNumber then return nil end
-    local claimed=replacementOfferUnit(state.claimGUID)
+    local claimed=replacementOfferUnit(state.claimGUID,state.seatPos,state.source)
     local old=state.selectedGUID~=nil and getObjectFromGUID(state.selectedGUID) or nil
     local layout=unitLayoutSnapshot(state.seatPos)
     local slot=old~=nil and layout.unitSlotByGuid[old.guid] or nil
@@ -343,8 +346,10 @@ unitReplacementConfirm=function(player)
         -- Claiming and disbanding share ONE rewind point. Release it only
         -- after both the replacement Unit and its reused Command have settled.
         local commandGUID=command.guid
-        local claimedOK=cardFlowClaimUnitAtSlot(newUnit,pending.seatPos,x,currentLayout,
-            command,function()
+        local function onSettled(success)
+                if success==false then
+                    broadcastToColor("The Unit did not settle into its slot. Use Undo to restore the old Unit.",player.color,warningColor)
+                end
                 local function completed()
                     rewindTransactionFinish(owner)
                     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
@@ -358,7 +363,13 @@ unitReplacementConfirm=function(player)
                             and token.isSmoothMoving()==false)
                     end,8,completed)
                 end
-            end)
+        end
+        local claimedOK
+        if pending.source=="callOffer" then
+            claimedOK=callOfferClaimAtSlot(newUnit.guid,pending.seatPos,x,currentLayout,command,onSettled)
+        else
+            claimedOK=cardFlowClaimUnitAtSlot(newUnit,pending.seatPos,x,currentLayout,command,onSettled)
+        end
         if claimedOK then
             unitReplacementClose()
         else

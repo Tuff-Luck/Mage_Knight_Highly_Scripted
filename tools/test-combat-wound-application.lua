@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression: a calculated Wound must be dealt once, keep its origin through
 -- a save, and never be retroactively counted as an earlier Ranged/Siege kill.
 -- Run: lua5.2 tools/test-combat-wound-application.lua
@@ -1052,6 +1053,9 @@ assert(assignments:find('function attackAssignmentsDamageSnapshot()',1,true)
     and assignments:find('if lock~=nil then',1,true),
     "Damage targets must persist and be non-interactive after commit")
 
+-- Isolate the remaining fixtures in a separate Lua function so the main
+-- test chunk cannot exceed the 200-local limit in Lua 5.2.
+;(function()
 -- Exercise the real Block optimiser: spare and failed Blocks must not
 -- lock their sources, while Block points used for success and Cumbersome
 -- Move reductions must remain committed.
@@ -1226,3 +1230,5 @@ do
     eq(env.turnOrder[1].deadDeckInventory[1],"deed","Other deed retained")
 end
 print("Glade extraction and shared Wound removal regressions passed")
+
+end)()

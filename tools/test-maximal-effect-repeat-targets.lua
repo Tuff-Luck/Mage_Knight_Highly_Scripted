@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Regression for copied Action rows, composite phases and Diplomacy.
 -- Run from repo root: lua5.2 tools/test-maximal-effect-repeat-targets.lua
 local function source(path)

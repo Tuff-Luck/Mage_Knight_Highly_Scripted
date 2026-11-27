@@ -903,7 +903,7 @@ function __onObjectDrop_raw(player_color, dropped_object)
     end
     resourceUnitsCommandDropped(player_color,dropped_object)
     resourceCardsObjectMoved(dropped_object)
-    callOfferObjectDropped(dropped_object)
+    callOfferObjectDropped(dropped_object,player_color)
     trainingOfferObjectDropped(player_color,dropped_object)
     magicTalentObjectDropped(player_color,dropped_object)
     resourceCardsMaximalEffectOffDrop(dropped_object)

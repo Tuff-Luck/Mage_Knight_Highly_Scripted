@@ -94,6 +94,9 @@ end
 function callOfferClose(immediate)
     local state=previewState()
     if state==nil then return end
+    local pending=gStates.unitReplacementPending
+    if pending~=nil and pending.source=="callOffer" and pending.claimGUID==state.unitGUID
+        and unitReplacementClose~=nil then unitReplacementClose() end
     transferSerial=transferSerial+1
     restoreUnit(state,immediate==true)
     gStates.callOfferPreview=nil
@@ -203,6 +206,8 @@ local function borrow(state,index)
 end
 
 local function selectRelative(state,delta)
+    local pending=gStates.unitReplacementPending
+    if pending~=nil and pending.source=="callOffer" then return end
     local present=available(state)
     local count=#state.order
     if count==0 then return end
@@ -341,8 +346,49 @@ function callOfferBorrowedUnitForSeat(seatPos)
     return state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
 end
 
+-- The same borrowed Unit and live source must still exist after a saved
+-- replacement selection or delayed rewind snapshot.
+function callOfferRecruitmentCandidate(guid,seatPos)
+    local state=previewState()
+    if state==nil or state.unitGUID~=guid or state.seatPos~=seatPos
+        or gStates.callOfferGloryClaimed==true then return nil end
+    return callOfferBorrowedUnitForSeat(seatPos)
+end
+
+function callOfferClaimAtSlot(guid,seatPos,x,layout,command,onSettled)
+    if callOfferRecruitmentCandidate(guid,seatPos)==nil or cardFlowUnitClaimBusy() then return false end
+    local current=previewState()
+    local unit=getObjectFromGUID(guid)
+    if unit==nil then return end
+    transferSerial=transferSerial+1
+    local claimSerial=transferSerial
+    -- Retire temporary combat abilities before transferring ownership.
+    current.unitGUID=nil
+    gStates.callOfferPreview=nil
+    gStates.callOfferGloryClaimed=true
+    if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
+    cleanButtons(unit,true)
+    local accepted=cardFlowClaimUnitAtSlot(unit,current.seatPos,x,layout,command,function(success)
+        if not success and transferSerial==claimSerial then
+            -- Failed settlement must not consume the spell or leave a
+            -- borrowed card permanently stranded outside its offer.
+            gStates.callOfferGloryClaimed=nil
+            current.unitGUID=guid
+            restoreUnit(current,true)
+        end
+        if type(onSettled)=="function" then onSettled(success) end
+    end)
+    if not accepted then
+        gStates.callOfferGloryClaimed=nil
+        current.unitGUID=guid
+        gStates.callOfferPreview=current
+        showControls(current,guid,transferSerial)
+    end
+    return accepted
+end
+
 -- The normal player Unit area owns actual recruitment, not the offer loan.
-function callOfferObjectDropped(obj)
+function callOfferObjectDropped(obj,playerColor)
     local state=previewState()
     if state==nil or obj==nil or obj.guid~=state.unitGUID then return end
     local guid=obj.guid
@@ -380,39 +426,19 @@ function callOfferObjectDropped(obj)
                 unit.setRotationSmooth(display.rotation,false,false)
                 callOfferEnsureControls(current.seatPos)
             end
-            -- Do not silently disband a Unit (especially one supported by
-            -- Banner of Command). The player can free a slot and retry.
+            -- Full armies use the same explicit disband selection as a
+            -- normal offer. Cancelling keeps the Spell and preview intact.
+            if slot==nil and not cardFlowUnitClaimBusy()
+                and gStates.unitReplacementPending==nil and playerColor~=nil
+                and unitReplacementBegin~=nil
+                and unitReplacementBegin({color=playerColor},guid,current.seatPos,"callOffer") then return end
             if safeBroadcastToColor~=nil and turnOrder~=nil and gStates.turnNumber~=nil then
                 safeBroadcastToColor("Call to Glory: free a Command slot or finish the pending Unit claim, then try again.",
                     positionToColor(gStates.turnNumber),warningColor)
             end
             return
         end
-        local unit=getObjectFromGUID(guid)
-        if unit==nil then return end
-        transferSerial=transferSerial+1
-        local claimSerial=transferSerial
-        -- Retire temporary combat abilities before transferring ownership.
-        current.unitGUID=nil
-        gStates.callOfferPreview=nil
-        gStates.callOfferGloryClaimed=true
-        if resourceUnitsBorrowedUnitEnded~=nil then resourceUnitsBorrowedUnitEnded(guid) end
-        cleanButtons(unit,true)
-        local accepted=cardFlowClaimUnitAtSlot(unit,current.seatPos,x,layout,command,function(success)
-            if not success and transferSerial==claimSerial then
-                -- Failed settlement must not consume the spell or leave a
-                -- borrowed card permanently stranded outside its offer.
-                gStates.callOfferGloryClaimed=nil
-                current.unitGUID=guid
-                restoreUnit(current,true)
-            end
-        end)
-        if not accepted then
-            gStates.callOfferGloryClaimed=nil
-            current.unitGUID=guid
-            gStates.callOfferPreview=current
-            showControls(current,guid,transferSerial)
-        end
+        callOfferClaimAtSlot(guid,current.seatPos,x,layout,command)
     end,function()
         local live=getObjectFromGUID(guid)
         return live==nil or (live.held_by_color==nil
