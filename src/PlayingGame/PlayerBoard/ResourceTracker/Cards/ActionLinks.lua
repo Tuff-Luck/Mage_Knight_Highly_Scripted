@@ -77,7 +77,9 @@ return function(deps)
                     return other~=nil
                         and (other.cardType=="Starting" or other.cardType=="Advanced Action")
                         and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
-                        and not manaPowered[candidate.guid] and #links[candidate.guid]==0
+                        and (not manaPowered[candidate.guid] or other.resourceKey=="bloodOfAncients")
+                        and #links[candidate.guid]==0
+                        and (magicTalentReservedCard==nil or not magicTalentReservedCard(candidate.guid))
                         and cardPosture(candidate)=="upright"
                 end,"faceDown")
                 if target~=nil then

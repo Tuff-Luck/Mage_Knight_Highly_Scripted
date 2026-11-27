@@ -156,18 +156,77 @@ end
 
 -- Blood of Ancients needs an extra payment on its basic side. Red
 -- (or legal Gold) can instead power its stronger side; the player chooses.
-local function ancientsPermissions(seat,guid)
-    local colors,strong={},false
-    if magicTalentManaPayments~=nil then
-        for _,payment in ipairs(browserManaPayments(seat,guid)) do
-            local color=payment.color
-            if color=="Red" or color=="Green" or color=="Blue" or color=="White"
-                or (color=="Gold" and resourceCardsGoldAllowed()) then
-                colors[color]=true
-                if color=="Red" or color=="Gold" then strong=true end
-            end
+local function ancientsPayments(seat,guid,copy,spent)
+    local result,seen={},{}
+    local sourcePayments=copy~=nil and resourceCardsMaximalEffectSourceManaGUIDs~=nil
+        and resourceCardsMaximalEffectSourceManaGUIDs(seat,copy.sourceGUID) or {}
+    for _,payment in ipairs(magicTalentManaPayments~=nil and browserManaPayments(seat,guid) or {}) do
+        local color=payment.color
+        if not seen[payment.guid] and not sourcePayments[payment.guid]
+            and not (spent or {})[payment.guid]
+            and (color=="Red" or color=="Green" or color=="Blue" or color=="White"
+                or (color=="Gold" and resourceCardsGoldAllowed())) then
+            seen[payment.guid]=true
+            result[#result+1]=payment
         end
     end
+    table.sort(result,function(a,b) return a.guid<b.guid end)
+    return result
+end
+
+-- Find a distinct payment/card pairing for every remaining basic use.
+-- A proposed next choice is legal only when the remaining uses are
+-- payable with the other mana and currently available offer cards.
+local function ancientsPairing(payments,order,need,firstGUID,firstPayment)
+    if need<=0 then return true end
+    local usedCards,usedMana={},{}
+    if firstGUID~=nil then
+        usedCards[firstGUID]=true
+        usedMana[firstPayment.guid]=true
+        need=need-1
+    end
+    local function search(left)
+        if left==0 then return true end
+        for _,guid in ipairs(order) do
+            if not usedCards[guid] then
+                usedCards[guid]=true
+                for _,payment in ipairs(payments) do
+                    if not usedMana[payment.guid] and matching(guid,payment.color,"Advanced Action") then
+                        usedMana[payment.guid]=true
+                        if search(left-1) then return true end
+                        usedMana[payment.guid]=nil
+                    end
+                end
+                usedCards[guid]=nil
+            end
+        end
+        return false
+    end
+    return search(need)
+end
+
+local function ancientsBasicPayment(seat,guid,copy,s,selected,order)
+    local payments=ancientsPayments(seat,guid,copy,s~=nil and s.spentMana or nil)
+    local need=copy.count-(s~=nil and s.used or 0)
+    if #payments<need then return nil end
+    for _,payment in ipairs(payments) do
+        if matching(selected,payment.color,"Advanced Action")
+            and ancientsPairing(payments,order,need,selected,payment) then return payment end
+    end
+    return nil
+end
+
+local function ancientsPermissions(seat,guid)
+    local colors,strong={},false
+    local s=state(guid)
+    local copy=s~=nil and s.copy or maximalEntitlement(seat,guid)
+    if copy~=nil and copy.powered then return colors,true end
+    local payments=ancientsPayments(seat,guid,copy,s~=nil and s.spentMana or nil)
+    for _,payment in ipairs(payments) do
+        colors[payment.color]=true
+        if copy==nil and (payment.color=="Red" or payment.color=="Gold") then strong=true end
+    end
+    if copy~=nil then return colors,false end
     local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil
     local record=scan~=nil and scan.cards~=nil and scan.cards[guid] or nil
     -- Concentration/Will Focus can grant the stronger side without a red
@@ -187,9 +246,25 @@ end
 
 local function ancientsOrder(seat,source,preview)
     local colors,strong=ancientsPermissions(seat,source)
-    return offerOrder("Gold",preview,"Advanced Action",function(guid)
-        return strong or ancientsCanGain(guid,colors)
-    end)
+    local s=state(source)
+    local copy=s~=nil and s.copy or maximalEntitlement(seat,source)
+    local order=offerOrder("Gold",preview,"Advanced Action")
+    local result={}
+    for _,guid in ipairs(order) do
+        if strong or (copy==nil and ancientsCanGain(guid,colors))
+            or (copy~=nil and not copy.powered
+                and ancientsBasicPayment(seat,source,copy,s,guid,order)~=nil) then
+            result[#result+1]=guid
+        end
+    end
+    return result
+end
+
+local function ancientsGainAvailable(s,guid,colors)
+    if s.copy==nil then return ancientsCanGain(guid,colors) end
+    if s.copy.powered then return false end
+    local order=offerOrder("Gold",guid,"Advanced Action")
+    return ancientsBasicPayment(s.seatPos,s.talentGUID,s.copy,s,guid,order)~=nil
 end
 
 -- Two different physical mana objects are required. Gold can power the
@@ -267,7 +342,7 @@ local function controls(s)
                 width=170,height=70,scale="0.30 0.30",fontSize=32,
                 text=label,color="rgba(0.12,0.32,0.16,0.92)",textColor="rgba(1,1,1,1)"}}
         end
-        if ancientsCanGain(card.guid,colors) then action("gainAncients","Gain", "0","0") end
+        if ancientsGainAvailable(s,card.guid,colors) then action("gainAncients","Gain", "0","0") end
         if strong then
             action("useAncientsHand","Use / Hand","-100","-140")
             action("useAncientsDiscard","Use / Discard","100","-140")
@@ -316,7 +391,7 @@ local function ensureControls(s)
     end
     if s.mode=="ancients" then
         local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
-        if gainAncients~=ancientsCanGain(card.guid,colors) or useHand~=strong or useDiscard~=strong then
+        if gainAncients~=ancientsGainAvailable(s,card.guid,colors) or useHand~=strong or useDiscard~=strong then
             controls(s)
             return
         end
@@ -405,18 +480,21 @@ function magicTalentInactivePreview(guid)
     local s=cardSession(guid)
     return returning[guid]~=nil or (s~=nil and (
         (s.cardGUID==guid and (s.mode=="strong" or s.mode=="tome" or s.mode=="ancients"))
-        or (s.freeGUID==guid and magicTalentOfferCastSide(s.seatPos,guid)==nil)))
+        or ((s.freeGUID==guid or (s.ancientsLoans or {})[guid])
+            and magicTalentOfferCastSide(s.seatPos,guid)==nil)))
 end
 
 -- nil = ordinary payment rules; false = free basic; true = free stronger.
 -- Never use an 'and ... or nil' expression here: false is meaningful.
 function magicTalentOfferCastSide(seat,guid)
     local s=cardSession(guid)
-    if s==nil or s.seatPos~=seat or (s.mode~="tomeCast" and s.mode~="ancientsCast") or s.freeGUID~=guid
-        or not talentInPlay(seat,s.talentGUID) then return nil end
+    if s==nil or s.seatPos~=seat or not talentInPlay(seat,s.talentGUID) then return nil end
+    local ancientsLoan=(s.ancientsLoans or {})[guid]==true
+    if not ancientsLoan and (s.mode~="tomeCast" or s.freeGUID~=guid) then return nil end
     local spell=getObjectFromGUID(guid)
     if spell==nil or not cardEffectIsVertical(spell)
         or not objectGUIDInZone(guid,playerPlayAreas[seat]) then return nil end
+    if ancientsLoan then return true end
     return s.freeStrong==true
 end
 
@@ -473,7 +551,8 @@ local function borrow(s,index)
     s.home={position=ttsVectorArray(card.getPosition()),
         rotation=ttsVectorArray(card.getRotation()),scale=ttsVectorArray(card.getScale())}
     local pos=ttsVectorArray(talent.getPosition())
-    local display=s.display or {position={pos[1]+3.0,math.max(1.8,pos[2]+0.35),pos[3]},
+    local offset=s.mode=="ancients" and 3.0*(1+s.used) or 3.0
+    local display=s.display or {position={pos[1]+offset,math.max(1.8,pos[2]+0.35),pos[3]},
         rotation={0,180,0}}
     local serial=bumpBrowse(s)
     card.unlock()
@@ -548,7 +627,7 @@ local function commitGain(s,gained,destination,toHand)
     local gainedGUID=gained.guid
     s.cardGUID,s.home=nil,nil
     s.used=(s.used or 0)+1
-    s.mode=s.used>=(s.limit or 1) and "claimed" or "strong"
+    s.mode=s.used>=(s.limit or 1) and "claimed" or (toHand and "ancients" or "strong")
     clean(gained)
     gained.UI.setXml("")
     for _,player in ipairs(turnOrder) do
@@ -576,7 +655,7 @@ local function commitGain(s,gained,destination,toHand)
         if not objectGUIDInZone(gainedGUID,GUID.zone.offer) then
             compactAndRefillDeedOffer()
             if not toHand then scheduleDeedPileDescriptionRefresh(s.seatPos,"discard") end
-            if s.mode=="strong" then magicTalentSync() end
+            if liveSession(s) and (s.mode=="strong" or s.mode=="ancients") then magicTalentSync() end
         end
     end,function()
         return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
@@ -596,17 +675,24 @@ end
 local function confirmAncients(s,action)
     if not liveSession(s) or s.mode~="ancients" or s.woundPending
         or currentSeat()~=s.seatPos or not talentInPlay(s.seatPos,s.talentGUID)
-        or (gStates.ancientsOfferClaims or {})[s.talentGUID] then return end
-    -- Repeated uses need their own costs and selection; do not silently
-    -- resolve a Maximal Effect combination as a single application.
-    if maximalEntitlement(s.seatPos,s.talentGUID)~=nil then return end
+        or s.used>=s.limit then return end
+    local copy=maximalEntitlement(s.seatPos,s.talentGUID)
+    if (copy~=nil)~=(s.copy~=nil) or (copy~=nil and
+        (copy.count~=s.copy.count or copy.powered~=s.copy.powered
+            or copy.sourceGUID~=s.copy.sourceGUID)) then return end
     local guid=s.cardGUID
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     if card==nil or not cardEffectIsVertical(card)
         or not objectGUIDInZone(guid,playerPlayAreas[s.seatPos]) then return end
     local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
     local gain=action=="gainAncients"
-    if (gain and not ancientsCanGain(guid,colors)) or (not gain and not strong) then return end
+    if (gain and not ancientsGainAvailable(s,guid,colors)) or (not gain and not strong) then return end
+    local payment
+    if gain and copy~=nil then
+        payment=ancientsBasicPayment(s.seatPos,s.talentGUID,copy,s,guid,
+            offerOrder("Gold",guid,"Advanced Action"))
+        if payment==nil then return end
+    end
     local destination=getObjectFromGUID(handZones[s.seatPos])
     if gain and destination==nil then return end
     local discard=action=="useAncientsDiscard"
@@ -617,20 +703,29 @@ local function confirmAncients(s,action)
             -- The existing wound service acknowledges a real card immediately.
             -- Commit only after the physical cost was actually produced.
             gStates.ancientsOfferClaims=gStates.ancientsOfferClaims or {}
+            -- Remember committed use even if the source is later removed.
+            -- Closing a partial combination must not allow the costs to be reused.
             gStates.ancientsOfferClaims[s.talentGUID]=true
             s.woundPending=nil
             if gain then
+                if payment~=nil then
+                    s.spentMana=s.spentMana or {}
+                    s.spentMana[payment.guid]=true
+                end
                 commitGain(s,card,destination,true)
             else
-                s.freeStrong=true
-                s.freeGUID=guid
-                s.mode="ancientsCast"
+                s.ancientsLoans=s.ancientsLoans or {}
+                s.ancientsLoans[guid]=true
                 s.loans[guid]=s.home
                 s.cardGUID,s.home=nil,nil
-                s.used=1
+                s.used=s.used+1
+                s.mode=s.used>=s.limit and "ancientsCast" or "ancients"
+                -- Give each distinct loan its own physical display position.
+                s.display=nil
                 bumpBrowse(s)
                 clean(card)
                 if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+                if s.mode=="ancients" then magicTalentScheduleCheck() end
             end
         end,function(ok,reason)
             s.woundPending=nil
@@ -841,7 +936,8 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
     gStates.magicTalentPreviews[talentGUID]=s
     if #s.order>0 then borrow(s,1) end
     if #s.order==0 then
-        safeBroadcastToColor("Magic Talent: no matching Spell is in the offer.",
+        safeBroadcastToColor(mode=="ancients" and "Blood of Ancients: no eligible Action in the offer."
+            or "Magic Talent: no matching Spell is in the offer.",
             positionToColor(gStates.turnNumber),warningColor)
     end
 end
@@ -850,9 +946,9 @@ local function startSource(seat,talentGUID)
     if state(talentGUID)~=nil or not talentInPlay(seat,talentGUID) then return end
     local entitlement=maximalEntitlement(seat,talentGUID)
     if isAncients(talentGUID) then
-        if entitlement==nil and not (gStates.ancientsOfferClaims or {})[talentGUID]
+        if not (gStates.ancientsOfferClaims or {})[talentGUID]
             and #ancientsOrder(seat,talentGUID)>0 then
-            start(seat,"ancients","Gold",nil,nil,nil,talentGUID)
+            start(seat,"ancients","Gold",nil,entitlement,nil,talentGUID)
         end
     elseif isTome(talentGUID) then
         local cost,color=candidateCost(seat,talentGUID)
@@ -880,8 +976,9 @@ local function syncSession(s,seat)
         return
     end
     local copy=maximalEntitlement(seat,s.talentGUID)
-    if s.copy~=nil and (copy==nil or s.copy.count~=copy.count
-        or s.copy.powered~=(copy.powered==true) or s.copy.sourceGUID~=copy.sourceGUID) then
+    if (s.copy~=nil and (copy==nil or s.copy.count~=copy.count
+        or s.copy.powered~=(copy.powered==true) or s.copy.sourceGUID~=copy.sourceGUID))
+        or (s.mode=="ancients" and s.copy==nil and copy~=nil) then
         closeSession(s,true)
         return
     end
@@ -894,7 +991,9 @@ local function syncSession(s,seat)
         s.order=order
         s.index=index or 1
         if #order==0 then
-            closeSession(s,true)
+            -- A committed partial combination may wait for an offer refill
+            -- or remaining payment, but must retain already-paid loans.
+            if s.used==0 then closeSession(s,true) end
         elseif s.cardGUID==nil then
             borrow(s,1)
         else

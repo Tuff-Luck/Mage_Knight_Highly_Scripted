@@ -495,14 +495,71 @@ eq(singleSession(),nil,"Unmatched basic payment does not deal a Wound")
 payments={{guid="ancientsRed",color="Red"}}
 maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
 magicTalentSync()
-eq(singleSession(),nil,"Repeated use remains manual, never partially committed")
-eq(#wounds,2,"Deferred combinations do not deal a Wound")
+s=assert(singleSession(),"Repeated strong effect opens without additional power mana")
+eq(s.limit,2,"Two stronger applications")
+eq(hasButton(redAction,"gainAncients"),false,"Copied strong side cannot purchase")
+eq(#wounds,2,"Browsing does not deal Wounds")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_useAncientsHand")
+eq(wounds[3],"hand","First stronger Wound to hand")
+eq(s.used,1,"One stronger application committed")
+eq(s.cardGUID,blueAction.guid,"Second distinct offer Action previewed")
+eq(magicTalentOfferCastSide(1,redAction.guid),true,"First loan remains powered")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_useAncientsDiscard")
+eq(wounds[4],"discard","Second stronger Wound to discard")
+eq(s.used,2,"Two stronger applications committed")
+eq(s.mode,"ancientsCast","Repeated stronger side complete")
+eq(magicTalentOfferCastSide(1,redAction.guid),true,"First loan remains active")
+eq(magicTalentOfferCastSide(1,blueAction.guid),true,"Second loan active")
+eq(magicTalentOfferLoanHomes()[redAction.guid]~=nil,true,"First loan occupies offer slot")
+eq(magicTalentOfferLoanHomes()[blueAction.guid]~=nil,true,"Second loan occupies offer slot")
+magicTalentClose(true)
+eq(inZone(redAction.guid,"offer"),true,"First loan restored")
+eq(inZone(blueAction.guid,"offer"),true,"Second loan restored")
+
+-- Basic repetition requires three distinct matching payments upfront.
+gStates.ancientsOfferClaims=nil
+dualAction.setPosition({20,1,-20})
+maximalCopy={powered=false,count=3,sourceGUID="8fac50"}
+payments={{guid="r1",color="Red"},{guid="b1",color="Blue"}}
+magicTalentSync()
+eq(singleSession(),nil,"Two mana cannot pay three basic applications")
+payments[3]={guid="b1",color="Blue"}
+magicTalentSync()
+eq(singleSession(),nil,"Duplicate physical mana cannot be reused")
+payments[3]={guid="w1",color="White"}
+excludedPowerMana={r1=true}
+magicTalentSync()
+eq(singleSession(),nil,"Source payment cannot also fund basic gain")
+excludedPowerMana={}
+magicTalentSync()
+s=assert(singleSession(),"Three distinct matching payments open browser")
+eq(s.limit,3,"Three basic applications")
+eq(hasButton(redAction,"useAncientsHand"),false,"Copied basic side never powers strong")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_gainAncients")
+eq(wounds[5],"hand","First basic Wound to hand")
+eq(s.spentMana.r1,true,"First payment GUID consumed")
+eq(s.used,1,"First basic application")
+eq(s.cardGUID,blueAction.guid,"Second matching offer Action")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_gainAncients")
+eq(s.spentMana.b1,true,"Second distinct payment consumed")
+eq(s.cardGUID,dualAction.guid,"Third matching offer Action")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_gainAncients")
+eq(s.spentMana.w1,true,"Third distinct payment consumed")
+eq(s.used,3,"All three basic applications paid")
+eq(#wounds,7,"Every application has one Wound")
+eq(s.mode,"claimed","Three gains complete")
+magicTalentClose(true)
+gStates.ancientsOfferClaims=nil
+redAction.setPosition({10,1,-20})
+blueAction.setPosition({15,1,-20})
+dualAction.setPosition({20,1,-20})
+payments={{guid="ancientsRed",color="Red"}}
 maximalCopy=nil
 magicTalentSync()
 s=assert(singleSession(),"Single use opens again")
 payments={}
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..s.cardGUID.."_gainAncients")
-eq(#wounds,2,"Removed payment invalidates stale Gain")
+eq(#wounds,7,"Removed payment invalidates stale Gain")
 magicTalentSync()
 eq(singleSession(),nil,"Missing payment closes preview")
 print("Blood of Ancients browser regressions passed")
