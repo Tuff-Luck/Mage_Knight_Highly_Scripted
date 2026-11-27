@@ -167,8 +167,8 @@ assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua"):fi
     "Unpaid Call to Arms cannot activate borrowed Unit")
 assert(offer:find("gStates.callOfferGloryClaimed=true",1,true),
     "Call to Glory cannot recruit multiple Units")
-assert(offer:find("if spell.is_face_down==true then",1,true),
-    "Face-down Spell cannot keep the borrowed Unit")
+assert(offer:find("if spell.is_face_down==true or not cardEffectIsVertical(spell) then",1,true),
+    "Face-down or sideways Spell cannot keep the borrowed Unit")
 
 -- Mind Read/Steal is intentionally manual, not fake numeric Influence.
 assert(data:find('name={"Mind Read", "Mind Steal"}',1,true))
