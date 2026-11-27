@@ -3,7 +3,10 @@
 -- then a matching offer Spell may be cast by paying its normal mana on that Spell.
 -- Strong: place the blue (or legal Day gold) power mana AND another coloured mana
 -- on Magic Talent. Only then does the matching claim browser appear.
-local MAGIC_TALENT_GUID="3d832c"
+local function isTalent(guid)
+    local data=gameCards[guid]
+    return data~=nil and data.resourceKey=="magicTalent"
+end
 local CONTROL_PREFIX="MagicTalentControl_"
 local CONTROL_PREFIXES={CONTROL_PREFIX,"ResourceCardChoice_","AttackAssignmentSource_"}
 local browseSerial=0
@@ -20,17 +23,27 @@ local function currentSeat()
     return player~=nil and player.seatPos or nil
 end
 
-local function maximalEntitlement(seat)
+local function maximalEntitlement(seat,talentGUID)
     return resourceCardsMaximalEffectLink~=nil
-        and resourceCardsMaximalEffectLink(seat,MAGIC_TALENT_GUID) or nil
+        and resourceCardsMaximalEffectLink(seat,talentGUID) or nil
 end
 
-local function talentInPlay(seat)
-    local card=getObjectFromGUID(MAGIC_TALENT_GUID)
-    return seat~=nil and card~=nil
-        and (card.is_face_down~=true or maximalEntitlement(seat)~=nil)
+local function talentInPlay(seat,talentGUID)
+    local card=talentGUID~=nil and getObjectFromGUID(talentGUID) or nil
+    return seat~=nil and card~=nil and isTalent(talentGUID)
+        and (card.is_face_down~=true or maximalEntitlement(seat,talentGUID)~=nil)
         and cardEffectIsVertical(card)
-        and objectGUIDInZone(MAGIC_TALENT_GUID,playerPlayAreas[seat])
+        and objectGUIDInZone(talentGUID,playerPlayAreas[seat])
+end
+
+local function talentsInPlay(seat)
+    local result={}
+    local zone=seat~=nil and getObjectFromGUID(playerPlayAreas[seat]) or nil
+    for _,card in ipairs(zone~=nil and zone.getObjects() or {}) do
+        if isTalent(card.guid) and talentInPlay(seat,card.guid) then result[#result+1]=card.guid end
+    end
+    table.sort(result)
+    return result
 end
 
 local function cardColor(guid)
@@ -63,9 +76,9 @@ end
 
 -- Two different physical mana objects are required. Gold can power the
 -- blue Action only while legal and can select any Spell as the extra payment.
-local function strongColor(seat,useIndex,copy)
+local function strongColor(seat,useIndex,copy,talentGUID)
     if magicTalentManaPayments==nil then return nil end
-    local payments=magicTalentManaPayments(seat)
+    local payments=magicTalentManaPayments(seat,talentGUID)
     if copy~=nil and copy.powered==true then
         -- Maximal Effect provides Magic Talent's strong side for free.
         -- Its two *additional* mana payments must still be distinct.
@@ -250,10 +263,15 @@ function magicTalentBorrowedTimeBendingPaid(seat)
     return spell~=nil and resourceCardsTimeBendingPaid(seat,spell)==true
 end
 
+function magicTalentBorrowedTimeBendingSource(seat)
+    if magicTalentBorrowedTimeBendingPaid(seat) then return state().talentGUID end
+    return nil
+end
+
 local function borrow(s,index)
     local guid=s.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+    local talent=getObjectFromGUID(s.talentGUID)
     if card==nil or talent==nil or (s.loans or {})[guid]~=nil
         or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     s.index=index
@@ -324,8 +342,8 @@ local function cycle(s,delta)
 end
 
 local function claim(s)
-    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos)
-        or strongColor(s.seatPos,(s.used or 0)+1,s.copy)~=s.color then return end
+    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
+        or strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)~=s.color then return end
     local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
     local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
     if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
@@ -448,15 +466,15 @@ function magicTalentCardPickedUp(playerColor,obj)
     end
 end
 
-local function candidateCost(seat)
-    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+local function candidateCost(seat,talentGUID)
+    local talent=getObjectFromGUID(talentGUID)
     local zone=getObjectFromGUID(playerPlayAreas[seat])
     if talent==nil or zone==nil then return nil,nil end
     local t=ttsVectorArray(talent.getPosition())
     for _,card in ipairs(zone.getObjects()) do
         local color=cardColor(card.guid)
         local data=gameCards[card.guid]
-        if card.type=="Card" and card.guid~=MAGIC_TALENT_GUID
+        if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
@@ -471,8 +489,8 @@ end
 
 -- The basic copied effect discards all three hand cards, whether or not the
 -- player subsequently casts every Spell. Their colors determine each use.
-local function candidateCosts(seat,need)
-    local talent=getObjectFromGUID(MAGIC_TALENT_GUID)
+local function candidateCosts(seat,need,talentGUID)
+    local talent=getObjectFromGUID(talentGUID)
     local zone=getObjectFromGUID(playerPlayAreas[seat])
     if talent==nil or zone==nil then return nil end
     local t=ttsVectorArray(talent.getPosition())
@@ -480,7 +498,7 @@ local function candidateCosts(seat,need)
     for _,card in ipairs(zone.getObjects()) do
         local color=cardColor(card.guid)
         local data=gameCards[card.guid]
-        if card.type=="Card" and card.guid~=MAGIC_TALENT_GUID
+        if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
@@ -512,9 +530,9 @@ local function discardCost(seat,card)
     return true
 end
 
-local function start(seat,mode,color,source,copy,costs)
+local function start(seat,mode,color,source,copy,costs,talentGUID)
     local count=copy~=nil and copy.count or 1
-    local s={seatPos=seat,mode=mode,color=color,order=offerOrder(color),index=1,
+    local s={seatPos=seat,talentGUID=talentGUID,mode=mode,color=color,order=offerOrder(color),index=1,
         sourceGUID=source~=nil and source.guid or nil,
         copy=copy~=nil and {count=count,powered=copy.powered==true,
             sourceGUID=copy.sourceGUID} or nil,
@@ -539,11 +557,11 @@ function magicTalentSync()
     if gStates==nil or gStates.firstStarted~=true then return end
     local s=state()
     local seat=currentSeat()
-    if seat==nil or not talentInPlay(seat) or (s~=nil and s.seatPos~=seat) then
+    if seat==nil or (s~=nil and (s.seatPos~=seat or not talentInPlay(seat,s.talentGUID))) then
         if s~=nil then magicTalentClose(true) end
         return
     end
-    local copy=maximalEntitlement(seat)
+    local copy=s~=nil and maximalEntitlement(seat,s.talentGUID) or nil
     if s~=nil and s.copy~=nil
         and (copy==nil or s.copy.count~=copy.count
             or s.copy.powered~=(copy.powered==true)
@@ -554,22 +572,25 @@ function magicTalentSync()
         s=nil
     end
     if s==nil then
-        if copy~=nil and copy.powered==true then
-            local paid=strongColor(seat,1,copy)
-            if paid~=nil then start(seat,"strong",paid,nil,copy) end
-        elseif copy~=nil then
-            local costs=candidateCosts(seat,copy.count)
-            if costs~=nil then
-                start(seat,"basic",costs[1].color,nil,copy,costs)
-            end
-        else
-            local cost,color=candidateCost(seat)
-            -- The ordinary basic effect spends one hand card. Otherwise a
-            -- blue power and a separate mana choose the strong effect.
-            if cost~=nil then start(seat,"basic",color,cost)
+        -- Each physical source has its own mana and discard footprint.
+        -- Keep the existing single browser/loan session; never transfer its
+        -- entitlement to another copy merely because both are in play.
+        for _,talentGUID in ipairs(talentsInPlay(seat)) do
+            local entitlement=maximalEntitlement(seat,talentGUID)
+            if entitlement~=nil and entitlement.powered==true then
+                local paid=strongColor(seat,1,entitlement,talentGUID)
+                if paid~=nil then start(seat,"strong",paid,nil,entitlement,nil,talentGUID) return end
+            elseif entitlement~=nil then
+                local costs=candidateCosts(seat,entitlement.count,talentGUID)
+                if costs~=nil then
+                    start(seat,"basic",costs[1].color,nil,entitlement,costs,talentGUID)
+                    return
+                end
             else
-                local paid=strongColor(seat)
-                if paid~=nil then start(seat,"strong",paid,nil) end
+                local cost,color=candidateCost(seat,talentGUID)
+                if cost~=nil then start(seat,"basic",color,cost,nil,nil,talentGUID) return end
+                local paid=strongColor(seat,nil,nil,talentGUID)
+                if paid~=nil then start(seat,"strong",paid,nil,nil,nil,talentGUID) return end
             end
         end
         return
@@ -583,7 +604,7 @@ function magicTalentSync()
         return
     end
     if s.mode~="strong" then return end
-    local paid=strongColor(seat,(s.used or 0)+1,s.copy)
+    local paid=strongColor(seat,(s.used or 0)+1,s.copy,s.talentGUID)
     if paid==nil then
         if s.cardGUID~=nil then returnPreview(s,false) end
         return
@@ -617,12 +638,15 @@ function magicTalentScheduleCheck(movedGUID)
             if serial==settleSerial then magicTalentSync() end
         end,function()
             if serial~=settleSerial then return true end
-            local card=getObjectFromGUID(MAGIC_TALENT_GUID)
             local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
-            local ready=card==nil or (card.held_by_color==nil
-                and card.resting and not card.isSmoothMoving())
-            return ready and (moved==nil or (moved.held_by_color==nil
-                and moved.resting and not moved.isSmoothMoving()))
+            local seat=currentSeat()
+            local zone=seat~=nil and getObjectFromGUID(playerPlayAreas[seat]) or nil
+            for _,card in ipairs(zone~=nil and zone.getObjects() or {}) do
+                if isTalent(card.guid) and (card.held_by_color~=nil
+                    or not card.resting or card.isSmoothMoving()) then return false end
+            end
+            return moved==nil or (moved.held_by_color==nil
+                and moved.resting and not moved.isSmoothMoving())
         end,8)
     end,2)
 end
@@ -641,13 +665,13 @@ function magicTalentObjectDropped(playerColor,obj)
         end
     end
     -- Ignore unrelated table drops; the live Magic Talent/loan is all that matters.
-    if s~=nil or talentInPlay(currentSeat()) then magicTalentScheduleCheck(obj.guid) end
+    if s~=nil or #talentsInPlay(currentSeat())>0 then magicTalentScheduleCheck(obj.guid) end
 end
 
 function magicTalentRestoreOnLoad()
     local s=state()
     if s==nil then return end
-    if not talentInPlay(s.seatPos) then magicTalentClose(true) return end
+    if not talentInPlay(s.seatPos,s.talentGUID) then magicTalentClose(true) return end
     if s.cardGUID~=nil then
         local card=getObjectFromGUID(s.cardGUID)
         if card==nil then magicTalentClose(true) return end

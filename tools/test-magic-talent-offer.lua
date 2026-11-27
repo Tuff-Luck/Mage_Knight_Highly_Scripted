@@ -76,7 +76,7 @@ mainOfferCardsByType=function(kind)
     return order
 end
 gameCards={
-    ["3d832c"]={cardType="Advanced Action",color={"Blue"}},
+    ["3d832c"]={cardType="Advanced Action",resourceKey="magicTalent",color={"Blue"}},
     ["aa1111"]={cardType="Spell",color={"Red"}},
     ["aa2222"]={cardType="Spell",color={"Red"}},
     ["2eb8e2"]={cardType="Spell",color={"Blue"}},
@@ -92,7 +92,8 @@ gStates={firstStarted=true,turnNumber=1,tacticShown=false,tacticRemove=false}
 cardEffectIsVertical=function() return true end
 ttsVectorArray=copy
 local payments={}
-magicTalentManaPayments=function(_seat) return payments end
+local paidTalentGUID
+magicTalentManaPayments=function(_seat,guid) paidTalentGUID=guid return payments end
 resourceCardsGoldAllowed=function() return true end
 resourceCardsTimeBendingPaid=function() return true end
 resourceCardScanBySeat={[1]={cards={}}}
@@ -315,3 +316,28 @@ maximalCopy=nil
 talent.is_face_down=false
 
 print("Magic Talent physical offer regression tests passed")
+
+-- Alternate expansion copy has its own physical entitlement and mana footprint.
+local alternate=fakeCard("e1a957",0,0)
+cards[#cards+1]=alternate
+objects[alternate.guid]=alternate
+gameCards[alternate.guid]={cardType="Advanced Action",resourceKey="magicTalent",color={"Blue"}}
+talent.setPosition({0,1,-50})
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+payments={{guid="alt1",color="Blue"},{guid="alt2",color="Red"}}
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Alternate copy opens strong browser")
+eq(s.talentGUID,alternate.guid,"Loan belongs to alternate physical source")
+eq(paidTalentGUID,alternate.guid,"Read only alternate source mana")
+eq(s.cardGUID,red1.guid,"Alternate copy borrows same normal offer")
+magicTalentClose(true)
+payments={}
+blue.setPosition({20,1,-20})
+blueCost.setPosition({0.3,1,0.3})
+gameCards[blueCost.guid].color={"Blue"}
+magicTalentHandLeft(blueCost.guid,1)
+magicTalentSync()
+eq(magicTalentBorrowedTimeBendingSource(1),alternate.guid,"Time Bending sets aside actual source copy")
+magicTalentClose(true)
+print("Alternate Magic Talent copy passed")

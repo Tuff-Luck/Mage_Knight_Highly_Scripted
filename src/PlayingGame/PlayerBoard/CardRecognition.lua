@@ -4579,9 +4579,9 @@ trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scann
 -- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
 trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
-function magicTalentManaPayments(seatPos)
+function magicTalentManaPayments(seatPos,talentGUID)
     return trackerPrivate.manaPayments.magicTalentManaPayments(seatPos,
-        footprint,manaColor,trackerPrivate.readyForXZ)
+        footprint,manaColor,trackerPrivate.readyForXZ,talentGUID)
 end
 
 factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject
@@ -4863,15 +4863,16 @@ end
 
 -- Training is resource-neutral, but its mode and Maximal Effect repetition
 -- still come from the same physical mana/Action-link resolver as other cards.
-function resourceCardsTrainingMode(seatPos)
+function resourceCardsTrainingMode(seatPos,trainingGUID)
+    trainingGUID=trainingGUID or "6fdeb0"
     local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
-    local record=scan~=nil and scan.cards["6fdeb0"] or nil
+    local record=scan~=nil and scan.cards[trainingGUID] or nil
     if record~=nil and resourceCardsPanelOpen() then
         return record.powered==true,record.repeatCount or 1
     end
-    local copied=resourceCardsMaximalEffectLink(seatPos,"6fdeb0")
+    local copied=resourceCardsMaximalEffectLink(seatPos,trainingGUID)
     if copied~=nil then return copied.powered==true,copied.count end
-    local card=getObjectFromGUID("6fdeb0")
+    local card=getObjectFromGUID(trainingGUID)
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or zone==nil or card.is_face_down==true then return false,1 end
     local area=footprint(card)

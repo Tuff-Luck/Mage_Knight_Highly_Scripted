@@ -132,8 +132,8 @@ local function visitFootprintMana(zone,card,footprint,manaColor,readyForXZ,visit
 end
 
 -- Magic Talent's strong side consumes two distinct physical mana objects.
-local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ)
-    local card=getObjectFromGUID("3d832c")
+local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ,talentGUID)
+    local card=getObjectFromGUID(talentGUID or "3d832c")
     local payments={}
     visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(guid,color)
         payments[#payments+1]={guid=guid,color=color}

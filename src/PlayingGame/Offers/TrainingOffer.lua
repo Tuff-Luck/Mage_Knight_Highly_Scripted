@@ -2,7 +2,10 @@
 -- real Offer card and returning unchosen candidates to their original slot.
 -- The cost Action remains visible until the player explicitly takes a card.
 -- No borrowed Advanced Action contributes to the Resource Tracker.
-local TRAINING_GUID="6fdeb0"
+local function isTraining(guid)
+    local data=gameCards[guid]
+    return data~=nil and data.resourceKey=="training"
+end
 local browseSerial=0
 local trainingMoveSerial=0
 -- Transient origin evidence: a Training cost must actually leave this
@@ -147,7 +150,7 @@ end
 local function borrow(state,index)
     local guid=state.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
-    local training=getObjectFromGUID(TRAINING_GUID)
+    local training=getObjectFromGUID(state.trainingGUID)
     if card==nil or training==nil or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     state.index=index
     state.cardGUID=guid
@@ -200,35 +203,54 @@ local function cycle(state,delta)
     end
 end
 
-local function trainingValid(seatPos)
-    local card=getObjectFromGUID(TRAINING_GUID)
-    if card==nil or seatPos==nil
-        or not objectGUIDInZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return false end
+local function trainingValid(seatPos,trainingGUID)
+    local card=trainingGUID~=nil and getObjectFromGUID(trainingGUID) or nil
+    if card==nil or not isTraining(trainingGUID) or seatPos==nil
+        or not objectGUIDInZone(trainingGUID,playerPlayAreas[seatPos]) then return false end
     -- A sideways Training is only the generic +1 Action, not its printed
     -- replacement effect. A face-down copy is valid only when Maximal Effect
     -- is explicitly repeating that card.
     if card.is_face_down==true or not cardEffectIsVertical(card) then
-        local _,repeats=resourceCardsTrainingMode(seatPos)
+        local _,repeats=resourceCardsTrainingMode(seatPos,trainingGUID)
         if repeats<2 then return false end
     end
     return true
 end
 
+local function trainingCandidates(seatPos)
+    local candidates={}
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    for _,card in ipairs(zone~=nil and zone.getObjects() or {}) do
+        if isTraining(card.guid) then candidates[#candidates+1]=card end
+    end
+    return candidates
+end
+
 local function startTraining(seatPos,source)
-    if currentState()~=nil or not trainingValid(seatPos) then return end
+    if currentState()~=nil then return end
     local details=gameCards[source.guid]
     if details==nil or (details.cardType~="Starting"
         and details.cardType~="Advanced Action")
-        or source.guid==TRAINING_GUID
         or fromHand[source.guid]~=seatPos
         or not objectGUIDInZone(source.guid,playerPlayAreas[seatPos]) then return end
-    local training=getObjectFromGUID(TRAINING_GUID)
     local from=ttsVectorArray(source.getPosition())
-    local at=ttsVectorArray(training.getPosition())
-    if math.abs(at[1]-from[1])>1.4 or math.abs(at[3]-from[3])>1.8 then return end
-    local _,repeatCount=resourceCardsTrainingMode(seatPos)
     gStates.trainingOfferClaims=gStates.trainingOfferClaims or {}
-    if (gStates.trainingOfferClaims[TRAINING_GUID] or 0)>=repeatCount then return end
+    local training,nearest
+    for _,candidate in ipairs(trainingCandidates(seatPos)) do
+        if candidate.guid~=source.guid and trainingValid(seatPos,candidate.guid) then
+            local _,uses=resourceCardsTrainingMode(seatPos,candidate.guid)
+            local at=ttsVectorArray(candidate.getPosition())
+            local dx,dz=math.abs(at[1]-from[1]),math.abs(at[3]-from[3])
+            local distance=dx*dx+dz*dz
+            if dx<=1.4 and dz<=1.8 and (gStates.trainingOfferClaims[candidate.guid] or 0)<uses
+                and (nearest==nil or distance<nearest
+                    or (distance==nearest and candidate.guid<training.guid)) then
+                training,nearest=candidate,distance
+            end
+        end
+    end
+    if training==nil then return end
+    local trainingGUID=training.guid
     local order={}
     for _,offer in ipairs(mainOfferCardsByType("Advanced Action")) do
         if matchesSource(details,gameCards[offer.guid]) then
@@ -242,18 +264,19 @@ local function startTraining(seatPos,source)
     end
     fromHand[source.guid]=nil
     local state={seatPos=seatPos,sourceGUID=source.guid,
-        order=order,index=1,trainingGUID=TRAINING_GUID}
+        order=order,index=1,trainingGUID=trainingGUID}
     gStates.trainingOfferPreview=state
     if not borrow(state,1) then gStates.trainingOfferPreview=nil end
 end
 
 local function claim(state)
-    if currentState()~=state or not trainingValid(state.seatPos) then return end
+    if currentState()~=state or not trainingValid(state.seatPos,state.trainingGUID) then return end
     local gained=getObjectFromGUID(state.cardGUID)
     local source=getObjectFromGUID(state.sourceGUID)
     if gained==nil or source==nil or not objectGUIDInZone(source.guid,playerPlayAreas[state.seatPos])
         or not matchesSource(gameCards[source.guid],gameCards[gained.guid]) then return end
-    local powered,repeatCount=resourceCardsTrainingMode(state.seatPos)
+    local powered,repeatCount=resourceCardsTrainingMode(state.seatPos,state.trainingGUID)
+    if ((gStates.trainingOfferClaims or {})[state.trainingGUID] or 0)>=repeatCount then return end
     local destination=getObjectFromGUID(powered
         and handZones[state.seatPos] or deedDeckDiscardZones[state.seatPos])
     if destination==nil then return end
@@ -265,7 +288,7 @@ local function claim(state)
     state.home=nil
     gStates.trainingOfferPreview=nil
     local claims=gStates.trainingOfferClaims or {}
-    claims[TRAINING_GUID]=(claims[TRAINING_GUID] or 0)+1
+    claims[state.trainingGUID]=(claims[state.trainingGUID] or 0)+1
     gStates.trainingOfferClaims=claims
     cleanPreview(gained)
     gained.UI.setXmlTable({{}})
@@ -308,7 +331,7 @@ local function claim(state)
     end,8,refill)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     mainUIUpdate("Training Advanced Action Claimed")
-    if claims[TRAINING_GUID]<repeatCount then
+    if claims[state.trainingGUID]<repeatCount then
         safeBroadcastToColor("Training: choose another Action from your hand for the next use.",
             positionToColor(gStates.turnNumber),warningColor)
     end
@@ -333,9 +356,9 @@ function trainingOfferObjectDropped(playerColor,obj)
     local seatPos=currentSeat()
     if seatPos==nil then return end
     local active=currentState()
-    if obj.guid==TRAINING_GUID then
+    if isTraining(obj.guid) then
         trainingOfferScheduleCardCheck()
-        return
+        -- A different Training copy can itself be a legitimate hand cost.
     end
     if active~=nil and obj.guid==active.cardGUID then
         local guid=obj.guid
@@ -346,7 +369,7 @@ function trainingOfferObjectDropped(playerColor,obj)
             if held==nil then return end
             state.display=ttsVectorArray(held.getPosition())
             state.rotation=ttsVectorArray(held.getRotation())
-            local powered=resourceCardsTrainingMode(state.seatPos)
+            local powered=resourceCardsTrainingMode(state.seatPos,state.trainingGUID)
             if objectGUIDInZone(guid,powered and handZones[state.seatPos]
                 or deedDeckDiscardZones[state.seatPos]) then
                 claim(state)
@@ -368,7 +391,7 @@ function trainingOfferObjectDropped(playerColor,obj)
     if cardData.cardType~="Starting" and cardData.cardType~="Advanced Action" then return end
     -- Other players may plan cards during a Proxy/Dummy turn; no Training action
     -- exists unless the card is actually in the current seat's play area.
-    if not objectGUIDInZone(TRAINING_GUID,playerPlayAreas[seatPos]) then return end
+    if #trainingCandidates(seatPos)==0 then return end
     if legalPlayerCheck(playerColor,seatPos,"NoDummyException",true)~=true then return end
     local guid=obj.guid
     safeWaitCondition("Offers.Training",function()
@@ -388,17 +411,17 @@ function trainingOfferScheduleCardCheck()
         safeWaitCondition("Offers.Training",function()
             if serial~=trainingMoveSerial then return end
             local state=currentState()
-            if state~=nil and not trainingValid(state.seatPos) then
+            if state~=nil and not trainingValid(state.seatPos,state.trainingGUID) then
                 trainingOfferClose(false)
             end
-            if currentSeat()==nil or not trainingValid(currentSeat()) then
-                gStates.trainingOfferClaims=nil
-            end
+            -- Claims belong to each physical copy until turn cleanup;
+            -- lifting or turning one card must not reset the other's uses.
         end,function()
             if serial~=trainingMoveSerial then return true end
-            local card=getObjectFromGUID(TRAINING_GUID)
-            return card==nil or (card.held_by_color==nil and card.resting
-                and not card.isSmoothMoving())
+            for _,card in ipairs(trainingCandidates(currentSeat())) do
+                if card.held_by_color~=nil or not card.resting or card.isSmoothMoving() then return false end
+            end
+            return true
         end,8)
     end,2)
 end
@@ -406,7 +429,7 @@ end
 function trainingOfferRestoreOnLoad()
     local state=currentState()
     if state==nil then return end
-    if not trainingValid(state.seatPos)
+    if not trainingValid(state.seatPos,state.trainingGUID)
         or getObjectFromGUID(state.sourceGUID)==nil
         or getObjectFromGUID(state.cardGUID)==nil then
         trainingOfferClose(true)

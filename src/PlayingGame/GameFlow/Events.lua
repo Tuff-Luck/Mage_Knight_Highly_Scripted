@@ -1923,7 +1923,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	if handleZoneEnterPrelude(ctx)==true then return end
-    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="magicTalent" and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
     end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
@@ -2084,10 +2084,10 @@ function __onObjectLeaveZone_raw(zone, obj)
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
         callOfferSpellLeft(ctx.objGUID,ctx.zoneInfo~=nil and ctx.zoneInfo.seatPos or nil)
     end
-    if ctx.objGUID=="6fdeb0" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="training" and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
     end
-    if ctx.objGUID=="3d832c" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="magicTalent" and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
     end
     if ctx.objType=="Card" and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="hand" then
@@ -2552,8 +2552,8 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         -- The new face may not yet be applied when onObjectRotate fires.
         callOfferScheduleSpellCheck()
     end
-    if cardGUID=="6fdeb0" then trainingOfferScheduleCardCheck() end
-    if cardGUID=="3d832c" then magicTalentScheduleCheck() end
+    if gameCards[cardGUID]~=nil and gameCards[cardGUID].resourceKey=="training" then trainingOfferScheduleCardCheck() end
+    if gameCards[cardGUID]~=nil and gameCards[cardGUID].resourceKey=="magicTalent" then magicTalentScheduleCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)

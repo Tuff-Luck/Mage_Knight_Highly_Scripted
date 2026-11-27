@@ -571,9 +571,8 @@ function turnPreparePreEndTurn(cleanupPlayer,playerColor,id)
 		if useTimeBending then
             -- Magic Talent takes Time Bending's place in the set-aside area.
             local seat=turnOrder[cleanupPlayer].seatPos
-            gStates.timeBendingRemovedGUID=(magicTalentBorrowedTimeBendingPaid~=nil
-                and magicTalentBorrowedTimeBendingPaid(seat)) and "3d832c"
-                or timeBendingGUID
+            gStates.timeBendingRemovedGUID=(magicTalentBorrowedTimeBendingSource~=nil
+                and magicTalentBorrowedTimeBendingSource(seat)) or timeBendingGUID
 			gStates.timeBending="Started"
 			if cleanupTurnToken~=nil and cleanupTurnToken.is_face_down==true then
 				cleanupTurnToken.flip()

@@ -60,7 +60,7 @@ local objects={
 getObjectFromGUID=function(guid) return objects[guid] end
 handZones={[2]="hand"}
 playerPlayAreas={[2]="play"}
-gameCards={["111111"]={cardType="Starting"}}
+gameCards={["111111"]={cardType="Starting"},["6fdeb0"]={cardType="Advanced Action",resourceKey="training"}}
 local queued=0
 safeWaitCondition=function() queued=queued+1 end
 publishPublicUICallbacks=function(callbacks)
