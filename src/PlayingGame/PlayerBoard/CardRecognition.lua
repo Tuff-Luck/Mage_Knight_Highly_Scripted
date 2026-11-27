@@ -565,6 +565,8 @@ combatConfig.conversionFor=function(seat,kind,preview)
             local amount=math.max(0,tonumber(record.resources~=nil and record.resources[field]) or 0)
             if kind=="agility" and amount>0 and resourceCardsMoveRole(sourceGUID,true)~="combat" then
                 amount=0
+            elseif field=="influence" then
+                amount=math.max(0,amount-(tonumber(record.influenceSpent) or 0))
             end
             -- A manually targeted source retains its entire remaining pool.
             -- Split-target cards put Move/Influence on their Block source.
@@ -620,6 +622,11 @@ local function combatAssignmentSources(seat)
                     local newKey=resourceCardsTransformedKey(key,transform)
                     effective[newKey]=(effective[newKey] or 0)+amount
                 end
+            end
+            -- Ready/Heal payments are already reflected in the tracker total.
+            -- Exclude their scan-local reservations from Psychic Block as well.
+            if effective.influence~=nil then
+                effective.influence=math.max(0,effective.influence-(tonumber(record.influenceSpent) or 0))
             end
             -- A split card (record.splitTargets) offers one source per resource family so each
             -- can be aimed independently; the key is "guid#family" and guid stays the card.

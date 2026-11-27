@@ -437,6 +437,9 @@ function M.payReadyInfluence(context)
             totals.healing=(totals.healing or 0)+healing
         end
     end
+    -- The combat calculator reads individual records rather than the tracker
+    -- total. Allocate the same payments there so Ready/Heal cannot also Block.
+    resourceOps.allocateInfluenceSpend(records,availableInfluence-totals.influence)
     return ruthlessReadySpent,readyNeedsRescan,#actionSources>0
 end
 

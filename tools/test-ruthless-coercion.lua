@@ -148,3 +148,43 @@ assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.
 assert(read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua"):find('..":READY_ELIGIBLE:"..tostring(canReadyUnit)',1,true),
     "Ready UI signature must respond to changes in Unit eligibility")
 print("Ruthless Coercion recruitment and Ready visibility regressions passed")
+
+-- Exercise the actual shared Ready/Heal accounting, including its record
+-- reservations used by Diplomacy and Psychic Block.
+do
+    local peaceful="111111"
+    local ruthless="222222"
+    local unit="333333"
+    local env=setmetatable({
+        gStates={unitReadyLinks={[ruthless.."#ready1"]={unitGUID=unit}},
+            startingCardSelections={[peaceful]={influenceHealing=2}}},
+        gameCards={[peaceful]={resourceKey="peacefulMoment"},
+            [ruthless]={resourceKey="ruthlessCoercion"},[unit]={level=2}},
+        cardResourceDefinitions={
+            peacefulMoment={influenceAction={healCost=2}},
+            ruthlessCoercion={readyWithInfluence={maxLevel=2,costPerLevel=2}}},
+        unitHistoryCancelReadySource=function() error("Affordable Ready was cancelled") end
+    },{__index=_G})
+    local scan=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Units/UnitScan.lua","t",env))()
+    local printed={influence=3}
+    local records={
+        [peaceful]={complete=true,influenceAction=true,resources=printed},
+        [ruthless]={complete=true,powered=true,resources={influence=6}},
+        skill={resources={influence=1}}}
+    local totals={influence=10,healing=0}
+    local spent,needsRescan,action=scan.payReadyInfluence({records=records,totals=totals})
+    eq(spent,4,"Ready costs two per Unit level")
+    eq(needsRescan,false,"Affordable Ready retained")
+    eq(action,true,"Healing action active")
+    eq(totals.influence,2,"Ready and Heal spend one pool")
+    eq(totals.healing,2,"Two Heal generated")
+    eq(records[peaceful].influenceSpent,3,"Stable first source reservation")
+    eq(records[ruthless].influenceSpent,5,"Remaining payment on second source")
+    eq(records.skill.influenceSpent,nil,"Unspent Skill Influence remains available")
+    eq(printed.influence,3,"Printed resources unchanged")
+    local ops=require("PlayingGame.PlayerBoard.ResourceTracker.Core.ResourceOperations")
+    eq(ops.allocateInfluenceSpend(records,0),0,"Zero payment")
+    eq(records[peaceful].influenceSpent,nil,"Old reservations cleared")
+    eq(records[ruthless].influenceSpent,nil,"All refunded Influence is available")
+end
+print("Shared Influence spending regressions passed")

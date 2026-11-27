@@ -177,4 +177,27 @@ function M.replace(record,totals,from,to,amount)
     end
 end
 
+-- Record the scan-local share of generated Influence already paid for
+-- non-combat effects. Keep printed/resource values intact for card controls.
+-- Stable source order keeps the same remaining combat pool across rescans.
+function M.allocateInfluenceSpend(records,amount)
+    local ordered={}
+    for key,record in pairs(records) do
+        record.influenceSpent=nil
+        if (tonumber((record.resources or {}).influence) or 0)>0 then
+            ordered[#ordered+1]=key
+        end
+    end
+    table.sort(ordered)
+    local remaining=math.max(0,tonumber(amount) or 0)
+    for _,key in ipairs(ordered) do
+        if remaining<=0 then break end
+        local record=records[key]
+        local spent=math.min(remaining,record.resources.influence)
+        record.influenceSpent=spent
+        remaining=remaining-spent
+    end
+    return remaining
+end
+
 return M

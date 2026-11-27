@@ -126,6 +126,15 @@ state.targets.influenceA="ordinaryEnemy"
 local _,otherTarget=conversionEnv.combatConfig.conversionFor(1,"diplomacy")
 assert(otherTarget==7,
     "Ordinary enemy targeting must not reserve an unrelated Influence pool")
+cards.influenceB.influenceSpent=2
+local _,afterReady=conversionEnv.combatConfig.conversionFor(1,"diplomacy")
+assert(afterReady==5,"Paid Ready/Heal Influence is unavailable to Diplomacy")
+state.targets.influenceA="enemy2"
+local clamped,afterTarget=conversionEnv.combatConfig.conversionFor(1,"diplomacy")
+assert(afterTarget==1 and clamped.block==1,
+    "Ready payment and Psychic reservation share the same remaining pool")
+cards.influenceB.influenceSpent=nil
+state.targets.influenceA="ordinaryEnemy"
 
 -- Also test the actual source-consumption loop: its input order must never
 -- let a reserved source be consumed before an unassigned one.
