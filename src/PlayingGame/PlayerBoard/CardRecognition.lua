@@ -4877,7 +4877,11 @@ function resourceCardsTrainingMode(seatPos,trainingGUID)
     trainingGUID=trainingGUID or "6fdeb0"
     if magicTalentOfferCastSide~=nil then
         local side=magicTalentOfferCastSide(seatPos,trainingGUID)
-        if side~=nil then return side,1 end
+        if side~=nil then
+            local repeated=magicTalentOfferActionRepeat~=nil
+                and magicTalentOfferActionRepeat(seatPos,trainingGUID) or nil
+            return side,repeated~=nil and repeated.count or 1
+        end
     end
     local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
     local record=scan~=nil and scan.cards[trainingGUID] or nil

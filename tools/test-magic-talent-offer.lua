@@ -747,3 +747,50 @@ eq(next(gStates.magicTalentPreviews or {}),nil,"Parent departure retires depende
 eq(inZone(blue.guid,"offer"),true,"Pending child Spell returns")
 eq(inZone(talent.guid,"offer"),true,"Parent Action returns")
 print("Nested Magic Talent browser regressions passed")
+
+-- Repeating borrowed Magic Talent after its first nested claim is complete.
+-- Distinct physical mana must be used even if a paid token is moved away.
+magicTalentClose(true)
+gStates.ancientsOfferClaims=nil
+ancients.setPosition({0,1,0})
+talent.setPosition({10,1,-20})
+alternate.setPosition({0,1,-40})
+tome.setPosition({0,1,-40})
+redAction.setPosition({15,1,-20})
+blueAction.setPosition({20,1,-20})
+dualAction.setPosition({25,1,-20})
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+blue.setPosition({20,1,-20})
+resourceCardsMaximalEffectLink=function(_seat,guid)
+    if guid==ancients.guid then return {powered=true,count=2,sourceGUID="8fac50"} end
+end
+bySource={[talent.guid]={{guid="first",color="Red"}}}
+magicTalentSync()
+parent=assert(gStates.magicTalentPreviews[ancients.guid])
+eq(parent.cardGUID,talent.guid,"Repeated parent can select Magic Talent")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..talent.guid.."_useAncientsHand")
+nested=assert(gStates.magicTalentPreviews[talent.guid])
+eq(nested.cardGUID,red1.guid,"First nested acquisition")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_claim")
+eq(nested.used,1,"First acquisition completed")
+eq(nested.mode,"claimed","One paid parent application")
+eq(hasButton(talent,"sameAncientsHand"),true,"Nested non-resource Action can be repeated")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..talent.guid.."_sameAncientsDiscard")
+eq(parent.used,2,"Second Wound extends parent entitlement")
+eq(nested.limit,2,"Existing child limit grows without resetting claim count")
+eq(nested.cardGUID,nil,"Already-spent first mana cannot pay second acquisition")
+bySource[talent.guid]={{guid="first",color="Red"},{guid="first",color="Red"}}
+magicTalentSync()
+eq(nested.cardGUID,nil,"Duplicate GUID cannot purchase another Spell")
+bySource[talent.guid]={{guid="second",color="Blue"}}
+magicTalentSync()
+eq(nested.cardGUID,blue.guid,"Fresh additional mana opens second selection")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blue.guid.."_claim")
+eq(nested.used,2,"Second acquisition completed")
+eq(inZone(red1.guid,"discard"),true,"First Spell remains owned")
+eq(inZone(blue.guid,"discard"),true,"Second Spell remains owned")
+magicTalentClose(true)
+eq(inZone(talent.guid,"offer"),true,"Repeated nested source returned once")
+eq(gStates.magicTalentStrongClaims,nil,"Strong payment ledger reset at turn cleanup")
+print("Repeated nested Magic Talent regressions passed")

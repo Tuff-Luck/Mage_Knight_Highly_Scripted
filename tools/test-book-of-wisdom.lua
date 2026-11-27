@@ -227,3 +227,44 @@ eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],1,"Completed claim rec
 env.trainingOfferSourceReturned(borrowedTraining.guid,true)
 eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],1,"Parent return does not reset claim")
 print("Borrowed Training exchange regressions passed")
+
+-- The existing Training claim counter accepts a second confirmed parent
+-- use without returning or consuming the borrowed Training itself.
+env.trainingOfferClose(true)
+cost.destroyed=false
+cost.position={0,1,0}
+redAA.position={20,1,20}
+local secondCost=card("777777",{0,1,0})
+local secondAA=card("888888",{25,1,20})
+cards[#cards+1]=secondCost
+cards[#cards+1]=secondAA
+objects[secondCost.guid]=secondCost
+objects[secondAA.guid]=secondAA
+env.gameCards[secondCost.guid]={cardType="Starting",color={"Red"}}
+env.gameCards[secondAA.guid]={cardType="Advanced Action",color={"Red"}}
+env.mainOfferCardsByType=function(kind)
+    local out={}
+    if kind=="Advanced Action" then
+        for _,obj in ipairs({redAA,secondAA}) do
+            if inZone(obj.guid,"offer") then out[#out+1]=obj end
+        end
+    end
+    return out
+end
+local uses=1
+env.resourceCardsTrainingMode=function(_seat,_guid) return true,uses end
+dropCost()
+take(redAA)
+eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],1,"First Training application")
+env.trainingOfferHandLeft(secondCost.guid,1)
+env.trainingOfferObjectDropped("Red",secondCost)
+eq(preview(),nil,"Second cost cannot activate before second Wound")
+uses=2
+env.trainingOfferObjectDropped("Red",secondCost)
+eq(preview().cardGUID,secondAA.guid,"Second confirmed use opens exchange")
+take(secondAA)
+eq(secondCost.destroyed,true,"Second exchange throws a different owned Action")
+eq(borrowedTraining.destroyed,nil,"Borrowed Training is not consumed")
+eq(env.gStates.trainingOfferClaims[borrowedTraining.guid],2,"Two independent exchanges")
+eq(inZone(secondAA.guid,"hand"),true,"Second gained Action enters hand")
+print("Repeated borrowed Training exchange regressions passed")

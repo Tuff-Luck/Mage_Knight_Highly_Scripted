@@ -153,12 +153,26 @@ end
 
 -- Both mana-consuming browser types accept the four basic colours and
 -- legal Gold. Use the existing physical ranking when their footprints overlap.
+-- Strong-side acquisitions are irreversible. Record the actual mana GUIDs
+-- and claim count independently of the temporary preview's lifetime.
+local function strongClaims(guid)
+    return (gStates.magicTalentStrongClaims or {})[guid]
+end
+
 local function browserManaPayments(seat,guid)
     local sources={}
     for _,source in ipairs(talentsInPlay(seat)) do
         if not isTome(source) then sources[#sources+1]=source end
     end
-    return magicTalentManaPayments(seat,guid,sources)
+    local spent={}
+    for _,claim in pairs(gStates.magicTalentStrongClaims or {}) do
+        for manaGUID in pairs(claim.spent or {}) do spent[manaGUID]=true end
+    end
+    local result={}
+    for _,payment in ipairs(magicTalentManaPayments(seat,guid,sources)) do
+        if not spent[payment.guid] then result[#result+1]=payment end
+    end
+    return result
 end
 
 -- Blood of Ancients needs an extra payment on its basic side. Red
@@ -286,19 +300,28 @@ local function strongColor(seat,useIndex,copy,talentGUID)
         -- one distinct extra coloured mana matching the gained Spell.
         local choices,seen={},{}
         local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
-        local sourcePayments=copy~=nil and resourceCardsMaximalEffectSourceManaGUIDs~=nil
-            and resourceCardsMaximalEffectSourceManaGUIDs(seat,copy.sourceGUID) or {}
+        local owner=borrowed and cardSession(talentGUID) or nil
+        local powerSource=copy or (owner~=nil and owner.copy or nil)
+        local sourcePayments=powerSource~=nil and resourceCardsMaximalEffectSourceManaGUIDs~=nil
+            and resourceCardsMaximalEffectSourceManaGUIDs(seat,powerSource.sourceGUID) or {}
         for _,payment in ipairs(payments) do
             if seen[payment.guid]~=true and sourcePayments[payment.guid]~=true
                 and (payment.color=="Red" or payment.color=="Blue"
                     or payment.color=="Green" or payment.color=="White"
                     or (payment.color=="Gold" and goldLegal)) then
                 seen[payment.guid]=true
-                choices[#choices+1]=payment.color
+                choices[#choices+1]=payment
             end
         end
-        if #choices<(copy~=nil and copy.count or 1) then return nil end
-        return choices[useIndex or 1]
+        -- The remaining count, not the original ordinal in a mutable mana
+        -- list, determines eligibility. A paid GUID can never pay again.
+        local repeated=borrowed and magicTalentOfferActionRepeat(seat,talentGUID) or nil
+        local limit=copy~=nil and copy.count or (repeated~=nil and repeated.count or 1)
+        local claimed=strongClaims(talentGUID)
+        local remaining=limit-(claimed~=nil and claimed.used or 0)
+        if remaining<1 or #choices<remaining then return nil end
+        table.sort(choices,function(a,b) return a.guid<b.guid end)
+        return choices[1].color,choices[1].guid
     end
     local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
     local power=nil
@@ -316,7 +339,7 @@ local function strongColor(seat,useIndex,copy,talentGUID)
             (payment.color=="Red" or payment.color=="Blue"
             or payment.color=="White" or payment.color=="Green"
             or (payment.color=="Gold" and goldLegal)) then
-            return payment.color
+            return payment.color,payment.guid,power.guid
         end
     end
     return nil
@@ -333,9 +356,12 @@ local function ancientsCanRepeat(s,guid)
     local data=gameCards[guid]
     local rule=data~=nil and cardResourceDefinitions~=nil
         and cardResourceDefinitions[data.resourceKey] or nil
-    return s.mode=="ancients" and s.copy~=nil and s.copy.powered==true
-        and s.used<s.limit and (s.ancientsLoans or {})[guid]==true
-        and data~=nil and data.resourceTracked~=false and data.resourceAlwaysNeutral~=true
+    if s.mode~="ancients" or s.copy==nil or s.copy.powered~=true
+        or s.used>=s.limit or (s.ancientsLoans or {})[guid]~=true or data==nil then return false end
+    -- Exchange and acquisition browsers have their own claim counters,
+    -- even though their printed effects do not directly generate resources.
+    if data.resourceKey=="training" or data.resourceKey=="magicTalent" then return true end
+    return data.resourceTracked~=false and data.resourceAlwaysNeutral~=true
         and rule~=nil and rule.poweredLink==nil
         and (rule.requiredLink==nil or rule.requiredLink.mode~="repeat")
 end
@@ -527,7 +553,10 @@ end
 function magicTalentClose(immediate)
     settleSerial=settleSerial+1
     for _,s in ipairs(sessionList()) do closeSession(s,immediate==true) end
-    if gStates~=nil then gStates.magicTalentPreviews=nil end
+    if gStates~=nil then
+        gStates.magicTalentPreviews=nil
+        gStates.magicTalentStrongClaims=nil
+    end
     fromHand={}
 end
 
@@ -554,7 +583,7 @@ function magicTalentOfferCastSide(seat,guid)
     local ancientsLoan=(s.ancientsLoans or {})[guid]==true
     if not ancientsLoan and (s.mode~="tomeCast" or s.freeGUID~=guid) then return nil end
     local spell=getObjectFromGUID(guid)
-    if spell==nil or not cardEffectIsVertical(spell)
+    if spell==nil or spell.is_face_down==true or not cardEffectIsVertical(spell)
         or not objectGUIDInZone(guid,playerPlayAreas[seat]) then return nil end
     if ancientsLoan then return true end
     return s.freeStrong==true
@@ -736,10 +765,18 @@ end
 
 local function claim(s)
     if not liveSession(s) or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
-        or strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)~=s.color then return end
+        or s.used>=s.limit then return end
+    local color,paymentGUID,powerGUID=strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)
+    if color~=s.color or paymentGUID==nil then return end
     local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
     local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
     if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
+    gStates.magicTalentStrongClaims=gStates.magicTalentStrongClaims or {}
+    local paid=strongClaims(s.talentGUID) or {used=0,spent={}}
+    paid.used=paid.used+1
+    paid.spent[paymentGUID]=true
+    if powerGUID~=nil then paid.spent[powerGUID]=true end
+    gStates.magicTalentStrongClaims[s.talentGUID]=paid
     commitGain(s,gained,destination,false)
 end
 
@@ -1003,13 +1040,17 @@ local function discardCost(seat,card)
 end
 
 local function start(seat,mode,color,source,copy,costs,talentGUID)
-    local count=copy~=nil and copy.count or 1
+    local repeatLoan=mode=="strong" and magicTalentOfferActionRepeat(seat,talentGUID) or nil
+    local count=copy~=nil and copy.count or (repeatLoan~=nil and repeatLoan.count or 1)
+    local paid=mode=="strong" and strongClaims(talentGUID) or nil
+    local used=paid~=nil and paid.used or 0
+    if used>=count then return end
     local order=mode=="ancients" and ancientsOrder(seat,talentGUID) or offerOrder(color)
     local s={seatPos=seat,talentGUID=talentGUID,mode=mode,color=color,order=order,index=1,
         sourceGUID=source~=nil and source.guid or nil,
         copy=copy~=nil and {count=count,powered=copy.powered==true,
             sourceGUID=copy.sourceGUID} or nil,
-        limit=count,used=0,loans={},repeatCasts={}}
+        limit=count,used=used,loans={},repeatCasts={}}
     if costs~=nil then
         s.costColors={}
         for index,entry in ipairs(costs) do
@@ -1053,6 +1094,7 @@ local function startSource(seat,talentGUID)
         local costs=candidateCosts(seat,entitlement.count,talentGUID)
         if costs~=nil then start(seat,"basic",costs[1].color,nil,entitlement,costs,talentGUID) end
     else
+        if strongClaims(talentGUID)~=nil then return end
         local cost,color=candidateCost(seat,talentGUID)
         if cost~=nil then start(seat,"basic",color,cost,nil,nil,talentGUID) return end
         local paid=strongColor(seat,nil,nil,talentGUID)
@@ -1100,6 +1142,14 @@ local function syncSession(s,seat)
             if #s.order>0 then borrow(s,1) end
         end
         return
+    end
+    -- A second confirmed Wound may increase a borrowed Magic Talent's
+    -- entitlement AFTER the first nested Spell was already acquired.
+    if (s.mode=="strong" or s.mode=="claimed") and cardSession(s.talentGUID)~=nil
+        and gameCards[s.talentGUID].resourceKey=="magicTalent" then
+        local repeated=magicTalentOfferActionRepeat(seat,s.talentGUID)
+        s.limit=repeated~=nil and repeated.count or 1
+        if s.used<s.limit then s.mode="strong" end
     end
     if s.mode~="strong" then return end
     local paid=strongColor(seat,(s.used or 0)+1,s.copy,s.talentGUID)
