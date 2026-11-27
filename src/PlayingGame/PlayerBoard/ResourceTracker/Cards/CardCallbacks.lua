@@ -366,7 +366,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         combatForgetPhysicalSourceTargets(sourceKey)
         if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(sourceKey) end
     end
-    if data~=nil and data.resourceKey=="rejuvenate" then
+    if data~=nil and rule~=nil and rule.unitReadyLevels~=nil
+        and not rule.simultaneousReady and not rule.staffDualChoices then
         gStates.unitReadyCardChoices=gStates.unitReadyCardChoices or {}
         gStates.unitReadyCardChoices[guid]=selected.effect=="ready" or nil
     end
@@ -374,7 +375,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     showChoiceButtons(card,mainChoices,powered,inventorySpec,inventorySets,
         record~=nil and record.resources,record~=nil and record.repeatLink,
         record~=nil and record.shapeshiftField)
-    if data~=nil and data.resourceKey=="rejuvenate" then
+    if data~=nil and rule~=nil and rule.unitReadyLevels~=nil
+        and not rule.simultaneousReady and not rule.staffDualChoices then
         unitHistoryValidSources(currentSeat.seatPos)
         if attackAssignmentsRefreshReadyUI~=nil then attackAssignmentsRefreshReadyUI() end
     end
@@ -386,7 +388,9 @@ function M.regenerationReady(player,value,id,resourceCardsDetailsOpen)
         or not resourceCardsPlayerCanEdit(player~=nil and player.color or nil)
         or type(id)~="string" then return end
     local guid,index=id:match("^ResourceCardChoice_([0-9a-f]+)_regenReady(%d+)$")
-    if guid~="878d91" then return end
+    local data=guid~=nil and gameCards[guid] or nil
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if rule==nil or rule.simultaneousReady~=true then return end
     local sourceKey=guid.."#ready"..index
     if tostring(value)=="-2" then
         if gStates.unitReadyLinks~=nil and gStates.unitReadyLinks[sourceKey]~=nil then

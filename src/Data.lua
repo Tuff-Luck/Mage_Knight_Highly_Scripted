@@ -1163,6 +1163,17 @@ cardResourceDefinitions={
     swiftBolt={normalTrackerNeutral=true,powered={ranged=4}},
     explosiveBolt={normalTrackerNeutral=true,powered={ranged=3},
         defeatArmourReduce=1}, -- Each enemy defeated by this Ranged Attack reduces another enemy's Armour by 1 (min 1).
+    -- Duscenia's starting card is NOT the base-game Regeneration AA.
+    -- Its sideways-Wound and discard-pile effects require separate handling;
+    -- count only the selected printed Heal effect until those links are supported.
+    dusceniaRegeneration={
+        normalChoices={{healing=1},{key="gain"},{key="other",icon="other",iconOverlay="W"}},
+        poweredChoices={{healing=2},{key="gain"},{key="other",icon="other",iconOverlay="W"}},
+        partial=true,manualSecondary="The Wound-sideways/discard effects and discard-pile healing are manual."},
+    -- Numeric Move only; special forest discount and mana rewards intentionally
+    -- remain manual until the movement-effect audit is resumed.
+    hiddenRiver={normal={move=2},powered={move=4},
+        manualSecondary="Single forest discount and two-forest mana reward are manual."},
     -- Both effects apply together: Heal plus one Unit Ready per use.
     regeneration={normal={healing=1},powered={healing=2},
         simultaneousReady=true,unitReadyLevels={normal=2,powered=3}},
@@ -1206,6 +1217,11 @@ cardResourceDefinitions={
     -- Spell resources are independent of the legality of the mana used.
     -- Purely narrative/non-numeric effects are deliberately blue, not unknown.
     spellUtility={normalChoices={{key="other"}},poweredChoices={{key="other"}}},
+    -- No printed level limit for the player's own Unit. The level II/III
+    -- limit applies to opponents' Units, not the Unit being readied.
+    spellEnergyFlow={normalChoices={{key="ready"}},poweredChoices={{key="ready"}},
+        unitReadyLevels={},unitReadyAlways=true,readyOutsideCombat=true,
+        manualSecondary="Energy Steal heals one Wound on the readied Unit; spending other players' Units is manual."},
     -- Underground Travel stays manual. Its stronger side initiates an assault
     -- that ignores site/wall Fortification, but never printed Fortified.
     spellUnderground={normalChoices={{key="other"}},poweredChoices={{key="other"}},
@@ -1649,12 +1665,12 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["ba5561"]={cardType="Starting", name={"Undead Horde"}, color={"Red"}, action={"Combat"}},
 			--Duscenia Starting Cards
 			["63076d"]={cardType="Starting", resourceKey="stamina", name={"Stamina"}, color={"Blue"}, action={"Move"}},
-			["40422e"]={cardType="Starting", name={"Hidden River"}, color={"Blue"}, action={"Move"}},
+			["40422e"]={cardType="Starting", resourceKey="hiddenRiver", name={"Hidden River"}, color={"Blue"}, action={"Move"}},
 			["187cd2"]={cardType="Starting", resourceKey="determination", name={"Determination"}, color={"Blue"}, action={"Combat"}},
 			["c48176"]={cardType="Starting", resourceTracked=false, name={"Crystallize"}, color={"Blue"}, action={"Special"}},
 			["4c5881"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
 			["d890d8"]={cardType="Starting", resourceKey="march", name={"March"}, color={"Green"}, action={"Move"}},
-			["1a5a80"]={cardType="Starting", resourceKey="regeneration", name={"Regeneration"}, color={"Green"}, action={"Heal", "Special"}},
+			["1a5a80"]={cardType="Starting", resourceKey="dusceniaRegeneration", name={"Regeneration"}, color={"Green"}, action={"Heal", "Special"}},
 			["124af4"]={cardType="Starting", resourceKey="concentration", name={"Concentration"}, color={"Green"}, action={"Special"}},
 			["d90f22"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
 			["64b818"]={cardType="Starting", resourceKey="swiftness", name={"Swiftness"}, color={"White"}, action={"Move", "Combat"}},
@@ -1741,7 +1757,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["52ef15"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["52ef14"]={cardType="Starting", resourceKey="rage", name={"Rage"}, color={"Red"}, action={"Combat"}},
 			["2eb8f1"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Claim", "Mana Curse"}, color={"Blue"}, action={"Special"}},
-			["2eb8f0"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
+			["2eb8f0"]={cardType="Spell", resourceKey="spellEnergyFlow", name={"Energy Flow", "Energy Steal"}, color={"Green"}, action={"Heal"}},
 			["2eb8f2"]={cardType="Spell", resourceKey="spellUtility", name={"Mind Read", "Mind Steal"}, color={"White"}, action={"Special"}},
 			["8907d1"]={cardType="Spell", resourceKey="spellUtility", name={"Mana Meltdown", "Mana Radiance"}, color={"Red"}, action={"Special"}},
 			["878d85"]={cardType="Advanced Action", resourceKey="iceShield", name={"Ice Shield"}, 		color={"Blue"}, 		action={"Combat"}},
@@ -1851,7 +1867,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["2eb8e5"]={cardType="Spell", resourceKey="spellExpose", name={"Expose", "Mass Expose"}, 				color={"White"}, action={"Combat"}},
 			["2eb8e8"]={cardType="Spell", resourceKey="spellUtility", name={"Call to Arms", "Call to Glory"}, 		color={"White"}, action={"Special"}},
 			["2eb8e7"]={cardType="Spell", resourceKey="spellWhirlwind", name={"Whirlwind", "Tornado"}, 				color={"White"}, action={"Combat"}},
-			["2eb8f3"]={cardType="Spell", resourceKey="spellUtility", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
+			["2eb8f3"]={cardType="Spell", resourceKey="spellEnergyFlow", name={"Energy Flow", "Energy Steal"}, 		color={"Green"}, action={"Heal"}},
 			["47e71c"]={cardType="Spell", resourceKey="spellCure", name={"Cure", "Disease"}, 					color={"Green"}, action={"Heal", "Combat"}},
 			["2eb8d3"]={cardType="Spell", resourceKey="spellRestoration", name={"Restoration", "Rebirth"}, 				color={"Green"}, action={"Heal"}},
 			["2eb8d2"]={cardType="Spell", resourceKey="spellUnderground", name={"Underground Travel", "Underground Attack"}, color={"Green"}, action={"Move"}},
@@ -2743,7 +2759,7 @@ skillResourceDefinitions={
         enemyEffect={normal={{choice="attack",attackReduce=1},
             {choice="armour",armourReduce=1,armourReduceRangedUnfortifiedOnly=1}}}}, -- Curse: one enemy Attack or Armour -1.
     ["6d7027"]={partial=true},
-    ["70c30f"]={normal={block=2},partial=true,coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
+    ["70c30f"]={normal={block=2},coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
     ["725de9"]={untracked=true},
     ["755cca"]={choices={{healing=1},{key="boost",healing=2}},partial=true},
     ["75a83d"]={untracked=true},

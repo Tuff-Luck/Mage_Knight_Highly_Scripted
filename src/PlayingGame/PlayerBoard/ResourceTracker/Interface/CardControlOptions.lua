@@ -111,8 +111,8 @@ return function(deps)
             return cached.rows,cached.signature,copyList(cached.assets),copyList(cached.seen)
         end
         local function targetResourceFor(choice,category)
-            if category=="ready" and cardData~=nil
-                and cardData.resourceKey=="rejuvenate" then return "unitReady" end
+            if category=="ready" and cardData~=nil and rule~=nil
+                and rule.unitReadyLevels~=nil and rule.staffDualChoices~=true then return "unitReady" end
             if rule~=nil and rule.blockSourceBoost~=nil then return "blockSource" end
             -- Ambush has ONE reusable target button. An Action card receives the
             -- combat bonus; a Cumbersome enemy receives the independent Move.

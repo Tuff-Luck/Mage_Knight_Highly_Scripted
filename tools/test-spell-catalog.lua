@@ -39,7 +39,7 @@ local expected={
     {"White","Expose","Mass Expose","spellExpose"},
     {"White","Call to Arms","Call to Glory","spellUtility"},
     {"White","Whirlwind","Tornado","spellWhirlwind"},
-    {"Green","Energy Flow","Energy Steal","spellUtility"},
+    {"Green","Energy Flow","Energy Steal","spellEnergyFlow"},
     {"Green","Cure","Disease","spellCure"},
     {"Green","Restoration","Rebirth","spellRestoration"},
     {"Green","Underground Travel","Underground Attack","spellUnderground"},

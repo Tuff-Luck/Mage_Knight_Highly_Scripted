@@ -15,7 +15,7 @@ local rules={
     location={locationInfluence={glade=3,fortified=2,default=1}},
     march={unitCondition={resource="move",ready=true,unwounded=true,max=3}},
     fortune={inventoryDistinctColors={resource="influence",colors={"Red","Blue","Green","White"}}},
-    shield={normal={block=3},coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Red","Blue"}},
+    shield={normal={block=3},coldFireCrystals={"Red","Blue"},swiftDoubleCrystals={"Green","White"}},
     boost={normal={attack=3},unitBoost={}},
     linked={linkedCard={}},
     targeted={choices={{key="reduce"}},enemyEffect={}},
@@ -80,7 +80,14 @@ eq(skill("fortune",false,nil,nil,{Red=3,Blue=1,Gold=1}).resources.influence,2,"D
 eq(skill("shield",false,nil,nil,{Red=1}).resources.block,3,"Missing crystal leaves physical Block")
 result=skill("shield",false,nil,nil,{Red=1,Blue=1})
 eq(result.resources.blockColdFire,3,"Crystal combination changes Block")
-eq(result.swiftDouble,true,"Crystal combination permits double Swiftness")
+eq(result.swiftDouble,nil,"Red/Blue alone does not double Swiftness")
+result=skill("shield",false,nil,nil,{Green=1,White=1})
+eq(result.resources.block,3,"Green/White alone leaves physical Block")
+eq(result.swiftDouble,true,"Green/White permits double Swiftness")
+result=skill("shield",false,nil,nil,{Red=1,Blue=1,Green=1,White=1})
+eq(result.resources.blockColdFire,3,"Both Runic Shield effects coexist")
+eq(result.swiftDouble,true,"All four colours preserve Swiftness bonus")
+eq(result.complete,true,"Runic Shield's conditions are fully evaluated")
 eq(skill("boost").resources,nil,"Linked bonus not counted before link resolution")
 eq(skill("linked",false,"card").links[1],"card","Linked target retained")
 eq(skill("targeted").complete,true,"Non-numeric enemy effect recognized")

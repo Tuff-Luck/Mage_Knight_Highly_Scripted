@@ -76,6 +76,8 @@ local clickCode=section(reader,
     "-- Ready sources need an active effect")
 local click=assert(load([[
 local gStates={turnNumber=1,unitReadyLinks={}}
+local gameCards={["878d91"]={resourceKey="regeneration"}}
+local cardResourceDefinitions={regeneration={simultaneousReady=true}}
 local turnOrder={{seatPos=1}}
 local targets,removed={},{}
 local function resourceCardsPanelOpen() return true end
@@ -105,6 +107,9 @@ click.click({color="Blue"},"-2","ResourceCardChoice_878d91_regenReady1")
 eq(click.removed[1],"878d91#ready1","Right-click undoes linked Ready")
 eq(click.state.unitReadyLinks["878d91#ready1"],nil,"Ready link removed")
 
+-- Character Regeneration has a different printed effect from the base AA.
+assert(data:find('["1a5a80"]={cardType="Starting", resourceKey="dusceniaRegeneration"',1,true))
+assert(data:find('["40422e"]={cardType="Starting", resourceKey="hiddenRiver"',1,true))
 -- Mountain Lore is a delayed End-Turn effect. A thrown-away Maximal Effect
 -- target can be face-down, and copied uses must count independently.
 local loreCode=section(reader,

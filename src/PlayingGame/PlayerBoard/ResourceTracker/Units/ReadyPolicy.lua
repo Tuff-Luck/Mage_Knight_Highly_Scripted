@@ -85,6 +85,9 @@ function M.sourceValid(sourceKey,seatPos,unitResourceDefinitions,unitManaDecisio
     local record=scan~=nil and scan.cards[guid] or nil
     if record==nil or record.complete~=true
         or (card.is_face_down==true and record.repeatLink==nil) then return false end
+    if rule.readyOutsideCombat==true and combatEnemyInPlay
+        and (gStates.unitReadyLinks==nil or gStates.unitReadyLinks[sourceKey]==nil) then return false end
+    if rule.unitReadyAlways==true then return sourceKey==guid end
     if rule.readyWithInfluence~=nil then
         return record.powered==true
             and sourceKey:match("^"..guid.."#ready%d+$")~=nil
@@ -176,8 +179,9 @@ function M.sourceClicked(player,value,id,combatEnemyInPlay,unitResourceDefinitio
     if suffix~="" and useIndex==nil then return end
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
     local data=gameCards~=nil and gameCards[guid] or nil
-    if data~=nil and data.resourceKey=="artifactDruidicStaff"
-        and combatEnemyInPlay then return end
+    local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
+    if combatEnemyInPlay and rule~=nil
+        and (data.resourceKey=="artifactDruidicStaff" or rule.readyOutsideCombat==true) then return end
     if not resourceCardsReadySourceValid(sourceKey) then return end
     local limit=resourceCardsReadySourceLevelLimit(sourceKey)
     attackAssignmentsBeginUnitReady(guid,sourceKey,player.color,limit)
