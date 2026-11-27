@@ -61,3 +61,45 @@ eq(batchTotals.attackFire,6,"Batch Attack totals")
 eq(batchTotals.rangedFire,3,"Batch Ranged totals")
 eq(printed.attackFire,4,"Batch does not mutate catalog")
 print("Resource category and live resource operations passed")
+
+-- A repeated Block card keeps its equal printed effects, with all one-effect
+-- bonuses on its first Block rather than losing an indivisible remainder.
+local shield={resources={block=8},repeatBlocks=2}
+local shieldTotals={block=8}
+ops.addSingleBlockBonus(shield,shieldTotals,"block",1)
+ops.addSingleBlockBonus(shield,shieldTotals,"block",2)
+eq(shield.resources.block,11,"Two single-Block modifiers are additive")
+eq(shield.ambushFirstBlockBonus,3,"First printed Block owns both bonuses")
+eq(shieldTotals.block,11,"Block totals match split resources")
+eq(ops.uniqueField({ranged=3,rangedFire=2,attack=4},{ranged=true,attack=true}),nil,
+    "Mixed elemental attacks cannot pick an arbitrary single source")
+eq(ops.uniqueField({attackFire=3,move=2},{attack=true}),"attackFire",
+    "One eligible elemental Attack")
+eq(ops.uniqueField({attackFoo=2},{attack=true}),nil,"Only exact resource families")
+local linked={resources={ranged=3}}
+ops.linkAttackBonus(linked,"ranged",{early={ranged=2,siege=1},late=3,physicalOnly=true})
+ops.linkAttackBonus(linked,"ranged",{early={ranged=1,siege=1},late=2})
+local function effective(record,transform)
+    local resources={}
+    for key,value in pairs(record.resources) do
+        local field=ops.globalAttackKey(key,transform)
+        resources[field]=(resources[field] or 0)+value
+    end
+    return {resources=resources,phaseAttackBoosts=ops.effectivePhaseAttackBoosts(record,transform)}
+end
+local source=effective(linked)
+eq(ops.phaseAttackBonus(source,"ranged","range"),3,"Two linked ranged modifiers")
+eq(ops.phaseAttackBonus(source,"ranged","attack"),5,"Same modifiers use melee values later")
+eq(ops.phaseAttackBonus(source,"ranged","range","siege"),2,"Bow conversion uses Siege bonus")
+source=effective(linked,{siege=true})
+eq(ops.phaseAttackBonus(source,"siege","range"),2,"Global Siege conversion")
+eq(ops.phaseAttackBonus(source,"siege","attack"),5,"Unused Siege gets melee bonus")
+source=effective(linked,{coldFire=true})
+eq(ops.phaseAttackBonus(source,"rangedColdFire","range"),1,"Elemental conversion loses only toxin")
+local linkedTotals={ranged=3}
+ops.replace(linked,linkedTotals,"ranged","rangedFire")
+source=effective(linked)
+eq(ops.phaseAttackBonus(source,"rangedFire","attack"),2,"Linked modifiers follow local conversion")
+source.resources.rangedFire=0
+eq(ops.phaseAttackBonus(source,"rangedFire","attack"),0,"Ineligible base cannot create standalone bonus")
+print("Linked phase bonuses and repeated Block regressions passed")

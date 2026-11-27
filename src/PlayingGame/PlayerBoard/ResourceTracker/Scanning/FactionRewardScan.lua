@@ -110,7 +110,7 @@ end
 function M.modifiers(context)
     local records, objects, footprint = context.records, context.objects, context.footprint
     local cardPosture, overlapArea, attackTransforms = context.cardPosture, context.overlapArea, context.attackTransforms
-    local addResourceAmounts, totals, setHighlight = context.addResourceAmounts, context.totals, context.setHighlight
+    local totals, setHighlight = context.totals, context.setHighlight
     -- Physical faction reward overlays. Place the token on its target:
     -- gems convert one Action card's Attack/Block element; Ghostly Elixir
     -- changes one melee Attack to Ranged; Vial of Toxin boosts one physical
@@ -131,23 +131,36 @@ function M.modifiers(context)
     -- Resolve element conversions before the toxin. Toxin's extra physical
     -- Attack must vanish if a Gem subsequently makes that attack elemental.
     for _,mode in ipairs({"makeRanged","addFire","addIce","physicalBoost"}) do
-        for rewardGUID,reward in pairs(records) do
+        local rewardKeys={}
+        for guid,record in pairs(records) do
+            if record.kind=="factionReward" and record.modifier==mode then
+                rewardKeys[#rewardKeys+1]=guid
+            end
+        end
+        table.sort(rewardKeys)
+        for _,rewardGUID in ipairs(rewardKeys) do
+            local reward=records[rewardGUID]
             local token=reward.kind=="factionReward" and reward.modifier==mode
                 and objects[rewardGUID] or nil
             if token~=nil then
                 local candidates={}
                 local tokenArea=footprint(token)
-                for sourceGUID,candidate in pairs(objects) do
+                for sourceKey,record in pairs(records) do
+                    local sourceGUID=record.sourceObjectGUID or sourceKey
+                    local candidate=objects[sourceGUID]
                     local data=gameCards[sourceGUID]
                     local action=data~=nil and (data.cardType=="Starting"
                         or data.cardType=="Advanced Action")
-                    local unit=mode=="physicalBoost" and data~=nil
-                        and (data.cardType=="Regular Unit" or data.cardType=="Elite Unit")
-                    local record=records[sourceGUID]
-                    if sourceGUID~=rewardGUID and (action or unit) and record~=nil
-                        and record.contributes==true and record.resources~=nil
-                        and (unit or (candidate.is_face_down~=true
-                            and cardPosture(candidate)=="upright")) then
+                    -- Gems/Elixir need a single upright Action, not a Spell,
+                    -- Artifact, copied composite, or pooled Move conversion.
+                    -- Toxin instead accepts ANY actual physical Attack source,
+                    -- including sideways Deeds, Skills and activated Units.
+                    local eligible=mode=="physicalBoost"
+                        or (action and candidate~=nil and candidate.is_face_down~=true
+                            and cardPosture(candidate)=="upright"
+                            and not record.compositeAction and record.repeatLink==nil)
+                    if sourceGUID~=rewardGUID and candidate~=nil and eligible
+                        and record.contributes==true and record.resources~=nil then
                         local overlap=overlapArea(tokenArea,footprint(candidate))
                         if overlap>0 then
                             local possible={}
@@ -179,11 +192,10 @@ function M.modifiers(context)
                     local winner,sourceRecord,selected=chosen.card,chosen.record,chosen.selected
                     local from,to=selected.from,selected.to
                     if mode=="physicalBoost" then
-                        local effectiveFamily=attackTransforms.siege and "siege" or from
-                        local bonus=effectiveFamily=="siege" and 1
-                            or (effectiveFamily=="ranged" and 2 or 3)
-                        reward.resources={[from]=bonus}
-                        addResourceAmounts(reward,totals)
+                        resourceOps.linkAttackBonus(sourceRecord,from,
+                            {early={ranged=2,siege=1},late=3,physicalOnly=true})
+                        reward.complete=true
+                        reward.contributes=true
                     else
                         -- Never mutate the declarative global resource data,
                         -- which can be reused by another identical card.

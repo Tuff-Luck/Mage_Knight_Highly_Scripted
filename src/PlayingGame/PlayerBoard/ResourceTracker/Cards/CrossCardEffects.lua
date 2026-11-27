@@ -58,17 +58,9 @@ function M.process(context)
                     and targetRecord~=nil and targetRecord.resources~=nil
                     and cardPosture(target)=="upright" and target.is_face_down~=true
                     and discarded[target.guid]==nil then
-                    local attackKey=nil
-                    local ambiguous=false
-                    for _,key in ipairs({"attack","attackFire","attackIce",
-                        "attackColdFire","attackPsychic"}) do
-                        if (tonumber(targetRecord.resources[key]) or 0)>0 then
-                            if attackKey~=nil then ambiguous=true break end
-                            attackKey=key
-                        end
-                    end
+                    local attackKey=resourceOps.uniqueField(targetRecord.resources,{attack=true})
                     local area=overlapArea(footprints[source.guid],footprints[target.guid])
-                    if attackKey~=nil and not ambiguous and area>0 then
+                    if attackKey~=nil and area>0 then
                         candidates[#candidates+1]={card=target,record=targetRecord,
                             key=attackKey,overlap=area}
                     end
@@ -158,12 +150,10 @@ function M.process(context)
                 if type(targetAmount)~="number" then
                     error("The linked combat target is missing its selected resource.",2)
                 end
-                resourceOps.add(targetRecord,totals,bestCategory,bonus)
-                -- Shield of the Fallen Kings keeps separate Block effects.
-                -- Ambush augments only the first one, not each equal split.
-                if bestType=="block" and (tonumber(targetRecord.repeatBlocks) or 1)>1 then
-                    targetRecord.ambushFirstBlockBonus=
-                        (targetRecord.ambushFirstBlockBonus or 0)+bonus
+                if bestType=="block" then
+                    resourceOps.addSingleBlockBonus(targetRecord,totals,bestCategory,bonus)
+                else
+                    resourceOps.add(targetRecord,totals,bestCategory,bonus)
                 end
                 if sourceRecord.links==nil or targetRecord.links==nil then
                     error("A linked combat record has no link list.",2)

@@ -67,8 +67,8 @@ eq(field,"attack","Leadership retains already ordinary Attack")
 eq(replacement,nil,"Ordinary Attack does not need replacement")
 field,replacement=leadershipChoice({resources={siege=3}},
     "ranged",{attackPhaseFallback=true})
-eq(field,"siege","Ranged/Siege-phase choice boosts Siege-only Units")
-eq(replacement,nil,"Ranged/Siege choice does not convert Siege into Attack")
+eq(field,nil,"Leadership ranged-phase bonus excludes Siege-only Units")
+eq(replacement,nil,"No conversion when ranged option is ineligible")
 
 -- Execute the production terrain-effect functions, not a reimplementation.
 skillResourceDefinitions={

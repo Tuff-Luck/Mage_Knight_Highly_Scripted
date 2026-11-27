@@ -39,26 +39,19 @@ function M.process(context)
         return record
     end
     local function resourceFieldForFamily(resources,family)
-        if resources==nil then return nil end
-        local found=nil
-        for field,amount in pairs(resources) do
-            if type(amount)=="number" and amount>0
-                and (field==family or field:sub(1,#family)==family) then
-                -- Multiple independent elemental abilities need player
-                -- disambiguation rather than picking the first pairs() entry.
-                if found~=nil then return nil end
-                found=field
-            end
-        end
-        return found
+        return resourceOps.uniqueField(resources,{[family]=true})
     end
-    local function skillTargetLinked(skill,target,field,amount,replaceField)
+    local function skillTargetLinked(skill,target,field,amount,replaceField,phaseBonus)
         local skillRecord,targetRecord=ensureSkillRecord(skill),records[target.guid]
         if skillRecord==nil or targetRecord==nil or targetRecord.resources==nil then return end
         -- Cards often return the catalog's immutable basic-effect table.
         -- Never mutate a rule entry by adjusting the live played result.
-        if replaceField~=nil then
+        if phaseBonus~=nil then
+            resourceOps.linkAttackBonus(targetRecord,field,phaseBonus)
+        elseif replaceField~=nil then
             resourceOps.replace(targetRecord,totals,field,replaceField,amount)
+        elseif resourceOps.splitKey(field)=="block" then
+            resourceOps.addSingleBlockBonus(targetRecord,totals,field,amount)
         else
             resourceOps.add(targetRecord,totals,field,amount)
         end
@@ -92,11 +85,8 @@ function M.process(context)
                         and record.complete==true then
                         local field=resourceFieldForFamily(record.resources,family)
                         local replacement=nil
-                        -- Leadership's +1 Ranged/Siege option boosts the
-                        -- chosen printed Siege attack if it has no Ranged attack.
-                        if field==nil and family=="ranged" and rule.attackPhaseFallback then
-                            field=resourceFieldForFamily(record.resources,"siege")
-                        end
+                        -- The ranged-phase option is Ranged, NOT Siege.
+                        -- Printed Siege can still be chosen as ordinary Attack.
                         -- Leadership can convert an activated Unit's printed
                         -- Ranged/Siege Attack to ordinary Attack in the regular
                         -- Attack phase. The alternative is +2 Attack, not +1
@@ -519,26 +509,19 @@ function M.process(context)
                 if card.is_face_down~=true then
                     local record=records[card.guid]
                     if record~=nil then
-                        local chosenField=nil
-                        local amount=nil
-                        for _,family in ipairs({"ranged","siege","attack"}) do
-                            local field=resourceFieldForFamily(record.resources,family)
-                            if field~=nil then
-                                if chosenField~=nil then chosenField=nil break end
-                                chosenField=field
-                                amount=family=="attack" and 2 or 1
-                            end
-                        end
+                        local chosenField=resourceOps.uniqueField(record.resources,
+                            {ranged=true,siege=true,attack=true})
                         local area=overlapArea(footprints[skill.guid],footprints[card.guid])
                         if chosenField~=nil and area>0 then
-                            candidates[#candidates+1]={card=card,field=chosenField,amount=amount,overlap=area}
+                            candidates[#candidates+1]={card=card,field=chosenField,overlap=area}
                         end
                     end
                 end
             end
             local best=physicalLinks.unique(candidates)
             if best~=nil then
-                skillTargetLinked(skill,best.card,best.field,best.amount)
+                skillTargetLinked(skill,best.card,best.field,nil,nil,
+                    {early={ranged=1,siege=1},late=2})
             end
         end
     end

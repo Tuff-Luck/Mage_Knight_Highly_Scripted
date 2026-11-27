@@ -212,7 +212,7 @@ function M.spiritGuides(context)
             if value>bestValue then bestKey,bestValue=field,value end
         end
         if bestKey~=nil then
-            resourceOps.add(boosted,totals,bestKey,1)
+            resourceOps.addSingleBlockBonus(boosted,totals,bestKey,1)
             guide.links[#guide.links+1]=linkedGUID
             boosted.links=boosted.links or {}
             boosted.links[#boosted.links+1]=guideGUID

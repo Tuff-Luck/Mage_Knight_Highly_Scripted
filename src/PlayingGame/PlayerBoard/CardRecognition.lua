@@ -653,6 +653,7 @@ local function combatAssignmentSources(seat)
                         dodgeConditional=record.dodgeConditional==true,
                         combatWoundAttack=record.combatWoundAttack,
                         distinctAttackBonus=record.distinctAttackBonus,shieldWallBonus=record.shieldWallBonus,
+                        phaseAttackBoosts=combatConfig.resourceOperations.effectivePhaseAttackBoosts(record,transform),
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32",
                         damagePhaseWound=gStates~=nil and gStates.combatWoundApplication~=nil

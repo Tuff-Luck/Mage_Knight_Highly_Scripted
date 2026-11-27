@@ -323,6 +323,7 @@ return function(deps)
             links=linked,status=status,resources=effects,
             usesTerrainBlock=usesTerrainBlock and faceUp and costPaid and canApply,
             repeatCount=repeatLink~=nil and repeatLink.count or nil,
+            compositeAction=linkedBoost~=nil or repeatLink~=nil,
             repeatLink=repeatLink,incompatibleComposite=invalidComposite}
     end
 

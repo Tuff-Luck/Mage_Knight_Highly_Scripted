@@ -39,6 +39,55 @@ function M.globalAttackKey(key,transform)
     return family..suffix
 end
 
+-- A link to one printed effect cannot silently choose between several
+-- positive resource fields. Family matching is exact, including elements.
+function M.uniqueField(resources,families)
+    local found
+    for field,amount in pairs(resources or {}) do
+        if type(amount)=="number" and amount>0 and families[M.splitKey(field)] then
+            if found~=nil then return nil end
+            found=field
+        end
+    end
+    return found
+end
+
+-- One-source Attack bonuses follow the source through element and family
+-- conversions. Resolve their actual value in the consuming combat phase,
+-- rather than creating a second independently targetable attack.
+function M.linkAttackBonus(record,field,spec)
+    record.phaseAttackBoosts=record.phaseAttackBoosts or {}
+    local bonuses=record.phaseAttackBoosts[field] or {}
+    bonuses[#bonuses+1]=spec
+    record.phaseAttackBoosts[field]=bonuses
+end
+
+function M.effectivePhaseAttackBoosts(record,transform)
+    if record.phaseAttackBoosts==nil then return nil end
+    local effective={}
+    for field,bonuses in pairs(record.phaseAttackBoosts) do
+        local key=M.globalAttackKey(field,transform)
+        local list=effective[key] or {}
+        for _,bonus in ipairs(bonuses) do list[#list+1]=bonus end
+        effective[key]=list
+    end
+    return effective
+end
+
+function M.phaseAttackBonus(source,field,phase,asFamily)
+    local amount=tonumber((source.resources or {})[field]) or 0
+    if amount<=0 or source.phaseAttackBoosts==nil then return 0 end
+    local family,element=M.splitKey(field)
+    local bonus=0
+    for _,spec in ipairs(source.phaseAttackBoosts[field] or {}) do
+        if not spec.physicalOnly or element=="" then
+            bonus=bonus+(phase=="attack" and spec.late
+                or (spec.early or {})[asFamily or family] or 0)
+        end
+    end
+    return bonus
+end
+
 local function copyResources(record)
     local copy={}
     for key,value in pairs(record.resources) do copy[key]=value end
@@ -60,6 +109,16 @@ function M.add(record,totals,field,amount)
     M.addAmounts(record,totals,{[field]=amount})
 end
 
+-- A modifier of one Block increases the first repeated Block, not every
+-- printed copy (Shield of the Fallen Kings). Preserve the existing split
+-- metadata consumed by the calculator and exact Block solver.
+function M.addSingleBlockBonus(record,totals,field,amount)
+    M.add(record,totals,field,amount)
+    if (tonumber(record.repeatBlocks) or 1)>1 then
+        record.ambushFirstBlockBonus=(record.ambushFirstBlockBonus or 0)+amount
+    end
+end
+
 -- Replace the complete original field. An omitted amount preserves its value;
 -- an explicit amount supports a conversion with a bonus (e.g. Leadership).
 function M.replace(record,totals,from,to,amount)
@@ -71,6 +130,15 @@ function M.replace(record,totals,from,to,amount)
     record.resources=copy
     totals[from]=(totals[from] or 0)-old
     totals[to]=(totals[to] or 0)+amount
+    if from~=to and record.phaseAttackBoosts~=nil then
+        local bonuses=record.phaseAttackBoosts[from]
+        if bonuses~=nil then
+            record.phaseAttackBoosts[from]=nil
+            if combatFamilies[M.splitKey(to)] then
+                for _,bonus in ipairs(bonuses) do M.linkAttackBonus(record,to,bonus) end
+            end
+        end
+    end
 end
 
 return M

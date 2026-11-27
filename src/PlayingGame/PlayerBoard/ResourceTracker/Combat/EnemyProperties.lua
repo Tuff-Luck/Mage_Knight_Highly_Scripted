@@ -242,7 +242,13 @@ return function(combatConfig)
                 if not (source.dueling and source.duelingEligible==false
                     and group.category~="block") then
                     for _,attackType in ipairs(combatConfig.attackTypes) do
-                        local value=tonumber(source.resources[attackType[group.category]]) or 0
+                        local function phaseValue(field,asFamily)
+                            local value=tonumber(source.resources[field]) or 0
+                            local operations=combatConfig.resourceOperations
+                            return value+(operations~=nil and
+                                operations.phaseAttackBonus(source,field,phase,asFamily) or 0)
+                        end
+                        local value=phaseValue(attackType[group.category],group.category)
                         if phase=="range" and combatConfig.artifactCombat.bow then
                             local modeR=combatConfig.bowSourceModes[source.key.."#ranged"] or "double"
                             local modeS=combatConfig.bowSourceModes[source.key.."#siege"] or "none"
@@ -250,12 +256,12 @@ return function(combatConfig)
                                 if modeR=="siege" then value=0
                                 else value=value*2 end
                                 if modeS=="ranged" then
-                                    value=value+2*(tonumber(source.resources[attackType.siege]) or 0)
+                                    value=value+2*phaseValue(attackType.siege,"ranged")
                                 end
                             elseif group.category=="siege" then
                                 if modeS=="ranged" then value=0 end
                                 if modeR=="siege" then
-                                    value=value+(tonumber(source.resources[attackType.ranged]) or 0)
+                                    value=value+phaseValue(attackType.ranged,"siege")
                                 end
                             end
                         end

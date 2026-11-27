@@ -37,8 +37,13 @@ return function(combatConfig,skillRuleOf,combatDetailPhase,combatEnemyResists,co
                         local paralysisCard=phase=="attack"
                             and paralysisAttackCards[item.source.guid]==true
                         if phase~=nil then
-                            lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount,
-                                icon=item.detail.icon,text=item.detail.text,typeKey=item.detail.typeKey,
+                            local operations=combatConfig.resourceOperations
+                            local bonus=operations~=nil and operations.phaseAttackBonus(
+                                item.source,item.detail.key,phase,item.detail.family) or 0
+                            local text=item.detail.text
+                            if bonus>0 then text=text.." (+"..tostring(bonus).." linked Attack bonus)" end
+                            lists[phase][#lists[phase]+1]={source=item.source,amount=item.detail.amount+bonus,
+                                icon=item.detail.icon,text=text,typeKey=item.detail.typeKey,
                                 reduced=combatEnemyResists(group.entry.data,group.entry.perks,item.detail.typeKey),
                                 wounded=wounded,paralysisCard=paralysisCard,ineffective=paralysisCard}
                         end
