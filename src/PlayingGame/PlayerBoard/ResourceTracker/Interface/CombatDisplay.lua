@@ -22,6 +22,10 @@ return function(combatConfig,combatRich,combatEnemyTraitsText)
             distribution=distribution.." Poison ("..tostring(result.discard)..")"
         end
         if result.veilWoundIgnored then distribution=distribution.." (Veil of Mist: 1 Wound ignored)" end
+        if (result.heroWoundsIgnored or 0)>0 then
+            distribution=distribution.." (Hero protection: "..tostring(result.heroWoundsIgnored)
+                .." Wound"..(result.heroWoundsIgnored==1 and "" or "s").." ignored)"
+        end
         local notes={distribution}
         if (result.prevented or 0)>0 then
             notes[#notes+1]="Battle Hardened: -"..tostring(result.prevented).." Hero damage"

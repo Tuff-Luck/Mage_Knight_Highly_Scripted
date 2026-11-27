@@ -76,6 +76,11 @@ local heavy=resolve({{key="a:1",owner="a",type="P",damage=5,poison=true}},
     {},2,none,nil,nil,true)
 eq(heavy["a:1"].heroWounds,2,"Veil removes one of three Wounds")
 eq(heavy["a:1"].discard,2,"Only remaining Poison Wounds add discards")
+local combined=resolve(hits,{},2,none,nil,nil,2)
+eq(combined["a:1"].heroWounds,0,"First protection prevents Wound")
+eq(combined["b:1"].heroWounds,0,"Second independent protection prevents Wound")
+eq(combined["b:1"].discard,0,"Second protection also prevents Poison")
+eq(combined["a:1"].heroWoundsIgnored,1,"Generic prevention annotation")
 
 -- Time Bending: availability does not depend on the Resource Tracker panel.
 GUID={card={timeBending="2eb8e2"}}

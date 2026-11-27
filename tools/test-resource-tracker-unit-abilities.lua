@@ -312,6 +312,10 @@ run("faction-reward-exchange",function()
     record=evaluate(nil)
     eq(record.complete,false,"Recognition alone is not a completed effect")
     eq(record.status,"yellow","Unknown effect remains visibly partial")
+    rule.heroWoundPrevention=1
+    record=evaluate(nil)
+    eq(record.complete,true,"Cloak of Shielding has a recognised prevention effect")
+    eq(record.status,"green","Cloak is recognised as played protection")
 end)
 
 if #failures>0 then

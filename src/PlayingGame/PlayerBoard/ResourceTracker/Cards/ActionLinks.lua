@@ -90,9 +90,9 @@ return function(deps)
                 end
             end
         end
-        -- Ritual Attack is another throwaway effect. Under Maximal Effect it needs
-        -- one NEW throwaway Action for each application, with independently chosen
-        -- colors (a two-color target can offer two choices for that application).
+        -- Any throw-away payment uses the same physical links and Red X.
+        -- Repeated effects pay separately. Only colour-dependent numeric
+        -- effects (Ritual Attack) need an independent options table per use.
         for _,source in ipairs(cards) do
             local data=gameCards[source.guid]
             local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
@@ -104,7 +104,7 @@ return function(deps)
                 and cardPosture(source)=="upright" then
                 local need=repeated~=nil and repeated.count or 1
                 local paid=0
-                if repeated~=nil then repeated.options={} end
+                if repeated~=nil and rule.linkedColorEffects~=nil then repeated.options={} end
                 for index=1,need do
                     local target=nearestOverlap(source,function(candidate)
                         local other=gameCards[candidate.guid]
@@ -118,7 +118,7 @@ return function(deps)
                     discarded[target.guid]=source.guid
                     if paid==0 then linkedCardBySource[source.guid]=target.guid end
                     paid=paid+1
-                    if repeated~=nil then
+                    if repeated~=nil and repeated.options~=nil then
                         repeated.options[index]=linkedColorChoices(rule,target.guid,repeated.powered)
                     end
                     connect(source,target)

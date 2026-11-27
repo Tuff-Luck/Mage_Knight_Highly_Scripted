@@ -6,6 +6,7 @@ local env=setmetatable({gameCards={},cardResourceDefinitions={
     willFocus={poweredLink={mode="stronger",bonus=3}},
     maximal={requiredLink={mode="repeat",normalCount=3,poweredCount=2}},
     improv={requiredLink={mode="discard"}},
+    utilityThrow={requiredLink={mode="throwAway"},normalChoices={{key="other"}}},
     ritual={requiredLink={mode="throwAway"},linkedColorEffects={
         normal={Red={attack=5},Blue={attackIce=3}},powered={Red={attackFire=6},Blue={attackColdFire=4}}}},
     stout={discardBoost={normal={perCard=1,woundOnly=true,maxWounds=1},powered={perCard=2,maxWounds=1}}},
@@ -102,6 +103,18 @@ eq(repeats.ritual.options[2][1].attackIce,3,"Second repeat uses blue")
 eq(#repeats.ritual.options[3],2,"Third repeat keeps both color choices")
 eq(discarded.red,"ritual","Throw-away linked only once")
 eq(linked.ritual,"red","First throw-away source link")
+local utility=card("utility","utilityThrow",1,nil,true)
+links,boost,source,discarded,paid,linked,repeats=scan({max,utility,red,blue,dual})
+eq(paid.utility,true,"Repeated non-numeric throw-away costs all paid")
+eq(repeats.utility.options,nil,"Non-colour-dependent utility keeps standard repeated options")
+eq(discarded.red,"utility","Utility throw-away shares payment ownership")
+eq(discarded.blue,"utility","Each repeated use pays separately")
+local book=card("book","utilityThrow",1,nil,false,"Artifact")
+broken.book=true
+links,boost,source,discarded,paid,linked=scan({book,red,spell})
+eq(paid.book,true,"Broken Artifact still requires a thrown-away Action")
+eq(discarded.red,"book","Artifact can pay with Action")
+eq(discarded.spell,nil,"Spell cannot pay Action-only throw-away")
 local stout=card("stout","stout",1)
 local w1,w2,w3=wound("w1",1.1),wound("w2",1.2),wound("w3",1.3)
 local payment=card("pay",nil,1.4,"discard")

@@ -3072,7 +3072,7 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
     else
         damageResults=combatDamageResolve(damageItems,damageUnits,
             combatHeroArmour(nativeCommandCount),attackAssignmentsDamageTargetsOf,
-            mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored==true,
+            mitigation,elementMitigation,seatScan~=nil and seatScan.heroFirstWoundIgnored,
             gStates~=nil and gStates.combatWoundApplication~=nil
                 and gStates.combatWoundApplication.seat==damageSeat
                 and gStates.combatWoundApplication.applied or nil)
@@ -5740,12 +5740,13 @@ local function renderSeat(seatPos)
     })
 
 
-    heroPsychicBlock=
+    heroPsychicBlock,heroFirstWoundIgnored=
         trackerPrivate.factionRewardScan.read({
         objects=objects, placements=placements, resourceObjectKind=resourceObjectKind,
         factionRewardForObject=factionRewardForObject, chosenEffect=chosenEffect,
         effectHasTrackedResource=effectHasTrackedResource, movementEffects=movementEffects,
-        heroPsychicBlock=heroPsychicBlock, combatEffectChosenEnemy=combatEffectChosenEnemy,
+        heroPsychicBlock=heroPsychicBlock,heroFirstWoundIgnored=heroFirstWoundIgnored,
+        combatEffectChosenEnemy=combatEffectChosenEnemy,
         footprint=footprint, monsters=monsters, combatEffectTargetEligible=combatEffectTargetEligible,
         enemyEffects=enemyEffects, showChoiceButtons=showChoiceButtons, addResourceAmounts=addResourceAmounts,
         totals=totals, records=records, current=current, setHighlight=setHighlight,

@@ -123,7 +123,10 @@ return function(cardDataOf,summonedBy,fortitudeUses)
         local used,results={},{}
         -- Read committed Banner uses, but reserve new uses only within this preview.
         local reservedFortitude={}
-        local firstHeroWoundIgnored=false
+        -- A boolean is the existing Veil of Mist single-use effect.
+        -- Numeric counts add independent Wound prevention sources (e.g. Cloak).
+        local remainingWoundPrevention=ignoreFirstHeroWound==true and 1
+            or math.max(0,tonumber(ignoreFirstHeroWound) or 0)
         -- Reserve a Unit required to receive its own protected enemy's damage first.
         -- An earlier, unrelated enemy must not consume that Unit before its forced assignment.
         local reserved={}
@@ -226,12 +229,14 @@ return function(cardDataOf,summonedBy,fortitudeUses)
             if remaining>0 then
                 result.heroDamage=remaining
                 result.heroWounds=math.ceil(remaining/math.max(1,heroArmour))
-                if ignoreFirstHeroWound==true and not firstHeroWoundIgnored and result.heroWounds>0 then
-                    -- Veil of Mist ignores one hero Wound for the whole turn, not one per attack.
-                    -- The ignored Wound also has no Poison/Paralyse side effects.
-                    firstHeroWoundIgnored=true
-                    result.heroWounds=result.heroWounds-1
-                    result.veilWoundIgnored=true
+                if remainingWoundPrevention>0 and result.heroWounds>0 then
+                    -- Spend each independent protection once across all attacks.
+                    -- Ignored Wounds never trigger Poison/Paralyse side effects.
+                    local ignored=math.min(remainingWoundPrevention,result.heroWounds)
+                    remainingWoundPrevention=remainingWoundPrevention-ignored
+                    result.heroWounds=result.heroWounds-ignored
+                    if ignoreFirstHeroWound==true then result.veilWoundIgnored=true
+                    else result.heroWoundsIgnored=ignored end
                 end
                 if item.poison then result.discard=result.heroWounds end
             end

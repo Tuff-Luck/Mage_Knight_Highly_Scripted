@@ -1075,6 +1075,11 @@ cardResourceDefinitions={
     improvisation={normalChoices={{move=3},{influence=3},{attack=3},{block=3}},
         poweredChoices={{move=5},{influence=5},{attack=5},{block=5}},
         requiredLink={mode="discard"}}, -- Needs one other non-Wound hand card; source itself adds no resources
+    -- Decompose's linked payment is shared with Ritual Attack. Crystal
+    -- selection and inventory gain remain a separate manual effect.
+    decompose={requiredLink={mode="throwAway"},
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        manualSecondary="Resolve the printed crystal gains manually."},
     -- Play another Action three times for its basic effect, or twice for its
     -- stronger effect; the linked Action is thrown away afterward.
     maximalEffect={requiredLink={mode="repeat",normalCount=3,poweredCount=2}},
@@ -1326,6 +1331,9 @@ cardResourceDefinitions={
     -- backwards compatibility; attached half Banners remain spent-on-flip.
     artifactUtility={normalTrackerNeutral=true,artifactMode=true,
         poweredChoices={{key="other"}}},
+    artifactBookOfWisdom={artifactMode=true,requiredLink={mode="throwAway"},
+        normalChoices={{key="other"}},poweredChoices={{key="other"}},
+        manualSecondary="Choose the matching-colour card from the appropriate offer manually."},
     -- These amulets change terrain routing in their matching round, not Move
     -- points. The same ability is active on both sides of the artifact.
     artifactAmuletDarkness={artifactMode=true,artifactMana="black",
@@ -1799,7 +1807,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", resourceKey="intoTheHeat", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},
-			["d74999"]={cardType="Advanced Action", resourceTracked=false, name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
+			["d74999"]={cardType="Advanced Action", resourceKey="decompose", name={"Decompose"}, 		color={"Red"}, 			action={"Special"}},
 			["1a1c02"]={cardType="Advanced Action", resourceKey="explosiveBolt", name={"Explosive Bolt"}, 	color={"White","Red"}, 	action={"Combat"}},
 			["409fe8"]={cardType="Advanced Action", resourceKey="chillingStare", name={"Chilling Stare"}, 	color={"Blue","White"},	action={"Combat", "Influence"}},
 			["d75285"]={cardType="Advanced Action", resourceAlwaysNeutral=true, name={"Rush of Adrenaline"},color={"Red","Green"}, 	action={"Special"}},
@@ -1909,7 +1917,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["085e61"]={cardType="Artifact", resourceKey="artifactAmuletSun", name={"Amulet of The Sun"}, 			color={}, action={"Special"}},
 			["085e59"]={cardType="Artifact", resourceKey="artifactGoldenGrail", name={"Golden Grail"}, 				color={}, action={"Heal"}},
 			["085e63"]={cardType="Artifact", resourceKey="artifactBowOfStarsdawn", name={"Bow of Starsdawn"}, 			color={}, action={"Combat"}},
-			["085e60"]={cardType="Artifact", resourceKey="artifactUtility", name={"Book of Wisdom"}, 				color={}, action={"Special"}},
+			["085e60"]={cardType="Artifact", resourceKey="artifactBookOfWisdom", name={"Book of Wisdom"}, 				color={}, action={"Special"}},
 			["085e65"]={cardType="Artifact", resourceKey="artifactShieldOfTheFallenKings", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
 			["abe28e"]={cardType="Artifact", resourceKey="artifactShieldOfTheFallenKings", name={"Shield of the Fallen Kings"},	color={}, action={"Combat"}},
 			["393021"]={cardType="Artifact", resourceKey="artifactHornOfWrath", name={"Horn of Wrath"}, 				color={}, action={"Combat"}},
@@ -2864,7 +2872,7 @@ factionRewardResourceDefinitions={
     ["BladeofDominance"]={name="Blade of Dominance",notes="Apocalypse Cult Reward",imageHash="5312F4FEA02019FB21911122C8CCA40F1CEADDA6",guids={"20ec1f","ff7836"}},
     ["BloodFuryDagger"]={name="Blood Fury Dagger",notes="Apocalypse Cult Reward",imageHash="A3E337C9387FD4A67F25FDF789BFA544195465B0",guids={"90b0b3","dddcdd"},choices={{key="one",icon="attack",iconOverlay="2",attack=2},{key="two",icon="attack",iconOverlay="4",attack=4},{key="three",icon="attack",iconOverlay="6",attack=6}}},
     ["BootofCharging"]={name="Boot of Charging",notes="Apocalypse Cult Reward",imageHash="F24661198BE97BC5A687D41FCCE400C08A0D9656",guids={"2722b3","72e29e"},resources={move=2,attack=2},splitMoveAttack=true,partial=true},
-    ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"}},
+    ["CloakofShielding"]={name="Cloak of Shielding",notes="Elementalist Reward",imageHash="B03F5A28795462A6B66B95B5D100BA194D619326",guids={"41decd","504178"},heroWoundPrevention=1},
     ["CloakoftheMartyr"]={name="Cloak of the Martyr",notes="Apocalypse Cult Reward",imageHash="0B4ABC0D5840AF6FAD68E398F66AA0729F04710D",guids={"cc1f9f","592fd8"}},
     ["FireGem"]={name="Fire Gem",notes="Elementalist Reward",imageHash="3BA57B65C60A918FCAB2D8832FFB909336AA1D8B",guids={"4433df","90b0b3"},modifier="addFire"},
     ["GhostlyElixir"]={name="Ghostly Elixir",notes="Dark Crusader Reward",imageHash="7ADC741EDDB8B27915DB5BB14C88DBEE0CFF911E",guids={"2411db","cc1f91"},modifier="makeRanged"},

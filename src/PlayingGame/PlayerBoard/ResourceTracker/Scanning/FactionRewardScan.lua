@@ -13,6 +13,7 @@ function M.read(context)
     local enemyEffects, showChoiceButtons, addResourceAmounts = context.enemyEffects, context.showChoiceButtons, context.addResourceAmounts
     local totals, records, current = context.totals, context.records, context.current
     local setHighlight = context.setHighlight
+    local heroFirstWoundIgnored=context.heroFirstWoundIgnored
     -- Aura Gauntlet can only choose colours currently showing on physical
     -- Mana Source dice (not spent dice or mirror copies).
     local sourceRewardColors={}
@@ -57,7 +58,7 @@ function M.read(context)
             local contributes=effectHasTrackedResource(effect)
             local supported=rule~=nil and (flipped or rule.choices~=nil or rule.resources~=nil
                 or rule.modifier~=nil or rule.enemyEffect~=nil or rule.movement~=nil
-                or rule.heroPsychicBlock==true)
+                or rule.heroPsychicBlock==true or rule.heroWoundPrevention~=nil)
             local result={guid=guid,kind="factionReward",known=rule~=nil,
                 complete=supported==true,resources=effect,choices=choices,fameRep=fameRep,
                 splitTargets=splitMoveAttack and {"block","attack"} or nil,
@@ -71,6 +72,14 @@ function M.read(context)
             if not flipped and rule~=nil and rule.movement~=nil
                 and rule.movement.ignoreRampagers then
                 result.pendingIgnoreRampagers=true
+            end
+            if not flipped and rule~=nil and rule.heroWoundPrevention~=nil then
+                -- Placing the Cloak in play is the player's choice to use it
+                -- on the next Hero Wound. Each physical token is one use.
+                local existing=heroFirstWoundIgnored==true and 1
+                    or (tonumber(heroFirstWoundIgnored) or 0)
+                heroFirstWoundIgnored=existing+rule.heroWoundPrevention
+                result.status="green"
             end
             if not flipped and rule~=nil and rule.heroPsychicBlock==true then
                 heroPsychicBlock=true
@@ -91,7 +100,7 @@ function M.read(context)
             setHighlight(token,result.status,result.powered)
         end
     end
-    return heroPsychicBlock
+    return heroPsychicBlock,heroFirstWoundIgnored
 end
 
 function M.modifiers(context)
