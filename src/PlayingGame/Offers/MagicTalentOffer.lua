@@ -168,6 +168,7 @@ local function browserManaPayments(seat,guid)
     for _,claim in pairs(gStates.magicTalentStrongClaims or {}) do
         for manaGUID in pairs(claim.spent or {}) do spent[manaGUID]=true end
     end
+    for manaGUID in pairs(gStates.ancientsSpentMana or {}) do spent[manaGUID]=true end
     local result={}
     for _,payment in ipairs(magicTalentManaPayments(seat,guid,sources)) do
         if not spent[payment.guid] then result[#result+1]=payment end
@@ -556,6 +557,8 @@ function magicTalentClose(immediate)
     if gStates~=nil then
         gStates.magicTalentPreviews=nil
         gStates.magicTalentStrongClaims=nil
+        gStates.magicTalentDiscardClaims=nil
+        gStates.ancientsSpentMana=nil
     end
     fromHand={}
 end
@@ -692,8 +695,10 @@ local function paymentStillOnSpell(s)
 end
 
 local function cycle(s,delta)
-    if s.mode=="basic" and paymentStillOnSpell(s) then
-        safeBroadcastToColor("Magic Talent: remove the casting mana before changing Spells.",
+    if s.mode=="basic" and (s.repeatCasts[s.cardGUID]~=nil or paymentStillOnSpell(s)) then
+        safeBroadcastToColor(s.repeatCasts[s.cardGUID]~=nil
+            and "Magic Talent: use Next to keep the committed Spell and select the remaining use."
+            or "Magic Talent: remove the casting mana before changing Spells.",
             positionToColor(gStates.turnNumber),warningColor)
         return
     end
@@ -802,8 +807,16 @@ local function confirmAncients(s,action,guid)
     if gain and copy~=nil then
         payment=ancientsBasicPayment(s.seatPos,s.talentGUID,copy,s,guid,
             offerOrder("Gold",guid,"Advanced Action"))
-        if payment==nil then return end
+    elseif gain then
+        -- A normal purchase also spends a concrete mana object.
+        for _,candidate in ipairs(ancientsPayments(s.seatPos,s.talentGUID,nil)) do
+            if matching(guid,candidate.color,"Advanced Action") then
+                payment=candidate
+                break
+            end
+        end
     end
+    if gain and payment==nil then return end
     local destination=getObjectFromGUID(handZones[s.seatPos])
     if gain and destination==nil then return end
     local discard=action=="useAncientsDiscard" or action=="sameAncientsDiscard"
@@ -822,6 +835,8 @@ local function confirmAncients(s,action,guid)
                 if payment~=nil then
                     s.spentMana=s.spentMana or {}
                     s.spentMana[payment.guid]=true
+                    gStates.ancientsSpentMana=gStates.ancientsSpentMana or {}
+                    gStates.ancientsSpentMana[payment.guid]=true
                 end
                 commitGain(s,card,destination,true)
             else
@@ -906,18 +921,20 @@ local function advanceBasic(s,sameSpell)
             s.cardGUID,s.home=nil,nil
             s.mode="completed"
         else
-            s.color=nextColor
+            -- Keep the selected Spell's colour while it represents the
+            -- already-settled applications. Next selects the unused cost.
             controls(s)
         end
     else
-        if paid then
+        local alreadySettled=s.repeatCasts[guid]~=nil
+        if paid or alreadySettled then
             s.loans[guid]=s.home
             clean(getObjectFromGUID(guid))
             s.cardGUID,s.home=nil,nil
         else
             returnPreview(s,false)
         end
-        s.used=s.used+1
+        if not alreadySettled then s.used=s.used+1 end
         if s.used>=s.limit then
             s.mode="completed"
         else
@@ -1051,6 +1068,10 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
         copy=copy~=nil and {count=count,powered=copy.powered==true,
             sourceGUID=copy.sourceGUID} or nil,
         limit=count,used=used,loans={},repeatCasts={}}
+    -- The cost discard is an irreversible hand action. Do not reopen a
+    -- cancelled source with new hand cards during the same turn.
+    if (mode=="basic" or mode=="tome")
+        and (gStates.magicTalentDiscardClaims or {})[talentGUID] then return end
     if costs~=nil then
         s.costColors={}
         for index,entry in ipairs(costs) do
@@ -1059,6 +1080,10 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
         end
         s.color=s.costColors[1]
     elseif source~=nil and not discardCost(seat,source) then return end
+    if costs~=nil or source~=nil then
+        gStates.magicTalentDiscardClaims=gStates.magicTalentDiscardClaims or {}
+        gStates.magicTalentDiscardClaims[talentGUID]=true
+    end
     gStates.magicTalentPreviews=gStates.magicTalentPreviews or {}
     gStates.magicTalentPreviews[talentGUID]=s
     if #s.order>0 then borrow(s,1) end
@@ -1070,7 +1095,8 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
 end
 
 local function startSource(seat,talentGUID)
-    if state(talentGUID)~=nil or not talentInPlay(seat,talentGUID) then return end
+    if state(talentGUID)~=nil or not talentInPlay(seat,talentGUID)
+        or (gStates.magicTalentDiscardClaims or {})[talentGUID] then return end
     local entitlement=maximalEntitlement(seat,talentGUID)
     if isAncients(talentGUID) then
         if not (gStates.ancientsOfferClaims or {})[talentGUID]
@@ -1187,7 +1213,7 @@ function magicTalentOfferLoanHomes()
     for _,s in ipairs(sessionList()) do
         for guid,home in pairs(s.loans or {}) do homes[guid]=home end
         if s.mode=="basic" and s.cardGUID~=nil and s.home~=nil
-            and paymentStillOnSpell(s) then homes[s.cardGUID]=s.home end
+            and (s.repeatCasts[s.cardGUID]~=nil or paymentStillOnSpell(s)) then homes[s.cardGUID]=s.home end
     end
     return homes
 end
@@ -1195,7 +1221,8 @@ end
 -- Return uncommitted previews before the offer's grid counts/moves cards.
 function magicTalentOfferWillChange()
     for _,s in ipairs(sessionList()) do
-        if s.cardGUID~=nil and not (s.mode=="basic" and paymentStillOnSpell(s)) then
+        if s.cardGUID~=nil and not (s.mode=="basic"
+            and (s.repeatCasts[s.cardGUID]~=nil or paymentStillOnSpell(s))) then
             returnPreview(s,true)
         end
     end

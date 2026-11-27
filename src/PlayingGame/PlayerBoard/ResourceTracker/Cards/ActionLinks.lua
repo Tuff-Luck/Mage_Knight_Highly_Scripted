@@ -15,6 +15,10 @@ return function(deps)
         local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
         local linkedCardBySource,repeatByTarget,discardBoostBySource={}, {}, {}
         local boostClaimed={}
+        local function reservedCost(guid)
+            return (magicTalentReservedCard~=nil and magicTalentReservedCard(guid))
+                or (trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid))
+        end
         for _,card in ipairs(cards) do links[card.guid]={} end
         for _,wound in ipairs(wounds) do links[wound.guid]={} end
         local function connect(source,target)
@@ -124,6 +128,7 @@ return function(deps)
                         return other~=nil
                             and (other.cardType=="Starting" or other.cardType=="Advanced Action")
                             and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
+                            and not reservedCost(candidate.guid)
                             and not manaPowered[candidate.guid] and #links[candidate.guid]==0
                             and cardPosture(candidate)=="upright"
                     end,"faceDown",true)
@@ -158,6 +163,7 @@ return function(deps)
                     local target=nearestOverlap(source,function(candidate)
                         local targetData=gameCards[candidate.guid]
                         return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
+                            and not reservedCost(candidate.guid)
                             and candidate.guid~=boostSource[source.guid]
                             and not manaPowered[candidate.guid]
                             and #links[candidate.guid]==0
@@ -223,6 +229,7 @@ return function(deps)
                         and (not isWound or woundPayments<(spec.maxWounds or 0)
                             *(repeated~=nil and repeated.count or 1))
                         and discarded[target.guid]==nil and not boostClaimed[target.guid]
+                        and not reservedCost(target.guid)
                         and #links[target.guid]==0 and skillLinksByTarget[target.guid]==nil
                         and not manaPowered[target.guid]
                         and target.is_face_down~=true and cardPosture(target)=="discard"

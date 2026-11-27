@@ -320,6 +320,35 @@ spellPaymentCounts[red1.guid]=1
 eq(magicTalentOfferSpellCastCount(1,red1.guid),1,
     "Removing two casting mana retracts repeated uses")
 magicTalentClose(true)
+-- Same twice, then Next: the third application remains available.
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+redCost.setPosition({0.4,1,0.2})
+blueCost.setPosition({0.5,1,0.25})
+anotherCost.setPosition({0.6,1,0.3})
+magicTalentHandLeft(redCost.guid,1)
+magicTalentHandLeft(blueCost.guid,1)
+magicTalentHandLeft(anotherCost.guid,1)
+magicTalentSync()
+s=assert(singleSession(),"Mixed Same/Next setup")
+spellPaymentCounts[red1.guid]=2
+resourceCardScanBySeat[1].cards[red1.guid]={spellCastPaid=true}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_sameUse")
+eq(s.used,2,"Two applications committed")
+resourceCardScanBySeat[1].cards[red1.guid]={spellCastPaid=false}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_next")
+eq(s.cardGUID,red1.guid,"Cannot browse away committed repeated loan")
+magicTalentOfferWillChange()
+eq(s.cardGUID,red1.guid,"Committed repeated loan survives offer refill")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_nextUse")
+eq(s.used,2,"Next does not charge a third application")
+eq(s.cardGUID,red2.guid,"Third application selects another Spell")
+eq(magicTalentReservedCard(red1.guid),true,"Earlier Spell remains reserved")
+resourceCardScanBySeat[1].cards[red2.guid]={spellCastPaid=true}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red2.guid.."_nextUse")
+eq(s.used,3,"Third application committed")
+eq(s.mode,"completed","Mixed Same/Next completes")
+magicTalentClose(true)
 maximalCopy=nil
 talent.is_face_down=false
 
