@@ -234,6 +234,7 @@ end
 local function trainingValid(seatPos,trainingGUID)
     local card=trainingGUID~=nil and getObjectFromGUID(trainingGUID) or nil
     if card==nil or not isExchange(trainingGUID) or seatPos==nil
+        or (magicTalentInactivePreview~=nil and magicTalentInactivePreview(trainingGUID))
         or not objectGUIDInZone(trainingGUID,playerPlayAreas[seatPos]) then return false end
     if isBook(trainingGUID) then return cardEffectIsVertical(card) end
     -- A sideways Training is only the generic +1 Action, not its printed
@@ -261,6 +262,7 @@ local function startTraining(seatPos,source)
     if details==nil or (details.cardType~="Starting"
         and details.cardType~="Advanced Action")
         or fromHand[source.guid]~=seatPos
+        or (magicTalentReservedCard~=nil and magicTalentReservedCard(source.guid))
         or not objectGUIDInZone(source.guid,playerPlayAreas[seatPos]) then return end
     local from=ttsVectorArray(source.getPosition())
     gStates.trainingOfferClaims=gStates.trainingOfferClaims or {}

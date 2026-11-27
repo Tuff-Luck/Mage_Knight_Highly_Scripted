@@ -55,6 +55,12 @@ function M.resolve(context)
             specialPaymentByCard[card.guid]=rule.effectManaChoice
         end
     end
+    local function ancientsMana(card,color)
+        local data=gameCards[card.guid]
+        return data~=nil and data.resourceKey=="bloodOfAncients"
+            and (color=="Red" or color=="Blue" or color=="White" or color=="Green"
+                or (color=="Gold" and resourceCardsGoldAllowed()))
+    end
     local function spendMana(card,color,manaGUID)
         -- Never record an illegal Daytime Black payment through the separate
         -- spell-effect or mana-conversion paths.
@@ -70,6 +76,16 @@ function M.resolve(context)
             candidates[#candidates+1]={guid=manaGUID,color=color}
             effectManaByCard[card.guid]=candidates
             usedMana[manaGUID]=card.guid
+            return
+        end
+        if ancientsMana(card,color) then
+            -- A basic colour is a purchase cost, not necessarily Red power.
+            usedMana[manaGUID]=card.guid
+            if color=="Red" or color=="Gold" then
+                powered[card.guid]=true
+                powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
+                powerManaColorsByCard[card.guid][color]=true
+            end
             return
         end
         if data~=nil and data.cardType=="Spell" and color~="Black"
@@ -113,7 +129,7 @@ function M.resolve(context)
                                 or (color=="Gold" and resourceCardsGoldAllowed()))
                     end
                     return cardPosture(card)=="upright" and card.is_face_down~=true
-                        and (matchesCardMana(card,color)
+                        and (matchesCardMana(card,color) or ancientsMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
                                     or (color=="Gold" and resourceCardsGoldAllowed()))))
@@ -138,7 +154,8 @@ function M.resolve(context)
         if freeCastSides[guid]==nil and (wildcard or next(options)~=nil) then powered[guid]=true end
     end
     for guid,strong in pairs(freeCastSides) do
-        spellCastingPaid[guid]=true
+        local data=gameCards[guid]
+        if data~=nil and data.cardType=="Spell" then spellCastingPaid[guid]=true end
         powered[guid]=strong
     end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,

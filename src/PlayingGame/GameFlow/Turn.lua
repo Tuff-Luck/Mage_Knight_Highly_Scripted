@@ -773,6 +773,7 @@ local function turnFinishCompletedTurnUI()
     if unitReplacementClose~=nil then unitReplacementClose() end
     callOfferClose(false)
     magicTalentClose(false)
+    gStates.ancientsOfferClaims=nil
     trainingOfferClose(true)
 	resourceUnitsResetTurn()
 	resetResourceTrackerState()

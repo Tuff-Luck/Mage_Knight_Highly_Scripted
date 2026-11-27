@@ -1826,7 +1826,7 @@ gameCards={	["a0a6cb"]={influence= 4, level=1, armour=3, cardType="Regular Unit"
 			["878d80"]={cardType="Advanced Action", resourceKey="fireBolt", name={"Fire Bolt"},	 		color={"Red"}, 			action={"Combat", "Special"}},
 			["878d84"]={cardType="Advanced Action", resourceKey="bloodRage", name={"Blood Rage"}, 		color={"Red"}, 			action={"Combat"}},
 			["05ef61"]={cardType="Advanced Action", resourceKey="ritualAttack", name={"Ritual Attack"}, 	color={"Red"}, 			action={"Combat"}},
-			["93b7d4"]={cardType="Advanced Action", resourceTracked=false, name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
+			["93b7d4"]={cardType="Advanced Action", resourceKey="bloodOfAncients", resourceTracked=false, name={"Blood of Ancients"},	color={"Red"}, 			action={"Special"}},
 			["65a1d5"]={cardType="Advanced Action", resourceKey="counterattack", name={"Counterattack"}, 	color={"Red"}, 			action={"Combat"}},
 			["8fac50"]={cardType="Advanced Action", resourceKey="maximalEffect", name={"Maximal Effect"}, 	color={"Red"}, 			action={"Special"}},
 			["bb05a9"]={cardType="Advanced Action", resourceKey="intoTheHeat", name={"Into the Heat"},		color={"Red"}, 			action={"Combat"}},

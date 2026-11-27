@@ -4865,6 +4865,10 @@ end
 -- still come from the same physical mana/Action-link resolver as other cards.
 function resourceCardsTrainingMode(seatPos,trainingGUID)
     trainingGUID=trainingGUID or "6fdeb0"
+    if magicTalentOfferCastSide~=nil then
+        local side=magicTalentOfferCastSide(seatPos,trainingGUID)
+        if side~=nil then return side,1 end
+    end
     local scan=seatPos~=nil and resourceCardScanBySeat[seatPos] or nil
     local record=scan~=nil and scan.cards[trainingGUID] or nil
     if record~=nil and resourceCardsPanelOpen() then

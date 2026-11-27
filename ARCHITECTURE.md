@@ -107,7 +107,7 @@ The project is authored as Lua modules and bundled by Sebastian's Tabletop Simul
 | `src/PlayingGame/GameFlow/Teams.lua` | Authoritative seat team and scenario faction membership, allied sites and ownership checks. |
 | `src/PlayingGame/Offers/CallOffer.lua` | Physical Unit loan and offer browse/return lifecycle for Call to Arms and Call to Glory. |
 | `src/PlayingGame/Offers/TrainingOffer.lua` | Training and Book of Wisdom cost selection and physical matching-colour deed exchange, browse/claim/return lifecycle. |
-| `src/PlayingGame/Offers/MagicTalentOffer.lua` | Magic Talent and Tome of All Spells physical Spell borrow/claim/return and casting lifecycle; Tome grants only the confirmed printed side without ordinary casting mana. |
+| `src/PlayingGame/Offers/MagicTalentOffer.lua` | Magic Talent, Tome of All Spells and Blood of Ancients physical deed-offer borrow/claim/return lifecycle, with explicit mana-free effects and physical discard/Wound costs. |
 | `src/PlayingGame/PlayerBoard/Scale.lua` | Player-board play-area and component scaling. |
 | `src/PlayingGame/PlayerBoard/Units/UnitResources.lua` | Static Unit ability resource definitions. |
 | `src/PlayingGame/PlayerBoard/Units/UnitHistory.lua` | Authoritative activation-use history, selection and frozen paid-mana snapshots. |

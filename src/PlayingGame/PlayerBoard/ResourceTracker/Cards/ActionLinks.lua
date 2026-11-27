@@ -49,6 +49,7 @@ return function(deps)
                     local other=gameCards[candidate.guid]
                     local otherRule=other~=nil and cardResourceDefinitions[other.resourceKey] or nil
                     return not boostClaimed[candidate.guid] and other~=nil
+                        and (magicTalentReservedCard==nil or not magicTalentReservedCard(candidate.guid))
                         and (other.cardType=="Starting" or other.cardType=="Advanced Action")
                         and (otherRule==nil or otherRule.poweredLink==nil)
                         and candidate.is_face_down~=true and cardPosture(candidate)=="upright"

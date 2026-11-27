@@ -392,3 +392,105 @@ eq(magicTalentOfferCastSide(1,borrowed),true,"Broken Tome grants free strong cas
 magicTalentClose(true)
 eq(inZone(borrowed,"offer"),true,"Strong Tome returns loan")
 print("Tome of All Spells browser regressions passed")
+
+-- Blood of Ancients: all matching/basic colours are purchase options;
+-- red also permits borrowing an arbitrary stronger Advanced Action.
+magicTalentClose(true)
+tome.setPosition({0,1,-40})
+local ancients=fakeCard("93b7d4",0,0)
+local redAction=fakeCard("ab1111",10,-20)
+local blueAction=fakeCard("ab2222",15,-20)
+local dualAction=fakeCard("ab3333",20,-20)
+for _,obj in ipairs({ancients,redAction,blueAction,dualAction}) do
+    cards[#cards+1]=obj
+    objects[obj.guid]=obj
+end
+gameCards[ancients.guid]={cardType="Advanced Action",resourceKey="bloodOfAncients",color={"Red"}}
+gameCards[redAction.guid]={cardType="Advanced Action",color={"Red"}}
+gameCards[blueAction.guid]={cardType="Advanced Action",color={"Blue"}}
+gameCards[dualAction.guid]={cardType="Advanced Action",color={"White","Blue"}}
+local spellOffer=mainOfferCardsByType
+mainOfferCardsByType=function(kind)
+    if kind=="Spell" then return spellOffer(kind) end
+    assert(kind=="Advanced Action")
+    local out={}
+    for _,obj in ipairs({redAction,blueAction,dualAction}) do
+        if inZone(obj.guid,"offer") then out[#out+1]=obj end
+    end
+    return out
+end
+local wounds={}
+local failWound=false
+combatDealCalculatedWounds=function(seat,allocations,onCard,onDone)
+    eq(seat,1,"correct Wound seat")
+    local entry=allocations[1]
+    eq(entry.hand+entry.discard,1,"exactly one Wound")
+    if failWound then onDone(false,"bag missing") return end
+    local destination=entry.hand==1 and "hand" or "discard"
+    wounds[#wounds+1]=destination
+    onCard(entry.key,destination,"wound"..#wounds)
+    onDone(true)
+end
+animateDeedCardToHand=function(obj,_seat,_delay) obj.setPosition({0,1,-50}) end
+payments={}
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"No mana no Ancients browser")
+payments={{guid="ancientsBlue",color="Blue"}}
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Blue purchases blue Actions")
+eq(s.cardGUID,blueAction.guid,"Basic filter excludes red")
+eq(hasButton(blueAction,"gainAncients"),true,"Gain available")
+eq(hasButton(blueAction,"useAncientsHand"),false,"Blue cannot power strong")
+eq(magicTalentInactivePreview(blueAction.guid),true,"Preview is inert")
+eq(#wounds,0,"Browsing does not deal Wound")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_next")
+eq(s.cardGUID,dualAction.guid,"Dual-colour match")
+failWound=true
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_gainAncients")
+eq(s.cardGUID,dualAction.guid,"Missing Wound bag cannot claim")
+eq(gStates.ancientsOfferClaims,nil,"Failed cost does not consume entitlement")
+failWound=false
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_gainAncients")
+eq(inZone(dualAction.guid,"hand"),true,"Basic gain goes to hand")
+eq(wounds[1],"hand","Basic Wound goes to hand")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_gainAncients")
+eq(#wounds,1,"Stale callback cannot deal another Wound")
+magicTalentClose(true)
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"Consumed source cannot reopen during same turn")
+gStates.ancientsOfferClaims=nil
+payments={{guid="ancientsRed",color="Red"}}
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Red permits both effects")
+eq(s.cardGUID,redAction.guid,"Red candidate")
+eq(hasButton(redAction,"gainAncients"),true,"Red can buy red Action")
+eq(hasButton(redAction,"useAncientsDiscard"),true,"Red also powers stronger effect")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_next")
+eq(s.cardGUID,blueAction.guid,"Strong can borrow another colour")
+eq(hasButton(blueAction,"gainAncients"),false,"Red cannot buy blue Action")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_useAncientsDiscard")
+eq(wounds[2],"discard","Strong Wound may go to discard")
+eq(s.mode,"ancientsCast","Strong effect confirmed")
+eq(magicTalentOfferCastSide(1,blueAction.guid),true,"Borrowed Action gets stronger effect")
+eq(magicTalentInactivePreview(blueAction.guid),false,"Committed Action is active")
+eq(magicTalentOfferLoanHomes()[blueAction.guid]~=nil,true,"Borrowed Action retains its offer slot")
+magicTalentClose(true)
+eq(inZone(blueAction.guid,"offer"),true,"Strong loan returns at cleanup")
+gStates.ancientsOfferClaims=nil
+payments={{guid="ancientsGreen",color="Green"}}
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"Unmatched basic payment does not deal a Wound")
+payments={{guid="ancientsRed",color="Red"}}
+maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"Repeated use remains manual, never partially committed")
+eq(#wounds,2,"Deferred combinations do not deal a Wound")
+maximalCopy=nil
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Single use opens again")
+payments={}
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..s.cardGUID.."_gainAncients")
+eq(#wounds,2,"Removed payment invalidates stale Gain")
+magicTalentSync()
+eq(gStates.magicTalentPreview,nil,"Missing payment closes preview")
+print("Blood of Ancients browser regressions passed")

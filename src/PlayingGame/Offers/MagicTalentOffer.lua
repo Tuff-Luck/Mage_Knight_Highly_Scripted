@@ -9,9 +9,14 @@ local function isTome(guid)
     return guid=="085e68" and gameCards[guid]~=nil
 end
 
+local function isAncients(guid)
+    local data=gameCards[guid]
+    return data~=nil and data.resourceKey=="bloodOfAncients"
+end
+
 local function isTalent(guid)
     local data=gameCards[guid]
-    return data~=nil and (data.resourceKey=="magicTalent" or isTome(guid))
+    return data~=nil and (data.resourceKey=="magicTalent" or isTome(guid) or isAncients(guid))
 end
 local CONTROL_PREFIX="MagicTalentControl_"
 local CONTROL_PREFIXES={CONTROL_PREFIX,"ResourceCardChoice_","AttackAssignmentSource_"}
@@ -62,26 +67,69 @@ local function cardColor(guid)
     return nil
 end
 
-local function matching(guid,color)
+local function matching(guid,color,kind)
     local data=gameCards[guid]
-    if data==nil or data.cardType~="Spell" then return false end
-    return color=="Gold" or cardColor(guid)==color
+    if data==nil or data.cardType~=(kind or "Spell") then return false end
+    if color=="Gold" then return true end
+    if type(data.color)=="string" then return data.color==color end
+    for _,value in ipairs(data.color or {}) do if value==color then return true end end
+    return false
 end
 
-local function offerOrder(color,previewGUID)
+local function offerOrder(color,previewGUID,kind,eligible)
     local order={}
-    for _,card in ipairs(mainOfferCardsByType("Spell")) do
-        if matching(card.guid,color)
-            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid)) then
-            order[#order+1]=card.guid
-        end
+    local function allowed(guid)
+        return matching(guid,color,kind) and (eligible==nil or eligible(guid))
+            and not returning[guid]
+            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(guid))
     end
-    if previewGUID~=nil and matching(previewGUID,color) then
+    for _,card in ipairs(mainOfferCardsByType(kind or "Spell")) do
+        if allowed(card.guid) then order[#order+1]=card.guid end
+    end
+    if previewGUID~=nil and allowed(previewGUID) then
         local found=false
         for _,guid in ipairs(order) do if guid==previewGUID then found=true break end end
         if not found then order[#order+1]=previewGUID end
     end
     return order
+end
+
+-- Blood of Ancients needs an extra payment on its basic side. Red
+-- (or legal Gold) can instead power its stronger side; the player chooses.
+local function ancientsPermissions(seat,guid)
+    local colors,strong={},false
+    if magicTalentManaPayments~=nil then
+        for _,payment in ipairs(magicTalentManaPayments(seat,guid)) do
+            local color=payment.color
+            if color=="Red" or color=="Green" or color=="Blue" or color=="White"
+                or (color=="Gold" and resourceCardsGoldAllowed()) then
+                colors[color]=true
+                if color=="Red" or color=="Gold" then strong=true end
+            end
+        end
+    end
+    local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil
+    local record=scan~=nil and scan.cards~=nil and scan.cards[guid] or nil
+    -- Concentration/Will Focus can grant the stronger side without a red
+    -- payment. Do not turn an unrelated basic colour into a power payment.
+    if record~=nil and resourceCardsPanelOpen~=nil and resourceCardsPanelOpen()
+        and record.compositeAction and record.repeatLink==nil
+        and record.powered then strong=true end
+    return colors,strong
+end
+
+local function ancientsCanGain(guid,colors)
+    for color in pairs(colors) do
+        if matching(guid,color,"Advanced Action") then return true end
+    end
+    return false
+end
+
+local function ancientsOrder(seat,source,preview)
+    local colors,strong=ancientsPermissions(seat,source)
+    return offerOrder("Gold",preview,"Advanced Action",function(guid)
+        return strong or ancientsCanGain(guid,colors)
+    end)
 end
 
 -- Two different physical mana objects are required. Gold can power the
@@ -149,7 +197,22 @@ local function controls(s)
     end
     local images=callOfferAppendBrowseControls(xml,card.guid,CONTROL_PREFIX,
         "magicTalentClicked",s.mode=="strong" or s.mode=="tome")
-    if s.mode=="tome" then
+    if s.mode=="ancients" then
+        local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
+        local function action(suffix,label,x,y)
+            xml[#xml+1]={tag="Button",attributes={
+                id=CONTROL_PREFIX..card.guid.."_"..suffix,
+                onClick="global/magicTalentClicked",
+                position=x.." "..y.." -35",rotation="0 0 0",
+                width=170,height=70,scale="0.30 0.30",fontSize=32,
+                text=label,color="rgba(0.12,0.32,0.16,0.92)",textColor="rgba(1,1,1,1)"}}
+        end
+        if ancientsCanGain(card.guid,colors) then action("gainAncients","Gain", "0","0") end
+        if strong then
+            action("useAncientsHand","Use / Hand","-100","-140")
+            action("useAncientsDiscard","Use / Discard","100","-140")
+        end
+    elseif s.mode=="tome" then
         for _,node in ipairs(xml) do
             if node.attributes~=nil and node.attributes.id==CONTROL_PREFIX..card.guid.."_claim" then
                 node.attributes.text="Cast"
@@ -180,13 +243,24 @@ function magicTalentEnsureControls(seat)
     local card=getObjectFromGUID(s.cardGUID)
     if card==nil then return end
     local previous,nextArrow,take,nextUse,sameUse=false,false,false,false,false
+    local gainAncients,useHand,useDiscard=false,false,false
     for _,node in ipairs(resourceObjectUiXmlTable(card.UI)) do
         local id=node.attributes~=nil and node.attributes.id or nil
         if id==CONTROL_PREFIX..card.guid.."_previous" then previous=true
         elseif id==CONTROL_PREFIX..card.guid.."_next" then nextArrow=true
         elseif id==CONTROL_PREFIX..card.guid.."_claim" then take=true
         elseif id==CONTROL_PREFIX..card.guid.."_nextUse" then nextUse=true
-        elseif id==CONTROL_PREFIX..card.guid.."_sameUse" then sameUse=true end
+        elseif id==CONTROL_PREFIX..card.guid.."_sameUse" then sameUse=true
+        elseif id==CONTROL_PREFIX..card.guid.."_gainAncients" then gainAncients=true
+        elseif id==CONTROL_PREFIX..card.guid.."_useAncientsHand" then useHand=true
+        elseif id==CONTROL_PREFIX..card.guid.."_useAncientsDiscard" then useDiscard=true end
+    end
+    if s.mode=="ancients" then
+        local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
+        if gainAncients~=ancientsCanGain(card.guid,colors) or useHand~=strong or useDiscard~=strong then
+            controls(s)
+            return
+        end
     end
     if not previous or not nextArrow or ((s.mode=="strong" or s.mode=="tome") and not take)
         or (s.mode=="basic" and (s.limit or 1)>1
@@ -260,18 +334,19 @@ end
 -- before its mana-free effect exists. Returning cards are always inert.
 function magicTalentInactivePreview(guid)
     local s=state()
-    return returning[guid]==true or (s~=nil and s.cardGUID==guid
-        and (s.mode=="strong" or s.mode=="tome"))
+    return returning[guid]==true or (s~=nil and (
+        (s.cardGUID==guid and (s.mode=="strong" or s.mode=="tome" or s.mode=="ancients"))
+        or (s.freeGUID==guid and magicTalentOfferCastSide(s.seatPos,guid)==nil)))
 end
 
 -- nil = ordinary payment rules; false = free basic; true = free stronger.
 -- Never use an 'and ... or nil' expression here: false is meaningful.
 function magicTalentOfferCastSide(seat,guid)
     local s=state()
-    if s==nil or s.seatPos~=seat or s.mode~="tomeCast" or s.freeGUID~=guid
+    if s==nil or s.seatPos~=seat or (s.mode~="tomeCast" and s.mode~="ancientsCast") or s.freeGUID~=guid
         or not talentInPlay(seat,s.talentGUID) then return nil end
     local spell=getObjectFromGUID(guid)
-    if not cardEffectIsVertical(spell)
+    if spell==nil or not cardEffectIsVertical(spell)
         or not objectGUIDInZone(guid,playerPlayAreas[seat]) then return nil end
     return s.freeStrong==true
 end
@@ -388,12 +463,9 @@ local function cycle(s,delta)
     end
 end
 
-local function claim(s)
-    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
-        or strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)~=s.color then return end
-    local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
-    local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
-    if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
+-- Transfer the actual offer card once, independently of the effect that
+-- granted it. Magic Talent claims to discard; Blood of Ancients to hand.
+local function commitGain(s,gained,destination,toHand)
     browseSerial=browseSerial+1
     local gainedGUID=gained.guid
     s.cardGUID,s.home=nil,nil
@@ -414,20 +486,81 @@ local function claim(s)
     end
     gained.unlock()
     if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(gained) end
-    local p=ttsVectorArray(destination.getPosition())
-    gained.setScale({1.5,1,1.5})
-    gained.setPositionSmooth({p[1],math.max(1.8,p[2]+0.5),p[3]},false,false)
-    gained.setRotationSmooth({0,180,0},false,false)
+    if toHand then
+        animateDeedCardToHand(gained,s.seatPos,0)
+    else
+        local p=ttsVectorArray(destination.getPosition())
+        gained.setScale({1.5,1,1.5})
+        gained.setPositionSmooth({p[1],math.max(1.8,p[2]+0.5),p[3]},false,false)
+        gained.setRotationSmooth({0,180,0},false,false)
+    end
     safeWaitCondition("Offers.MagicTalent",function()
         if not objectGUIDInZone(gainedGUID,GUID.zone.offer) then
             compactAndRefillDeedOffer()
-            scheduleDeedPileDescriptionRefresh(s.seatPos,"discard")
+            if not toHand then scheduleDeedPileDescriptionRefresh(s.seatPos,"discard") end
             if s.mode=="strong" then magicTalentSync() end
         end
     end,function()
         return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
     end,8)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+local function claim(s)
+    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
+        or strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)~=s.color then return end
+    local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
+    local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
+    if gained==nil or destination==nil or not matching(gained.guid,s.color) then return end
+    commitGain(s,gained,destination,false)
+end
+
+local function confirmAncients(s,action)
+    if state()~=s or s.mode~="ancients" or s.woundPending
+        or currentSeat()~=s.seatPos or not talentInPlay(s.seatPos,s.talentGUID)
+        or (gStates.ancientsOfferClaims or {})[s.talentGUID] then return end
+    -- Repeated uses need their own costs and selection; do not silently
+    -- resolve a Maximal Effect combination as a single application.
+    if maximalEntitlement(s.seatPos,s.talentGUID)~=nil then return end
+    local guid=s.cardGUID
+    local card=guid~=nil and getObjectFromGUID(guid) or nil
+    if card==nil or not cardEffectIsVertical(card)
+        or not objectGUIDInZone(guid,playerPlayAreas[s.seatPos]) then return end
+    local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
+    local gain=action=="gainAncients"
+    if (gain and not ancientsCanGain(guid,colors)) or (not gain and not strong) then return end
+    local destination=getObjectFromGUID(handZones[s.seatPos])
+    if gain and destination==nil then return end
+    local discard=action=="useAncientsDiscard"
+    if discard and getObjectFromGUID(deedDeckDiscardZones[s.seatPos])==nil then return end
+    s.woundPending=true
+    combatDealCalculatedWounds(s.seatPos,{{key=s.talentGUID,hand=discard and 0 or 1,discard=discard and 1 or 0}},
+        function(_key,_to,_woundGUID)
+            -- The existing wound service acknowledges a real card immediately.
+            -- Commit only after the physical cost was actually produced.
+            gStates.ancientsOfferClaims=gStates.ancientsOfferClaims or {}
+            gStates.ancientsOfferClaims[s.talentGUID]=true
+            s.woundPending=nil
+            if gain then
+                commitGain(s,card,destination,true)
+            else
+                s.freeStrong=true
+                s.freeGUID=guid
+                s.mode="ancientsCast"
+                s.loans[guid]=s.home
+                s.cardGUID,s.home=nil,nil
+                s.used=1
+                browseSerial=browseSerial+1
+                clean(card)
+                if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+            end
+        end,function(ok,reason)
+            s.woundPending=nil
+            if not ok then
+                safeBroadcastToColor("Blood of Ancients: "..tostring(reason),
+                    positionToColor(gStates.turnNumber),warningColor)
+            end
+        end)
 end
 
 local function castTome(s)
@@ -514,8 +647,13 @@ publishPublicUICallbacks({
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(claim)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(nextUse)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(sameUse)$") end
-        if guid~=s.cardGUID then return end
-        if action=="claim" then
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(gainAncients)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsHand)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsDiscard)$") end
+        if guid~=s.cardGUID or s.woundPending then return end
+        if action=="gainAncients" or action=="useAncientsHand" or action=="useAncientsDiscard" then
+            confirmAncients(s,action)
+        elseif action=="claim" then
             if s.mode=="tome" then castTome(s) else claim(s) end
         elseif action=="nextUse" or action=="sameUse" then
             advanceBasic(s,action=="sameUse")
@@ -604,7 +742,8 @@ end
 
 local function start(seat,mode,color,source,copy,costs,talentGUID)
     local count=copy~=nil and copy.count or 1
-    local s={seatPos=seat,talentGUID=talentGUID,mode=mode,color=color,order=offerOrder(color),index=1,
+    local order=mode=="ancients" and ancientsOrder(seat,talentGUID) or offerOrder(color)
+    local s={seatPos=seat,talentGUID=talentGUID,mode=mode,color=color,order=order,index=1,
         sourceGUID=source~=nil and source.guid or nil,
         copy=copy~=nil and {count=count,powered=copy.powered==true,
             sourceGUID=copy.sourceGUID} or nil,
@@ -649,7 +788,13 @@ function magicTalentSync()
         -- entitlement to another copy merely because both are in play.
         for _,talentGUID in ipairs(talentsInPlay(seat)) do
             local entitlement=maximalEntitlement(seat,talentGUID)
-            if isTome(talentGUID) then
+            if isAncients(talentGUID) then
+                if entitlement==nil and not (gStates.ancientsOfferClaims or {})[talentGUID]
+                    and #ancientsOrder(seat,talentGUID)>0 then
+                    start(seat,"ancients","Gold",nil,nil,nil,talentGUID)
+                    return
+                end
+            elseif isTome(talentGUID) then
                 local cost,color=candidateCost(seat,talentGUID)
                 if cost~=nil and #offerOrder(color)>0 then
                     start(seat,"tome",color,cost,nil,nil,talentGUID)
@@ -670,6 +815,23 @@ function magicTalentSync()
                 local paid=strongColor(seat,nil,nil,talentGUID)
                 if paid~=nil then start(seat,"strong",paid,nil,nil,nil,talentGUID) return end
             end
+        end
+        return
+    end
+    if s.mode=="ancients" then
+        if s.woundPending then return end
+        local order=ancientsOrder(seat,s.talentGUID,s.cardGUID)
+        local index=nil
+        for i,guid in ipairs(order) do if guid==s.cardGUID then index=i break end end
+        if index==nil and s.cardGUID~=nil then returnPreview(s,false) end
+        s.order=order
+        s.index=index or 1
+        if #order==0 then
+            gStates.magicTalentPreview=nil
+        elseif s.cardGUID==nil then
+            borrow(s,1)
+        else
+            magicTalentEnsureControls(seat)
         end
         return
     end
