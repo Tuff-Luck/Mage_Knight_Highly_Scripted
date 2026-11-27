@@ -158,9 +158,15 @@ function M.resolve(context)
         if data~=nil and data.cardType=="Spell" then spellCastingPaid[guid]=true end
         powered[guid]=strong
     end
+    local borrowedRepeats={}
+    if magicTalentOfferActionRepeat~=nil then
+        for guid in pairs(freeCastSides) do
+            borrowedRepeats[guid]=magicTalentOfferActionRepeat(seatPos,guid)
+        end
+    end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
-        resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget)
+        resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget,borrowedRepeats)
     resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeatByTarget,discarded,hasDiscard)
     -- Extra terrain mana is an optional physical payment, separate from the
     -- mana that powers the strong action. Never reuse a claimed mana object.

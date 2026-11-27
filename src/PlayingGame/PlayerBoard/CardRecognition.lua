@@ -4993,11 +4993,15 @@ end
 -- only the overlap and power for Maximal Effect, not full resource totals.
 -- When tracking is ON, its authoritative resolver record takes precedence.
 function resourceCardsMaximalEffectLink(seatPos,targetGUID)
-    if seatPos==nil or targetGUID==nil then return nil end
+    if seatPos==nil or targetGUID==nil
+        or (magicTalentReservedCard~=nil and magicTalentReservedCard(targetGUID)) then return nil end
     if resourceCardsPanelOpen() then
         local scan=resourceCardScanBySeat[seatPos]
         local record=scan~=nil and scan.cards~=nil and scan.cards[targetGUID] or nil
-        if record~=nil then return record.repeatLink end
+        if record~=nil then
+            local link=record.repeatLink
+            return link~=nil and not link.borrowed and link or nil
+        end
     end
     local zone=getObjectFromGUID(playerPlayAreas[seatPos])
     if zone==nil then return nil end
@@ -5021,6 +5025,7 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
                 local details=gameCards[candidate.guid]
                 if candidate.guid~=source.guid and details~=nil
                     and (details.cardType=="Starting" or details.cardType=="Advanced Action")
+                    and (magicTalentReservedCard==nil or not magicTalentReservedCard(candidate.guid))
                     and cardPosture(candidate)=="upright" then
                     local overlap=overlapArea(area,footprint(candidate))
                     local priority=candidate.is_face_down==true and 1 or 0
@@ -5074,7 +5079,8 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     local present={}
     for _,card in ipairs(cards or {}) do
         present[card.guid]=true
-        local repeated=repeats~=nil and repeats[card.guid]~=nil
+        local repeatLink=repeats~=nil and repeats[card.guid] or nil
+        local repeated=repeatLink~=nil and not repeatLink.borrowed
             or (repeats==nil and resourceCardsMaximalEffectLink(seatPos,card.guid)~=nil)
         local costSource=discarded~=nil and discarded[card.guid] or nil
         local costData=costSource~=nil and gameCards[costSource] or nil

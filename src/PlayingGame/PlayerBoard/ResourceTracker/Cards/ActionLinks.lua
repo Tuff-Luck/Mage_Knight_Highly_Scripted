@@ -11,7 +11,7 @@ return function(deps)
     -- The common pairing engine is used for different reasons:
     -- "stronger" plays one Action card's stronger effect; "discard" consumes one
     -- OTHER unused, non-Wound card as a cost. Neither is inferred from overlap alone.
-    local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget)
+    local function resolveActionLinks(cards,wounds,footprints,manaPowered,skillLinksByTarget,borrowedRepeats)
         local links,boostBy,boostSource,discarded,hasDiscard={}, {}, {}, {}, {}
         local linkedCardBySource,repeatByTarget,discardBoostBySource={}, {}, {}
         local boostClaimed={}
@@ -92,6 +92,12 @@ return function(deps)
                     connect(source,target)
                 end
             end
+        end
+        -- A borrowed repeat has per-use costs but is not itself a discarded
+        -- target. Feed it into the same resolver before assigning those costs.
+        for _,card in ipairs(cards) do
+            local repeated=borrowedRepeats~=nil and borrowedRepeats[card.guid] or nil
+            if repeated~=nil then repeatByTarget[card.guid]=repeated end
         end
         -- Any throw-away payment uses the same physical links and Red X.
         -- Repeated effects pay separately. Only colour-dependent numeric

@@ -317,6 +317,55 @@ local function clean(card)
     if card~=nil then resourceObjectUiRemovePrefixes(card,CONTROL_PREFIXES) end
 end
 
+-- Use the normal repeated-Action resolver only for supported effects.
+-- Nested browsers and independent effect-mana choices remain separate work.
+local function ancientsCanRepeat(s,guid)
+    local data=gameCards[guid]
+    local rule=data~=nil and cardResourceDefinitions~=nil
+        and cardResourceDefinitions[data.resourceKey] or nil
+    return s.mode=="ancients" and s.copy~=nil and s.copy.powered==true
+        and s.used<s.limit and (s.ancientsLoans or {})[guid]==true
+        and data~=nil and data.resourceTracked~=false and data.resourceAlwaysNeutral~=true
+        and rule~=nil and rule.effectManaChoice==nil and rule.poweredLink==nil
+        and (rule.requiredLink==nil or rule.requiredLink.mode~="repeat")
+end
+
+local function appendAncientsButton(xml,guid,suffix,label,x,y)
+    xml[#xml+1]={tag="Button",attributes={
+        id=CONTROL_PREFIX..guid.."_"..suffix,
+        onClick="global/magicTalentClicked",
+        position=x.." "..y.." -35",rotation="0 0 0",
+        width=170,height=70,scale="0.30 0.30",fontSize=32,
+        text=label,color="rgba(0.12,0.32,0.16,0.92)",textColor="rgba(1,1,1,1)"}}
+end
+
+local function ensureAncientsRepeatControls(s)
+    for guid in pairs(s.ancientsLoans or {}) do
+        local card=getObjectFromGUID(guid)
+        if card~=nil then
+            local xml=resourceObjectUiXmlTable(card.UI)
+            local hand,discard=false,false
+            local wanted=ancientsCanRepeat(s,guid) and card.is_face_down~=true
+                and cardEffectIsVertical(card)
+                and objectGUIDInZone(guid,playerPlayAreas[s.seatPos])
+            for _,node in ipairs(xml) do
+                local id=node.attributes~=nil and node.attributes.id or nil
+                if id==CONTROL_PREFIX..guid.."_sameAncientsHand" then hand=true end
+                if id==CONTROL_PREFIX..guid.."_sameAncientsDiscard" then discard=true end
+            end
+            if hand~=wanted or discard~=wanted then
+                resourceObjectUiRemovePrefixes(card,{CONTROL_PREFIX})
+                if wanted then
+                    xml=resourceObjectUiXmlTable(card.UI)
+                    appendAncientsButton(xml,guid,"sameAncientsHand","Same / Hand","-100","-200")
+                    appendAncientsButton(xml,guid,"sameAncientsDiscard","Same / Discard","100","-200")
+                    resourceObjectUiSetTable(card.UI,xml,resourceCardsExistingImageAssetsFor(card.UI,{}))
+                end
+            end
+        end
+    end
+end
+
 local function controls(s)
     if not liveSession(s) or s.cardGUID==nil then return end
     local card=getObjectFromGUID(s.cardGUID)
@@ -334,18 +383,12 @@ local function controls(s)
         "magicTalentClicked",s.mode=="strong" or s.mode=="tome")
     if s.mode=="ancients" then
         local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
-        local function action(suffix,label,x,y)
-            xml[#xml+1]={tag="Button",attributes={
-                id=CONTROL_PREFIX..card.guid.."_"..suffix,
-                onClick="global/magicTalentClicked",
-                position=x.." "..y.." -35",rotation="0 0 0",
-                width=170,height=70,scale="0.30 0.30",fontSize=32,
-                text=label,color="rgba(0.12,0.32,0.16,0.92)",textColor="rgba(1,1,1,1)"}}
+        if ancientsGainAvailable(s,card.guid,colors) then
+            appendAncientsButton(xml,card.guid,"gainAncients","Gain","0","0")
         end
-        if ancientsGainAvailable(s,card.guid,colors) then action("gainAncients","Gain", "0","0") end
         if strong then
-            action("useAncientsHand","Use / Hand","-100","-140")
-            action("useAncientsDiscard","Use / Discard","100","-140")
+            appendAncientsButton(xml,card.guid,"useAncientsHand","Use / Hand","-100","-140")
+            appendAncientsButton(xml,card.guid,"useAncientsDiscard","Use / Discard","100","-140")
         end
     elseif s.mode=="tome" then
         for _,node in ipairs(xml) do
@@ -403,7 +446,10 @@ end
 
 function magicTalentEnsureControls(seat)
     for _,s in ipairs(sessionList()) do
-        if seat==nil or s.seatPos==seat then ensureControls(s) end
+        if seat==nil or s.seatPos==seat then
+            ensureControls(s)
+            ensureAncientsRepeatControls(s)
+        end
     end
 end
 
@@ -496,6 +542,15 @@ function magicTalentOfferCastSide(seat,guid)
         or not objectGUIDInZone(guid,playerPlayAreas[seat]) then return nil end
     if ancientsLoan then return true end
     return s.freeStrong==true
+end
+
+-- A repeated loan has the same per-use effect rules without the
+-- physical throw-away entitlement of an ordinary Maximal Effect target.
+function magicTalentOfferActionRepeat(seat,guid)
+    local s=cardSession(guid)
+    local count=s~=nil and tonumber((s.ancientsRepeatCounts or {})[guid]) or nil
+    if count==nil or count<2 or magicTalentOfferCastSide(seat,guid)~=true then return nil end
+    return {powered=true,count=count,sourceGUID=s.talentGUID,borrowed=true}
 end
 
 function magicTalentTomeCommitted(guid)
@@ -672,7 +727,7 @@ local function claim(s)
     commitGain(s,gained,destination,false)
 end
 
-local function confirmAncients(s,action)
+local function confirmAncients(s,action,guid)
     if not liveSession(s) or s.mode~="ancients" or s.woundPending
         or currentSeat()~=s.seatPos or not talentInPlay(s.seatPos,s.talentGUID)
         or s.used>=s.limit then return end
@@ -680,9 +735,12 @@ local function confirmAncients(s,action)
     if (copy~=nil)~=(s.copy~=nil) or (copy~=nil and
         (copy.count~=s.copy.count or copy.powered~=s.copy.powered
             or copy.sourceGUID~=s.copy.sourceGUID)) then return end
-    local guid=s.cardGUID
+    local same=action=="sameAncientsHand" or action=="sameAncientsDiscard"
+    if same then
+        if not ancientsCanRepeat(s,guid) then return end
+    elseif guid~=s.cardGUID then return end
     local card=guid~=nil and getObjectFromGUID(guid) or nil
-    if card==nil or not cardEffectIsVertical(card)
+    if card==nil or card.is_face_down==true or not cardEffectIsVertical(card)
         or not objectGUIDInZone(guid,playerPlayAreas[s.seatPos]) then return end
     local colors,strong=ancientsPermissions(s.seatPos,s.talentGUID)
     local gain=action=="gainAncients"
@@ -695,7 +753,7 @@ local function confirmAncients(s,action)
     end
     local destination=getObjectFromGUID(handZones[s.seatPos])
     if gain and destination==nil then return end
-    local discard=action=="useAncientsDiscard"
+    local discard=action=="useAncientsDiscard" or action=="sameAncientsDiscard"
     if discard and getObjectFromGUID(deedDeckDiscardZones[s.seatPos])==nil then return end
     s.woundPending=true
     combatDealCalculatedWounds(s.seatPos,{{key=s.talentGUID,hand=discard and 0 or 1,discard=discard and 1 or 0}},
@@ -715,15 +773,22 @@ local function confirmAncients(s,action)
                 commitGain(s,card,destination,true)
             else
                 s.ancientsLoans=s.ancientsLoans or {}
-                s.ancientsLoans[guid]=true
-                s.loans[guid]=s.home
-                s.cardGUID,s.home=nil,nil
+                if same then
+                    s.ancientsRepeatCounts=s.ancientsRepeatCounts or {}
+                    s.ancientsRepeatCounts[guid]=(s.ancientsRepeatCounts[guid] or 1)+1
+                    -- Retire the other uncommitted preview, not the loan.
+                    returnPreview(s,false)
+                else
+                    s.ancientsLoans[guid]=true
+                    s.loans[guid]=s.home
+                    s.cardGUID,s.home=nil,nil
+                    clean(card)
+                end
                 s.used=s.used+1
                 s.mode=s.used>=s.limit and "ancientsCast" or "ancients"
-                -- Give each distinct loan its own physical display position.
                 s.display=nil
                 bumpBrowse(s)
-                clean(card)
+                ensureAncientsRepeatControls(s)
                 if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
                 if s.mode=="ancients" then magicTalentScheduleCheck() end
             end
@@ -821,12 +886,15 @@ publishPublicUICallbacks({
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(gainAncients)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsHand)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsDiscard)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(sameAncientsHand)$") end
+        if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(sameAncientsDiscard)$") end
+        local same=action=="sameAncientsHand" or action=="sameAncientsDiscard"
         local s=cardSession(guid)
-        if s==nil or guid~=s.cardGUID or s.woundPending
+        if s==nil or (not same and guid~=s.cardGUID) or s.woundPending
             or currentSeat()~=s.seatPos
             or legalPlayerCheck(player.color,s.seatPos,"NoDummyException")~=true then return end
-        if action=="gainAncients" or action=="useAncientsHand" or action=="useAncientsDiscard" then
-            confirmAncients(s,action)
+        if same or action=="gainAncients" or action=="useAncientsHand" or action=="useAncientsDiscard" then
+            confirmAncients(s,action,guid)
         elseif action=="claim" then
             if s.mode=="tome" then castTome(s) else claim(s) end
         elseif action=="nextUse" or action=="sameUse" then
@@ -984,6 +1052,7 @@ local function syncSession(s,seat)
     end
     if s.mode=="ancients" then
         if s.woundPending then return end
+        ensureAncientsRepeatControls(s)
         local order=ancientsOrder(seat,s.talentGUID,s.cardGUID)
         local index=nil
         for i,guid in ipairs(order) do if guid==s.cardGUID then index=i break end end
@@ -1104,9 +1173,12 @@ function magicTalentRestoreOnLoad()
         if not talentInPlay(s.seatPos,s.talentGUID)
             or (s.cardGUID~=nil and getObjectFromGUID(s.cardGUID)==nil) then
             closeSession(s,true)
-        elseif s.cardGUID~=nil then
-            bumpBrowse(s)
-            controls(s)
+        else
+            if s.cardGUID~=nil then
+                bumpBrowse(s)
+                controls(s)
+            end
+            ensureAncientsRepeatControls(s)
         end
     end
     magicTalentScheduleCheck()

@@ -613,3 +613,77 @@ eq(gStates.magicTalentPreviews,nil,"Turn cleanup closes all sessions")
 eq(inZone(red1.guid,"offer"),true,"Loan restored at cleanup")
 eq(inZone(red2.guid,"discard"),true,"Gained card remains owned")
 print("Concurrent deed offer browser regressions passed")
+
+-- Same physical Action can be selected twice without creating a second loan.
+magicTalentClose(true)
+talent.setPosition({0,1,-40})
+alternate.setPosition({0,1,-40})
+tome.setPosition({0,1,-40})
+ancients.setPosition({0,1,0})
+redAction.setPosition({10,1,-20})
+blueAction.setPosition({15,1,-20})
+dualAction.setPosition({20,1,-20})
+cardResourceDefinitions={testBorrowedRepeat={powered={attack=6}}}
+gameCards[redAction.guid].resourceKey="testBorrowedRepeat"
+gStates.ancientsOfferClaims=nil
+maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
+local beforeWounds=#wounds
+magicTalentSync()
+s=assert(singleSession(),"Same-Action browser")
+eq(s.cardGUID,redAction.guid,"First Action selection")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_useAncientsHand")
+eq(hasButton(redAction,"sameAncientsHand"),true,"Same Hand control")
+eq(hasButton(redAction,"sameAncientsDiscard"),true,"Same Discard control")
+eq(magicTalentOfferActionRepeat(1,redAction.guid),nil,"Only one paid application initially")
+local other=s.cardGUID
+failWound=true
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_sameAncientsDiscard")
+eq(s.cardGUID,other,"Failed Wound keeps alternative preview")
+eq(s.used,1,"Failed payment does not repeat")
+failWound=false
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_sameAncientsDiscard")
+eq(#wounds,beforeWounds+2,"Exactly two Wounds dealt")
+eq(s.used,2,"Same Action paid twice")
+eq(s.cardGUID,nil,"Alternative preview returned")
+eq(inZone(other,"offer"),true,"Unselected alternative restored")
+local repeated=assert(magicTalentOfferActionRepeat(1,redAction.guid))
+eq(repeated.count,2,"Shared repeated-effect count")
+eq(repeated.powered,true,"Both applications stronger")
+eq(repeated.borrowed,true,"Not a throw-away link")
+eq(hasButton(redAction,"sameAncientsHand"),false,"Completed repeat control removed")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..redAction.guid.."_sameAncientsDiscard")
+eq(#wounds,beforeWounds+2,"Stale repeat callback cannot deal a third Wound")
+magicTalentClose(true)
+eq(inZone(redAction.guid,"offer"),true,"Repeated borrowed Action returned once")
+eq(magicTalentOfferActionRepeat(1,redAction.guid),nil,"No repeat after cleanup")
+maximalCopy=nil
+print("Repeated borrowed Action browser regressions passed")
+
+-- Verify repeated printed costs in the actual shared Action link resolver.
+package.path="src/?.lua;"..package.path
+local resolve=require("PlayingGame.PlayerBoard.ResourceTracker.Cards.ActionLinks")({
+    overlapArea=function(_a,_b) return 1 end,
+    cardPosture=function(obj) return obj.posture or "upright" end,
+    linkedColorChoices=function(_rule,_guid,_powered) return nil end,
+    canPayDiscard=function(obj) return obj.posture=="discard" end,
+    resourceCardsArtifactBroken=function(_guid,_obj) return false end
+})
+local borrower={guid="borrower",getGMNotes=function() return "" end}
+local payment1={guid="payment1",posture="discard",getGMNotes=function() return "" end}
+local payment2={guid="payment2",posture="discard",getGMNotes=function() return "" end}
+gameCards.borrower={cardType="Advanced Action",resourceKey="borrowedCost"}
+gameCards.payment1={cardType="Starting"}
+gameCards.payment2={cardType="Starting"}
+cardResourceDefinitions.borrowedCost={requiredLink={mode="discard"}}
+local footprints={borrower={},payment1={},payment2={}}
+local entitlement={borrower={powered=true,count=2,sourceGUID=ancients.guid,borrowed=true}}
+local _,_,_,discarded,paid,_,repeats=resolve({borrower,payment1},{},footprints,{borrower=true},{},entitlement)
+eq(paid.borrower,false,"One discard cannot pay two borrowed uses")
+eq(discarded.borrower,nil,"Borrowed source not thrown away")
+eq(repeats.borrower.borrowed,true,"Borrowed repeat preserved")
+_,_,_,discarded,paid,_,repeats=resolve({borrower,payment1,payment2},{},footprints,{borrower=true},{},entitlement)
+eq(paid.borrower,true,"Two distinct discards pay two uses")
+eq(discarded.payment1,"borrower","First cost assigned")
+eq(discarded.payment2,"borrower","Second cost assigned")
+eq(discarded.borrower,nil,"Paid borrowed source still not thrown away")
+print("Borrowed repeat cost regressions passed")
