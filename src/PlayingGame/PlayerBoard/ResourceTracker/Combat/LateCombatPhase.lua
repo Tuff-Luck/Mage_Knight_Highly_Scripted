@@ -158,6 +158,37 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
         end
     end
 
+    local function woundAttackBonuses(sources,wounds)
+        -- Apply only in Attack, after Damage, to fresh physical source records.
+        -- Do not credit the same Wounds to manually selected bonus values or
+        -- change an earlier Ranged/Siege result after the fact.
+        for _,source in ipairs(sources) do
+            local spec=source.combatWoundAttack
+            if spec~=nil and not source.noAttackPhase and (source.attack or 0)>0 then
+                local bonus=math.min(math.max(0,wounds or 0),spec.maxWounds)
+                    *spec.perWound*spec.copies
+                local field
+                for _,detail in ipairs(source.details or {}) do
+                    if detail.family=="attack" and (source.resources[detail.key] or 0)>0 then
+                        if field~=nil then field=nil break end
+                        field=detail
+                    end
+                end
+                if field~=nil then
+                    local delta=bonus-(source.appliedWoundAttackBonus or 0)
+                    source.resources[field.key]=source.resources[field.key]+delta
+                    source.attack=source.attack+delta
+                    field.amount=field.amount+delta
+                    field.woundAttackLabel=field.woundAttackLabel
+                        or field.text:match("^(.-)%s+%d+$") or "Attack"
+                    field.text=field.woundAttackLabel.." "..tostring(field.amount)
+                        ..(bonus>0 and (" (+"..tostring(bonus).." from Wounds)") or "")
+                    source.appliedWoundAttackBonus=bonus
+                end
+            end
+        end
+    end
+
     local function resolve(entries,groups,rowBlock,woundedBeforeAttack,paralysisAttackCards,forkedLightningPhase)
         local defeatFame,defeatRep=0,0
         -- Tornado resolves after enemy Damage. A grouped target is removed from
@@ -249,5 +280,5 @@ return function(combatGroupEntry,combatEnemyHasTrait,combatEnemyFortificationCou
     end
 
     return {enemyDefeated=enemyDefeated,defeatedCount=defeatedCount,vampiric=vampiric,lateEffects=lateEffects,
-        dodgeAfterDamage=dodgeAfterDamage,resolve=resolve}
+        dodgeAfterDamage=dodgeAfterDamage,woundAttackBonuses=woundAttackBonuses,resolve=resolve}
 end

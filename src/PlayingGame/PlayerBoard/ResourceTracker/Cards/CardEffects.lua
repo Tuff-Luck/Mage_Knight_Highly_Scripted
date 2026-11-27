@@ -272,6 +272,24 @@ return function(deps)
                 defeatSide=scaled
             end
         end
+        -- Each copied automatic application can earn its own printed bonus.
+        -- Manual choices already include their bonus and must not get it twice.
+        local woundAttack
+        if complete and rule~=nil and rule.combatWoundAttack~=nil then
+            local copies=0
+            if repeatLink~=nil then
+                for index=1,repeatLink.count do
+                    local options=repeatLink.options~=nil and repeatLink.options[index] or choices
+                    local option=combatConfig.repeatChoiceFor(card.guid,powered,options,index)
+                    if option~=nil and option.key=="autoWounds" then copies=copies+1 end
+                end
+            elseif chosen~=nil and chosen.key=="autoWounds" then copies=1 end
+            if copies>0 then
+                local spec=rule.combatWoundAttack
+                woundAttack={maxWounds=powered and spec.poweredMax or spec.normalMax,
+                    perWound=spec.perWound,copies=copies}
+            end
+        end
         -- Preserve the physical source type for phase rules (Knockout and
         -- Paralysis invalidate only non-Wound hand-card Attacks, not Units/Skills).
         return {guid=card.guid,kind="card",known=known,complete=complete,powered=powered,fameRep=fameRepSide,
@@ -280,6 +298,7 @@ return function(deps)
             flameWave=complete and powered and rule~=nil and rule.poweredEnemyBonus~=nil,
             explosiveBolt=complete and powered and rule~=nil and rule.defeatArmourReduce or nil,
             dodgeConditional=complete and rule~=nil and rule.conditionalAttackNoWounds==true,
+            combatWoundAttack=woundAttack,
             combatConversion=complete and rule~=nil and rule.combatConversion or nil,
             defeatFameRep=defeatSide,splitTargets=chosen~=nil and chosen.splitTargets or nil,
             repeatBlocks=chosen~=nil and chosen.repeatBlocks or nil,

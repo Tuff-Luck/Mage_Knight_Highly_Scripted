@@ -651,6 +651,7 @@ local function combatAssignmentSources(seat)
                         flameWave=record.flameWave,
                         explosiveBolt=record.explosiveBolt,
                         dodgeConditional=record.dodgeConditional==true,
+                        combatWoundAttack=record.combatWoundAttack,
                         possessExclude=record.possessEnemyGUID,
                         dueling=guid=="7d1c32",
                         damagePhaseWound=gStates~=nil and gStates.combatWoundApplication~=nil
@@ -3104,6 +3105,7 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
         totalDiscardWounds=totalDiscardWounds+(tonumber(result.discard) or 0)
     end
     local otherCombatWounds=combatConfig.combatOtherWounds(damageSeat)
+    trackerPrivate.lateCombatPhase.woundAttackBonuses(sources,totalHeroWounds+otherCombatWounds)
     local currentPlayer=turnOrder~=nil and gStates~=nil
         and turnOrder[gStates.turnNumber] or nil
     local handLimit=math.max(1,tonumber(currentPlayer~=nil and currentPlayer.baseHand) or 5)
@@ -3972,7 +3974,7 @@ local choiceLetters={attackP1="A",attackP2="A2",attackP3="A3",
     fire="F",ice="I",coldFire="C",boost="H+",reduce="AR",split="I/F",negative="N",
     single="1",all="All",singleBefore="1st",allBefore="All 1st",
     heal="H",combat="C",wound="W",fame="F",reputation="R",gain="G",ready="R",
-    base="2",sourceUnused="3",red="R",blue="B",white="W",green="G",
+    base="2",autoWounds="A",sourceUnused="3",red="R",blue="B",white="W",green="G",
     fireAttack="F",fireBlock="F",fireSiege="F",iceSiege="I",fireBlockOnly="B",fireBlockCounter="B+",
     woundPending="W?",woundTaken="W✓",
     splitBlock="B2",zero="0",one="1",two="2",three="3",four="4",five="5"}

@@ -1407,13 +1407,15 @@ cardResourceDefinitions={
             Red={other=1},Blue={other=1},White={other=1}}},
         manualSecondary="White: move up to two revealed spaces to a safe space. Blue: gain two crystals of one colour. Red: ready a Level I-III Unit. Break: choose TWO different options without paying cards."},
 
-    -- Wound-taking bonuses require the player to select how many Wounds were
-    -- actually received during this combat; do not confuse them with Wounds
-    -- already present in hand at the start of the combat.
+    -- Default to the combat Wound ledger; manual alternatives remain for
+    -- wounds the calculator could not observe or effects played manually.
     battleRage={
-        normalChoices={{key="base",attack=2,icon="attack"},
+        combatWoundAttack={normalMax=1,poweredMax=4,perWound=1},
+        normalChoices={{key="autoWounds",attack=2,icon="attack",iconOverlay="AUTO"},
+            {key="base",attack=2,icon="attack"},
             {key="one",attack=3,icon="attack",iconOverlay="+1"}},
-        poweredChoices={{key="base",attack=4,icon="attack"},
+        poweredChoices={{key="autoWounds",attack=4,icon="attack",iconOverlay="AUTO"},
+            {key="base",attack=4,icon="attack"},
             {key="one",attack=5,icon="attack",iconOverlay="+1"},
             {key="two",attack=6,icon="attack",iconOverlay="+2"},
             {key="three",attack=7,icon="attack",iconOverlay="+3"},

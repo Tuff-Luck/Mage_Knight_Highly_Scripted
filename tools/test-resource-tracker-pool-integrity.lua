@@ -19,7 +19,7 @@ local trackerUI=read("src/PlayingGame/Interface/UI.lua")
 -- Reputation and conquered-city Shields are conditional Interaction bonuses,
 -- not independent Influence sources. A played Influence source (or a manual
 -- offset representing one) is needed before either modifier becomes usable.
-assert(trackerUI:find('local canModifyInfluence=not combat and base>0',1,true),
+assert(trackerUI:find('local canModifyInfluence=not combat and not specialAction and base>0',1,true),
     "Interaction modifiers require positive Influence outside combat")
 assert(trackerUI:find('showRow("InfluAmountPlain",influenceBase>0,34)',1,true)
     and trackerUI:find('setResourceTrackerText("InfluAmountPlainText",{RESOURCE_TRACKER_FIELDS.InfluAmountPlain[3],influenceBase})',1,true),
@@ -31,6 +31,30 @@ assert(trackerUI:find('showRow("InfluAmountReput",canModifyInfluence and reputat
 assert(trackerUI:find('showRow("InfluAmountCityS",canModifyInfluence and shields~=0 and reputation~=-99)',1,true),
     "Conquered-city Shields must be hidden until Influence is available")
 
+-- Exercise the actual display and affordability calculation, not just its text.
+local influenceEnv=setmetatable({
+    gStates={turnNumber=1,resourceTracker={influence={generated=0,reputation=3}}},
+    turnOrder={{seatPos=1}},refreshResourceTrackerReputation=function() end,
+    resourceCardsCurrentTotals=function() return {influence=6} end,
+    currentCityShieldInfluence=function() return 2 end
+},{__index=_G})
+local special,combat=false,false
+influenceEnv.resourceCardsInfluenceActionActive=function() return special end
+influenceEnv.resourceCardsEnemyPresent=function() return combat end
+local spendable=assert(load(section(trackerUI,"local function trackerSpendableInfluence()",
+    "-- nil: the Resource Tracker is closed").."\nreturn trackerSpendableInfluence",
+    "Influence scope","t",influenceEnv))()
+local interaction,base,generated,rep,shields=spendable()
+assert(interaction==11 and base==6 and generated==6 and rep==3 and shields==2,
+    "Ordinary Interaction still gets both modifiers")
+special=true
+interaction,base,generated,rep,shields=spendable()
+assert(interaction==0 and base==6 and rep==0 and shields==0,
+    "Special Action cannot advertise recruitment or use Interaction modifiers")
+special=false
+combat=true
+interaction,base,generated,rep,shields=spendable()
+assert(base==6 and rep==0 and shields==0,"Combat Influence remains unmodified")
 -- Unplayed Reputation and Shields must never bias the default card resource choice.
 local scoreEnv={
     gStates={resourceTracker={

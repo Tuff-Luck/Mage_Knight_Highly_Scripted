@@ -238,3 +238,33 @@ eq(#selected,1,"Only unambiguously pure Attack is physically discardable")
 eq(selected[1],"pure","Every protected physical card remains untouched")
 eq(#stageOnly(discardSources,unavailable,nil,{}),0,"Missing scan cannot authorize physical discard")
 print("Combat wounded Attack result regressions passed")
+
+-- Battle Rage reads the actual Hero Wound count after the Damage phase.
+local late=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Combat/LateCombatPhase.lua")()
+local function woundAttack(amount,max,copies,field)
+    field=field or "attack"
+    return {attack=amount,resources={[field]=amount},
+        details={{family="attack",key=field,amount=amount,text="Attack "..amount}},
+        combatWoundAttack={maxWounds=max,perWound=1,copies=copies or 1}}
+end
+local normal=woundAttack(2,1)
+local strong=woundAttack(4,4)
+local repeated=woundAttack(8,4,2,"attackColdFire")
+local manual={attack=5,resources={attack=5},details={}}
+local frozen=woundAttack(4,4)
+frozen.noAttackPhase=true
+late.woundAttackBonuses({normal,strong,repeated,manual,frozen},3)
+eq(normal.attack,3,"Basic Battle Rage gains at most one")
+eq(strong.attack,7,"Strong Battle Rage uses each received Wound")
+eq(repeated.resources.attackColdFire,14,"Repeated elemental Attack keeps element and each bonus")
+eq(repeated.details[1].amount,14,"Wound Attack UI follows the calculation")
+eq(manual.attack,5,"Manual alternative is not boosted a second time")
+eq(frozen.attack,4,"Frozen earlier source remains unchanged")
+late.woundAttackBonuses({normal,strong,repeated},6)
+eq(strong.attack,8,"Strong Wound bonus capped at four")
+eq(repeated.attack,16,"Repeated cap applies per copy")
+late.woundAttackBonuses({normal,strong,repeated},0)
+eq(normal.attack,2,"Undo Damage retracts bonus")
+eq(strong.attack,4,"No Wounds leaves base Attack")
+eq(repeated.attack,8,"Rescans never duplicate bonus")
+print("Automatic Wound-dependent Attack regressions passed")
