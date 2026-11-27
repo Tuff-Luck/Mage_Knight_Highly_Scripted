@@ -391,11 +391,13 @@ end
 function callOfferObjectDropped(obj,playerColor)
     local state=previewState()
     if state==nil or obj==nil or obj.guid~=state.unitGUID then return end
+    if playerColor~=nil and legalPlayerCheck(playerColor,state.seatPos,"NoDummyException")~=true then return end
     local guid=obj.guid
     local serial=transferSerial
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
         if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
+        if playerColor~=nil and legalPlayerCheck(playerColor,current.seatPos,"NoDummyException")~=true then return end
         local spell=getObjectFromGUID(current.spellGUID)
         if exchangePreview(current.spellGUID) or not cardEffectIsVertical(spell)
             or not objectGUIDInZone(current.spellGUID,playerPlayAreas[current.seatPos]) then

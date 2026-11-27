@@ -309,6 +309,13 @@ callOfferObjectDropped(first)
 eq(gStates.callOfferGloryClaimed,nil,"Busy claim does not consume Call to Glory")
 eq(claims,0,"Busy transfer cannot claim a second Unit")
 busy=false
+local originalLegalPlayerCheck=legalPlayerCheck
+legalPlayerCheck=function(color) return color=="Red" end
+first.setPosition({-60,1,-34.74})
+callOfferObjectDropped(first,"Blue")
+eq(claims,0,"Another player cannot complete the borrowed Unit claim")
+eq(gStates.callOfferGloryClaimed,nil,"Unauthorised drop does not consume Spell")
+legalPlayerCheck=originalLegalPlayerCheck
 first.setPosition({-60,1,-34.74})
 callOfferObjectDropped(first)
 eq(claims,1,"One shared physical claim")

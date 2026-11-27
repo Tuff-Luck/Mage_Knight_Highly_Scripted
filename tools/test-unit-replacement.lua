@@ -317,6 +317,12 @@ print("Full Unit Area replacement, cancellation and Command ownership regression
 
 -- Source-specific replacement candidates must be revalidated, not treated as
 -- still being physically in the offer. Reuse the same normal replacement UI.
+-- Reset the first transaction's fixture: the incoming Unit is still
+-- borrowed, NOT the already-claimed army Unit from the previous case.
+oldTrashed,newClaimed,savedSnapshot,finished,clearedHistory=false,false,false,false,false
+owner.inUnit=true
+objects[owner.guid]=owner
+owner.buttons={}
 candidate.offered=false
 local sourceValid=true
 env.callOfferRecruitmentCandidate=function(guid,seat)
@@ -327,3 +333,24 @@ assert(state.unitReplacementPending.source=="callOffer")
 sourceValid=false
 env.unitReplacementRestoreOnLoad()
 assert(state.unitReplacementPending==nil,"Invalidated Spell closes saved replacement selection")
+
+sourceValid=true
+local specialClaims=0
+env.callOfferClaimAtSlot=function(guid,seat,x,lay,source,onSettled)
+    assert(guid==candidate.guid and seat==1 and x==0 and source==command)
+    assert(oldTrashed and clearedHistory and savedSnapshot and command.moved,
+        "Call to Glory shares the normal rewind and disband transaction")
+    specialClaims=specialClaims+1
+    newClaimed=true
+    onSettled(true)
+    return true
+end
+assert(env.unitReplacementBegin({color="Red"},candidate.guid,1,"callOffer"))
+env.unitReplacementCancel({color="Red"})
+assert(not oldTrashed and specialClaims==0,"Cancelling special recruitment keeps old Unit")
+assert(env.unitReplacementBegin({color="Red"},candidate.guid,1,"callOffer"))
+env.unitReplacementSelectClicked(owner,"Red")
+assert(oldTrashed and newClaimed and finished and specialClaims==1,
+    "Full-army Call to Glory executes one shared replacement")
+assert(state.unitReplacementPending==nil,"Special replacement clears selection")
+print("Special recruitment replacement lifecycle passed")

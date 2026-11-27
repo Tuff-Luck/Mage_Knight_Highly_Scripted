@@ -274,7 +274,7 @@ local function replacementValid(state)
     local slot=old~=nil and layout.unitSlotByGuid[old.guid] or nil
     local token=slot~=nil and layout.commands[slot] or nil
     local unitX=slot~=nil and layout.slotX[slot] or nil
-    if claimed==nil or old==nil or token==nil or unitX==nil
+    if claimed==nil or old==nil or claimed.guid==old.guid or token==nil or unitX==nil
         or not replacementSelectable(layout,old)
         or layout.unitBySlot[slot]==nil
         or layout.unitBySlot[slot].guid~=old.guid then return nil end
