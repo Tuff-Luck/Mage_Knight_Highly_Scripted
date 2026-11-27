@@ -125,17 +125,29 @@ local function visitFootprintMana(zone,card,footprint,manaColor,readyForXZ,visit
             local x,z=p.x or p[1],p.z or p[3]
             if math.abs(x-area.x)<area.halfX and math.abs(z-area.z)<area.halfZ then
                 local color=manaColor(mana)
-                if color~=nil and visit(mana.guid,color) then return end
+                if color~=nil and visit(mana.guid,color,mana) then return end
             end
         end
     end
 end
 
 -- Magic Talent's strong side consumes two distinct physical mana objects.
-local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ,talentGUID)
+local function magicTalentManaPayments(seatPos,footprint,manaColor,readyForXZ,talentGUID,sourceGUIDs)
     local card=getObjectFromGUID(talentGUID or "3d832c")
     local payments={}
-    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(guid,color)
+    local sources,footprints={},{}
+    for _,guid in ipairs(sourceGUIDs or {}) do
+        local source=getObjectFromGUID(guid)
+        if source~=nil then
+            sources[#sources+1]=source
+            footprints[guid]=footprint(source)
+        end
+    end
+    visitFootprintMana(playZone(seatPos),card,footprint,manaColor,readyForXZ,function(guid,color,mana)
+        -- A single physical mana cannot pay two overlapping browser sources.
+        -- Only the specified live sources participate, with the same height
+        -- and distance priority as ordinary tracker allocation.
+        if #sources>1 and bestManaCard(mana,sources,footprints,function() return true end)~=card then return end
         payments[#payments+1]={guid=guid,color=color}
     end)
     table.sort(payments,function(a,b) return a.guid<b.guid end)

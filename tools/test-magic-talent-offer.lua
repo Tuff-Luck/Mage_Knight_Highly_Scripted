@@ -93,7 +93,7 @@ cardEffectIsVertical=function() return true end
 ttsVectorArray=copy
 local payments={}
 local paidTalentGUID
-magicTalentManaPayments=function(_seat,guid) paidTalentGUID=guid return payments end
+magicTalentManaPayments=function(_seat,guid,_sourceGUIDs) paidTalentGUID=guid return payments end
 resourceCardsGoldAllowed=function() return true end
 resourceCardsTimeBendingPaid=function() return true end
 resourceCardScanBySeat={[1]={cards={}}}
@@ -159,10 +159,18 @@ magicTalentSpellCastingPaymentCount=function(_,guid)
 end
 
 dofile("src/PlayingGame/Offers/MagicTalentOffer.lua")
-eq(gStates.magicTalentPreview,nil,"No free initial preview")
+local function singleSession()
+    local result
+    for _,session in pairs(gStates.magicTalentPreviews or {}) do
+        assert(result==nil,"Expected only one session in single-source test")
+        result=session
+    end
+    return result
+end
+eq(singleSession(),nil,"No free initial preview")
 magicTalentHandLeft(redCost.guid,1)
 magicTalentSync()
-local s=assert(gStates.magicTalentPreview,"Coloured discard starts basic borrow")
+local s=assert(singleSession(),"Coloured discard starts basic borrow")
 eq(s.mode,"basic","Basic branch")
 eq(s.color,"Red","Discard colour")
 eq(s.cardGUID,red1.guid,"First matching Spell")
@@ -180,15 +188,15 @@ magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_next")
 eq(s.cardGUID,red2.guid,"Unpaid Spell may be changed")
 eq(inZone(red1.guid,"offer"),true,"Prior offer Spell restored")
 magicTalentClose(true)
-eq(gStates.magicTalentPreview,nil,"Basic preview closes")
+eq(singleSession(),nil,"Basic preview closes")
 eq(inZone(red2.guid,"offer"),true,"Turn cleanup returns borrowed Spell")
 
 payments={{guid="m1",color="Blue"}}
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"One mana does not open strong browser")
+eq(singleSession(),nil,"One mana does not open strong browser")
 payments={{guid="m1",color="Blue"},{guid="m2",color="Red"}}
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Two mana opens strong browser")
+s=assert(singleSession(),"Two mana opens strong browser")
 eq(s.mode,"strong","Strong branch")
 eq(s.cardGUID,red1.guid,"Strong filter uses extra mana colour")
 eq(hasButton(red1,"claim"),true,"Strong Take button")
@@ -205,7 +213,7 @@ payments={}
 -- Special rule: a borrowed Time Bending would set aside Magic Talent.
 magicTalentHandLeft(blueCost.guid,1)
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Blue discard starts Blue preview")
+s=assert(singleSession(),"Blue discard starts Blue preview")
 eq(s.cardGUID,blue.guid,"Borrowed Time Bending")
 eq(magicTalentBorrowedTimeBendingPaid(1),true,"Borrowed Time Bending identified")
 magicTalentClose(true)
@@ -219,11 +227,11 @@ maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
 excludedPowerMana={manaRed1=true}
 payments={{guid="manaRed1",color="Red"},{guid="manaRed2",color="Red"}}
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,
+eq(singleSession(),nil,
     "Mana already powering Maximal Effect cannot pay Magic Talent again")
 payments[#payments+1]={guid="manaRed3",color="Red"}
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Copied strong Magic Talent starts with two extra mana")
+s=assert(singleSession(),"Copied strong Magic Talent starts with two extra mana")
 eq(s.mode,"strong","Copied strong mode")
 eq(s.limit,2,"Two strong uses")
 eq(s.cardGUID,red1.guid,"First strong preview")
@@ -254,10 +262,10 @@ gameCards[anotherCost.guid]={cardType="Starting",color={"Red"}}
 magicTalentHandLeft(redCost.guid,1)
 magicTalentHandLeft(blueCost.guid,1)
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"Cannot start three basic uses with only two discards")
+eq(singleSession(),nil,"Cannot start three basic uses with only two discards")
 magicTalentHandLeft(anotherCost.guid,1)
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Three discards start basic repetition")
+s=assert(singleSession(),"Three discards start basic repetition")
 eq(s.limit,3,"Three basic uses")
 eq(inZone(redCost.guid,"discard"),true,"First card discarded")
 eq(inZone(blueCost.guid,"discard"),true,"Second card discarded")
@@ -295,7 +303,7 @@ magicTalentHandLeft(redCost.guid,1)
 magicTalentHandLeft(blueCost.guid,1)
 magicTalentHandLeft(anotherCost.guid,1)
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Same-Spell setup")
+s=assert(singleSession(),"Same-Spell setup")
 eq(s.cardGUID,red1.guid,"Same-Spell first offer card")
 resourceCardScanBySeat[1].cards[red1.guid]={spellCastPaid=true}
 spellPaymentCounts[red1.guid]=1
@@ -327,7 +335,7 @@ red1.setPosition({10,1,-20})
 red2.setPosition({15,1,-20})
 payments={{guid="alt1",color="Blue"},{guid="alt2",color="Red"}}
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Alternate copy opens strong browser")
+s=assert(singleSession(),"Alternate copy opens strong browser")
 eq(s.talentGUID,alternate.guid,"Loan belongs to alternate physical source")
 eq(paidTalentGUID,alternate.guid,"Read only alternate source mana")
 eq(s.cardGUID,red1.guid,"Alternate copy borrows same normal offer")
@@ -360,7 +368,7 @@ red2.setPosition({15,1,-20})
 redCost.setPosition({0.4,1,0.2})
 magicTalentHandLeft(redCost.guid,1)
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Tome opens shared browser")
+s=assert(singleSession(),"Tome opens shared browser")
 eq(s.mode,"tome","Tome awaits explicit Cast")
 eq(magicTalentInactivePreview(red1.guid),true,"Tome preview is inert")
 eq(magicTalentOfferCastSide(1,red1.guid),nil,"No free cast while browsing")
@@ -385,7 +393,7 @@ tomeBroken=true
 redCost.setPosition({0.4,1,0.2})
 magicTalentHandLeft(redCost.guid,1)
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Broken Tome opens browser")
+s=assert(singleSession(),"Broken Tome opens browser")
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..s.cardGUID.."_claim")
 local borrowed=s.freeGUID
 eq(magicTalentOfferCastSide(1,borrowed),true,"Broken Tome grants free strong cast during Day")
@@ -434,10 +442,10 @@ end
 animateDeedCardToHand=function(obj,_seat,_delay) obj.setPosition({0,1,-50}) end
 payments={}
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"No mana no Ancients browser")
+eq(singleSession(),nil,"No mana no Ancients browser")
 payments={{guid="ancientsBlue",color="Blue"}}
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Blue purchases blue Actions")
+s=assert(singleSession(),"Blue purchases blue Actions")
 eq(s.cardGUID,blueAction.guid,"Basic filter excludes red")
 eq(hasButton(blueAction,"gainAncients"),true,"Gain available")
 eq(hasButton(blueAction,"useAncientsHand"),false,"Blue cannot power strong")
@@ -445,6 +453,10 @@ eq(magicTalentInactivePreview(blueAction.guid),true,"Preview is inert")
 eq(#wounds,0,"Browsing does not deal Wound")
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_next")
 eq(s.cardGUID,dualAction.guid,"Dual-colour match")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_previous")
+eq(s.cardGUID,blueAction.guid,"Reverse navigation uses original offer column")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..blueAction.guid.."_next")
+eq(s.cardGUID,dualAction.guid,"Forward navigation returns to dual colour")
 failWound=true
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_gainAncients")
 eq(s.cardGUID,dualAction.guid,"Missing Wound bag cannot claim")
@@ -457,11 +469,11 @@ magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..dualAction.guid.."_
 eq(#wounds,1,"Stale callback cannot deal another Wound")
 magicTalentClose(true)
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"Consumed source cannot reopen during same turn")
+eq(singleSession(),nil,"Consumed source cannot reopen during same turn")
 gStates.ancientsOfferClaims=nil
 payments={{guid="ancientsRed",color="Red"}}
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Red permits both effects")
+s=assert(singleSession(),"Red permits both effects")
 eq(s.cardGUID,redAction.guid,"Red candidate")
 eq(hasButton(redAction,"gainAncients"),true,"Red can buy red Action")
 eq(hasButton(redAction,"useAncientsDiscard"),true,"Red also powers stronger effect")
@@ -479,18 +491,68 @@ eq(inZone(blueAction.guid,"offer"),true,"Strong loan returns at cleanup")
 gStates.ancientsOfferClaims=nil
 payments={{guid="ancientsGreen",color="Green"}}
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"Unmatched basic payment does not deal a Wound")
+eq(singleSession(),nil,"Unmatched basic payment does not deal a Wound")
 payments={{guid="ancientsRed",color="Red"}}
 maximalCopy={powered=true,count=2,sourceGUID="8fac50"}
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"Repeated use remains manual, never partially committed")
+eq(singleSession(),nil,"Repeated use remains manual, never partially committed")
 eq(#wounds,2,"Deferred combinations do not deal a Wound")
 maximalCopy=nil
 magicTalentSync()
-s=assert(gStates.magicTalentPreview,"Single use opens again")
+s=assert(singleSession(),"Single use opens again")
 payments={}
 magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..s.cardGUID.."_gainAncients")
 eq(#wounds,2,"Removed payment invalidates stale Gain")
 magicTalentSync()
-eq(gStates.magicTalentPreview,nil,"Missing payment closes preview")
+eq(singleSession(),nil,"Missing payment closes preview")
 print("Blood of Ancients browser regressions passed")
+
+-- Two physical Magic Talents and Tome can coexist. The fake payment
+-- provider deliberately assigns each card its own local payment list.
+magicTalentClose(true)
+gStates.ancientsOfferClaims=nil
+ancients.setPosition({0,1,-40})
+talent.setPosition({-10,1,0})
+alternate.setPosition({0,1,0})
+tome.setPosition({10,1,0})
+tomeBroken=false
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+blue.setPosition({20,1,-20})
+redCost.setPosition({10.4,1,0.2})
+gameCards[redCost.guid].color={"Red"}
+magicTalentHandLeft(redCost.guid,1)
+local bySource={
+    [talent.guid]={{guid="m1",color="Blue"},{guid="m2",color="Blue"}},
+    [alternate.guid]={{guid="m3",color="Blue"},{guid="m4",color="Red"}}
+}
+magicTalentManaPayments=function(_seat,guid,_sourceGUIDs) return bySource[guid] or {} end
+magicTalentSync()
+local all=gStates.magicTalentPreviews
+local tomeSession=assert(all[tome.guid])
+local firstSession=assert(all[talent.guid])
+local secondSession=assert(all[alternate.guid])
+eq(tomeSession.cardGUID,red1.guid,"Tome reserves its own preview")
+eq(firstSession.cardGUID,blue.guid,"First Talent has its own Blue preview")
+eq(secondSession.cardGUID,red2.guid,"Second Talent cannot reserve Tome's Red")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_claim")
+eq(tomeSession.mode,"tomeCast","Tome confirmation routed to Tome")
+eq(firstSession.mode,"strong","First Talent unaffected")
+eq(secondSession.mode,"strong","Second Talent unaffected")
+eq(magicTalentOfferCastSide(1,red1.guid),false,"Tome free side survives other previews")
+eq(magicTalentOfferLoanHomes()[red1.guid]~=nil,true,"Committed Tome home retained")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red2.guid.."_claim")
+eq(secondSession.mode,"claimed","Second Talent claim routed to its source")
+eq(inZone(red2.guid,"discard"),true,"Second Talent gained its own card")
+eq(magicTalentReservedCard(red1.guid),true,"Tome loan protected after other claim")
+eq(magicTalentReservedCard(blue.guid),true,"First Talent still reserved")
+talent.setPosition({-10,1,-40})
+magicTalentSync()
+eq(all[talent.guid],nil,"Removed source closes only its session")
+eq(inZone(blue.guid,"offer"),true,"Removed source restores its preview")
+eq(magicTalentOfferCastSide(1,red1.guid),false,"Other loan remains active")
+magicTalentClose(true)
+eq(gStates.magicTalentPreviews,nil,"Turn cleanup closes all sessions")
+eq(inZone(red1.guid,"offer"),true,"Loan restored at cleanup")
+eq(inZone(red2.guid,"discard"),true,"Gained card remains owned")
+print("Concurrent deed offer browser regressions passed")

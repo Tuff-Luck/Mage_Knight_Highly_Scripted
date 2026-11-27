@@ -101,3 +101,19 @@ members={black,blue,blue}
 assert(env.magicTalentSpellCastingPaid(1,"spell"))
 assert(env.magicTalentSpellCastingPaymentCount(1,"spell")==1)
 print("Mana zone boundary regressions passed")
+
+-- Two browser sources overlapping the same live mana cannot both use it.
+local secondTalent={guid="otherTalent"}
+objects.otherTalent=secondTalent
+talent.getPosition=function() return {0,1,0} end
+secondTalent.getPosition=function() return {0,1.2,0} end
+members={blue}
+local sources={talent.guid,secondTalent.guid}
+assert(#env.magicTalentManaPayments(1,talent.guid,sources)==0,"Lower browser does not reuse higher payment")
+assert(#env.magicTalentManaPayments(1,secondTalent.guid,sources)==1,"Highest browser owns payment")
+blue.getPosition=function() return {0,1.02,0} end
+assert(#env.magicTalentManaPayments(1,talent.guid,sources)==1,"Under-card payment belongs to lower browser")
+assert(#env.magicTalentManaPayments(1,secondTalent.guid,sources)==0,"Payment below upper card is not reused")
+members={}
+assert(#env.magicTalentManaPayments(1,talent.guid,sources)==0,"Shared ranking still respects zone boundary")
+print("Overlapping browser mana regressions passed")

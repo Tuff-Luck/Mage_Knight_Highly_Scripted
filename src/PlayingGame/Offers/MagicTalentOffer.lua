@@ -20,13 +20,42 @@ local function isTalent(guid)
 end
 local CONTROL_PREFIX="MagicTalentControl_"
 local CONTROL_PREFIXES={CONTROL_PREFIX,"ResourceCardChoice_","AttackAssignmentSource_"}
-local browseSerial=0
 local settleSerial=0
 local fromHand={}
 local returning={}
+local browseSerials={}
 
-local function state()
-    return gStates~=nil and gStates.magicTalentPreview or nil
+-- Each physical source owns its own saved browser and committed loans.
+local function sessions()
+    return gStates~=nil and gStates.magicTalentPreviews or {}
+end
+
+local function state(sourceGUID)
+    return sessions()[sourceGUID]
+end
+
+local function sessionList()
+    local result={}
+    for _,s in pairs(sessions()) do result[#result+1]=s end
+    table.sort(result,function(a,b) return a.talentGUID<b.talentGUID end)
+    return result
+end
+
+local function cardSession(guid)
+    if guid==nil then return nil end
+    for _,s in pairs(sessions()) do
+        if s.cardGUID==guid or (s.loans or {})[guid]~=nil then return s end
+    end
+end
+
+local function liveSession(s)
+    return state(s.talentGUID)==s
+end
+
+local function bumpBrowse(s)
+    local guid=s.talentGUID
+    browseSerials[guid]=(browseSerials[guid] or 0)+1
+    return browseSerials[guid]
 end
 
 local function currentSeat()
@@ -42,6 +71,8 @@ end
 local function talentInPlay(seat,talentGUID)
     local card=talentGUID~=nil and getObjectFromGUID(talentGUID) or nil
     return seat~=nil and card~=nil and isTalent(talentGUID)
+        and cardSession(talentGUID)==nil
+        and not returning[talentGUID]
         and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(talentGUID,seat))
         and (card.is_face_down~=true or maximalEntitlement(seat,talentGUID)~=nil)
         and cardEffectIsVertical(card)
@@ -81,6 +112,7 @@ local function offerOrder(color,previewGUID,kind,eligible)
     local function allowed(guid)
         return matching(guid,color,kind) and (eligible==nil or eligible(guid))
             and not returning[guid]
+            and (guid==previewGUID or cardSession(guid)==nil)
             and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(guid))
     end
     for _,card in ipairs(mainOfferCardsByType(kind or "Spell")) do
@@ -91,7 +123,35 @@ local function offerOrder(color,previewGUID,kind,eligible)
         for _,guid in ipairs(order) do if guid==previewGUID then found=true break end end
         if not found then order[#order+1]=previewGUID end
     end
+    -- Put the current preview back into its logical offer-column order,
+    -- not at the end of the navigation list every time we rebuild it.
+    if previewGUID~=nil then
+        local owner=cardSession(previewGUID)
+        local home=owner~=nil and owner.home or nil
+        if home~=nil then
+            local positions={}
+            for _,guid in ipairs(order) do
+                local card=getObjectFromGUID(guid)
+                positions[guid]=guid==previewGUID and home.position[1]
+                    or (card~=nil and ttsVectorArray(card.getPosition())[1] or 0)
+            end
+            table.sort(order,function(a,b)
+                if positions[a]==positions[b] then return a<b end
+                return positions[a]<positions[b]
+            end)
+        end
+    end
     return order
+end
+
+-- Both mana-consuming browser types accept the four basic colours and
+-- legal Gold. Use the existing physical ranking when their footprints overlap.
+local function browserManaPayments(seat,guid)
+    local sources={}
+    for _,source in ipairs(talentsInPlay(seat)) do
+        if not isTome(source) then sources[#sources+1]=source end
+    end
+    return magicTalentManaPayments(seat,guid,sources)
 end
 
 -- Blood of Ancients needs an extra payment on its basic side. Red
@@ -99,7 +159,7 @@ end
 local function ancientsPermissions(seat,guid)
     local colors,strong={},false
     if magicTalentManaPayments~=nil then
-        for _,payment in ipairs(magicTalentManaPayments(seat,guid)) do
+        for _,payment in ipairs(browserManaPayments(seat,guid)) do
             local color=payment.color
             if color=="Red" or color=="Green" or color=="Blue" or color=="White"
                 or (color=="Gold" and resourceCardsGoldAllowed()) then
@@ -136,7 +196,7 @@ end
 -- blue Action only while legal and can select any Spell as the extra payment.
 local function strongColor(seat,useIndex,copy,talentGUID)
     if magicTalentManaPayments==nil then return nil end
-    local payments=magicTalentManaPayments(seat,talentGUID)
+    local payments=browserManaPayments(seat,talentGUID)
     if copy~=nil and copy.powered==true then
         -- Maximal Effect provides Magic Talent's strong side for free.
         -- Its two *additional* mana payments must still be distinct.
@@ -183,7 +243,7 @@ local function clean(card)
 end
 
 local function controls(s)
-    if state()~=s or s.cardGUID==nil then return end
+    if not liveSession(s) or s.cardGUID==nil then return end
     local card=getObjectFromGUID(s.cardGUID)
     if card==nil then return end
     local xml=resourceObjectUiXmlTable(card.UI)
@@ -237,9 +297,8 @@ local function controls(s)
         resourceCardsExistingImageAssetsFor(card.UI,images))
 end
 
-function magicTalentEnsureControls(seat)
-    local s=state()
-    if s==nil or s.cardGUID==nil or (seat~=nil and s.seatPos~=seat) then return end
+local function ensureControls(s)
+    if not liveSession(s) or s.cardGUID==nil then return end
     local card=getObjectFromGUID(s.cardGUID)
     if card==nil then return end
     local previous,nextArrow,take,nextUse,sameUse=false,false,false,false,false
@@ -267,14 +326,21 @@ function magicTalentEnsureControls(seat)
             and (not nextUse or not sameUse)) then controls(s) end
 end
 
+function magicTalentEnsureControls(seat)
+    for _,s in ipairs(sessionList()) do
+        if seat==nil or s.seatPos==seat then ensureControls(s) end
+    end
+end
+
 -- The offer card keeps its GUID and is never cloned. Retire the calculator
 -- source BEFORE the card is returned; delayed scans must not recreate targets.
 local function returnPreview(s,immediate)
     if s==nil or s.cardGUID==nil then return end
-    browseSerial=browseSerial+1
     local guid,home=s.cardGUID,s.home
+    local token={}
     s.cardGUID,s.home=nil,nil
-    returning[guid]=true
+    returning[guid]=token
+    if s.talentGUID~=nil then bumpBrowse(s) end
     if guid=="2eb8e8" and callOfferClose~=nil then callOfferClose(immediate) end
     if combatForgetPhysicalSourceTargets~=nil then combatForgetPhysicalSourceTargets(guid) end
     if attackAssignmentsClearForObject~=nil then attackAssignmentsClearForObject(guid) end
@@ -292,6 +358,7 @@ local function returnPreview(s,immediate)
         card.setPositionSmooth(home.position,false,false)
     end
     safeWaitCondition("Offers.MagicTalent",function()
+        if returning[guid]~=token then return end
         local live=getObjectFromGUID(guid)
         if live~=nil and objectGUIDInZone(guid,GUID.zone.offer) then
             live.lock()
@@ -303,38 +370,40 @@ local function returnPreview(s,immediate)
     end,function()
         local live=getObjectFromGUID(guid)
         return live==nil or (live.resting and not live.isSmoothMoving())
-    end,8,function() returning[guid]=nil end)
+    end,8,function() if returning[guid]==token then returning[guid]=nil end end)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+local function closeSession(s,immediate)
+    if not liveSession(s) then return end
+    sessions()[s.talentGUID]=nil
+    local preview=s.cardGUID
+    returnPreview(s,immediate)
+    -- A repeated basic cast can also be the current preview. Restore it once.
+    for guid,home in pairs(s.loans or {}) do
+        if guid~=preview then
+            returnPreview({cardGUID=guid,home=home},immediate)
+        end
+    end
 end
 
 function magicTalentClose(immediate)
     settleSerial=settleSerial+1
-    local s=state()
-    if s~=nil then
-        returnPreview(s,immediate==true)
-        -- Each confirmed basic use keeps its borrowed Spell in play until
-        -- end-of-turn cleanup. All loans return to their own offer slots.
-        for guid,home in pairs(s.loans or {}) do
-            returnPreview({cardGUID=guid,home=home},immediate==true)
-        end
-    end
-    if gStates~=nil then gStates.magicTalentPreview=nil end
+    for _,s in ipairs(sessionList()) do closeSession(s,immediate==true) end
+    if gStates~=nil then gStates.magicTalentPreviews=nil end
     fromHand={}
-    if immediate==true then returning={} end
 end
 
 -- Do not allow the ordinary Offer claim path to consume a temporary preview.
 function magicTalentReservedCard(guid)
-    local s=state()
-    return returning[guid]==true
-        or (s~=nil and (s.cardGUID==guid or (s.loans or {})[guid]~=nil))
+    return returning[guid]~=nil or cardSession(guid)~=nil
 end
 
 -- Gaining a card is not casting it. Tome likewise needs an explicit Cast
 -- before its mana-free effect exists. Returning cards are always inert.
 function magicTalentInactivePreview(guid)
-    local s=state()
-    return returning[guid]==true or (s~=nil and (
+    local s=cardSession(guid)
+    return returning[guid]~=nil or (s~=nil and (
         (s.cardGUID==guid and (s.mode=="strong" or s.mode=="tome" or s.mode=="ancients"))
         or (s.freeGUID==guid and magicTalentOfferCastSide(s.seatPos,guid)==nil)))
 end
@@ -342,7 +411,7 @@ end
 -- nil = ordinary payment rules; false = free basic; true = free stronger.
 -- Never use an 'and ... or nil' expression here: false is meaningful.
 function magicTalentOfferCastSide(seat,guid)
-    local s=state()
+    local s=cardSession(guid)
     if s==nil or s.seatPos~=seat or (s.mode~="tomeCast" and s.mode~="ancientsCast") or s.freeGUID~=guid
         or not talentInPlay(seat,s.talentGUID) then return nil end
     local spell=getObjectFromGUID(guid)
@@ -352,12 +421,12 @@ function magicTalentOfferCastSide(seat,guid)
 end
 
 function magicTalentTomeCommitted(guid)
-    local s=state()
+    local s=state(guid)
     return s~=nil and s.mode=="tomeCast" and s.talentGUID==guid
 end
 
 function magicTalentOfferSpellCastCount(seat,guid)
-    local s=state()
+    local s=cardSession(guid)
     if s==nil or s.seatPos~=seat or s.mode=="strong" or s.mode=="claimed" then return 1 end
     local copies=math.max(1,tonumber((s.repeatCasts or {})[guid]) or 1)
     if copies>1 and magicTalentSpellCastingPaymentCount~=nil then
@@ -372,7 +441,7 @@ end
 -- not the Spell owned by the public offer. The normal extra-turn check still
 -- validates the real blue + black casting mana on the loaned Spell.
 function magicTalentBorrowedTimeBendingPaid(seat)
-    local s=state()
+    local s=cardSession(GUID.card.timeBending)
     if s~=nil and s.mode=="tomeCast" then
         return magicTalentOfferCastSide(seat,GUID.card.timeBending)==true
     end
@@ -384,7 +453,10 @@ function magicTalentBorrowedTimeBendingPaid(seat)
 end
 
 function magicTalentBorrowedTimeBendingSource(seat)
-    if magicTalentBorrowedTimeBendingPaid(seat) then return state().talentGUID end
+    if magicTalentBorrowedTimeBendingPaid(seat) then
+        local s=cardSession(GUID.card.timeBending)
+        return s~=nil and s.talentGUID or nil
+    end
     return nil
 end
 
@@ -392,7 +464,8 @@ local function borrow(s,index)
     local guid=s.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local talent=getObjectFromGUID(s.talentGUID)
-    if card==nil or talent==nil or (s.loans or {})[guid]~=nil or returning[guid]
+    if not liveSession(s) or s.cardGUID~=nil or card==nil or talent==nil
+        or cardSession(guid)~=nil or returning[guid]
         or (trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid))
         or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     s.index=index
@@ -402,16 +475,15 @@ local function borrow(s,index)
     local pos=ttsVectorArray(talent.getPosition())
     local display=s.display or {position={pos[1]+3.0,math.max(1.8,pos[2]+0.35),pos[3]},
         rotation={0,180,0}}
-    browseSerial=browseSerial+1
-    local serial=browseSerial
+    local serial=bumpBrowse(s)
     card.unlock()
     card.setScale({1.5,1,1.5})
     card.setPositionSmooth(display.position,false,false)
     card.setRotationSmooth(display.rotation,false,false)
     controls(s)
     local function settled()
-        if state()~=s or s.cardGUID~=guid or serial~=browseSerial then return end
-        magicTalentEnsureControls(s.seatPos)
+        if not liveSession(s) or s.cardGUID~=guid or serial~=browseSerials[s.talentGUID] then return end
+        ensureControls(s)
         if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     end
     safeWaitCondition("Offers.MagicTalent",settled,function()
@@ -446,15 +518,21 @@ local function cycle(s,delta)
             positionToColor(gStates.turnNumber),warningColor)
         return
     end
-    local count=#s.order
+    -- Other sessions can gain/return cards between clicks. Rebuild the
+    -- live candidates and retain the current preview as the anchor.
+    local order=s.mode=="ancients" and ancientsOrder(s.seatPos,s.talentGUID,s.cardGUID)
+        or offerOrder(s.color,s.cardGUID)
+    local index
+    for i,guid in ipairs(order) do if guid==s.cardGUID then index=i break end end
+    if index==nil then return end
+    s.order,s.index=order,index
+    local count=#order
     for step=1,count do
         local index=((s.index-1+step*delta)%count)+1
         local guid=s.order[index]
-        if guid~=s.cardGUID and (s.loans or {})[guid]==nil
+        if guid~=s.cardGUID and not magicTalentReservedCard(guid)
             and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(guid))
-            and (objectGUIDInZone(guid,GUID.zone.offer) or returning[guid]==true) then
-            -- A returning card must settle back in its offer slot first.
-            if returning[guid] then return end
+            and objectGUIDInZone(guid,GUID.zone.offer) then
             remember(s)
             returnPreview(s,false)
             borrow(s,index)
@@ -466,7 +544,7 @@ end
 -- Transfer the actual offer card once, independently of the effect that
 -- granted it. Magic Talent claims to discard; Blood of Ancients to hand.
 local function commitGain(s,gained,destination,toHand)
-    browseSerial=browseSerial+1
+    bumpBrowse(s)
     local gainedGUID=gained.guid
     s.cardGUID,s.home=nil,nil
     s.used=(s.used or 0)+1
@@ -507,7 +585,7 @@ local function commitGain(s,gained,destination,toHand)
 end
 
 local function claim(s)
-    if state()~=s or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
+    if not liveSession(s) or s.mode~="strong" or not talentInPlay(s.seatPos,s.talentGUID)
         or strongColor(s.seatPos,(s.used or 0)+1,s.copy,s.talentGUID)~=s.color then return end
     local gained=s.cardGUID~=nil and getObjectFromGUID(s.cardGUID) or nil
     local destination=getObjectFromGUID(deedDeckDiscardZones[s.seatPos])
@@ -516,7 +594,7 @@ local function claim(s)
 end
 
 local function confirmAncients(s,action)
-    if state()~=s or s.mode~="ancients" or s.woundPending
+    if not liveSession(s) or s.mode~="ancients" or s.woundPending
         or currentSeat()~=s.seatPos or not talentInPlay(s.seatPos,s.talentGUID)
         or (gStates.ancientsOfferClaims or {})[s.talentGUID] then return end
     -- Repeated uses need their own costs and selection; do not silently
@@ -550,7 +628,7 @@ local function confirmAncients(s,action)
                 s.loans[guid]=s.home
                 s.cardGUID,s.home=nil,nil
                 s.used=1
-                browseSerial=browseSerial+1
+                bumpBrowse(s)
                 clean(card)
                 if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
             end
@@ -564,7 +642,7 @@ local function confirmAncients(s,action)
 end
 
 local function castTome(s)
-    if state()~=s or s.mode~="tome" or currentSeat()~=s.seatPos
+    if not liveSession(s) or s.mode~="tome" or currentSeat()~=s.seatPos
         or not talentInPlay(s.seatPos,s.talentGUID) then return end
     local guid=s.cardGUID
     local spell=guid~=nil and getObjectFromGUID(guid) or nil
@@ -576,7 +654,7 @@ local function castTome(s)
     s.loans[guid]=s.home
     s.cardGUID,s.home=nil,nil
     s.used=1
-    browseSerial=browseSerial+1
+    bumpBrowse(s)
     clean(spell)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
     -- Call to Arms has an independent physical Unit browser.
@@ -590,7 +668,7 @@ end
 -- (or returns an uncast preview). "Same" needs one NEW casting mana on the
 -- same physical Spell, so no mana object can pay for two repetitions.
 local function advanceBasic(s,sameSpell)
-    if state()~=s or s.mode~="basic" or s.copy==nil
+    if not liveSession(s) or s.mode~="basic" or s.copy==nil
         or s.copy.powered==true or s.cardGUID==nil
         or (s.used or 0)>=(s.limit or 1) then return end
     local guid=s.cardGUID
@@ -639,9 +717,7 @@ end
 
 publishPublicUICallbacks({
     magicTalentClicked=function(player,value,id)
-        local s=state()
-        if s==nil or s.cardGUID==nil or type(id)~="string"
-            or legalPlayerCheck(player.color,s.seatPos,"NoDummyException")~=true then return end
+        if type(id)~="string" then return end
         local guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(previous)$")
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(next)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(claim)$") end
@@ -650,7 +726,10 @@ publishPublicUICallbacks({
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(gainAncients)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsHand)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(useAncientsDiscard)$") end
-        if guid~=s.cardGUID or s.woundPending then return end
+        local s=cardSession(guid)
+        if s==nil or guid~=s.cardGUID or s.woundPending
+            or currentSeat()~=s.seatPos
+            or legalPlayerCheck(player.color,s.seatPos,"NoDummyException")~=true then return end
         if action=="gainAncients" or action=="useAncientsHand" or action=="useAncientsDiscard" then
             confirmAncients(s,action)
         elseif action=="claim" then
@@ -684,6 +763,7 @@ local function candidateCost(seat,talentGUID)
         local data=gameCards[card.guid]
         if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
+            and state(card.guid)==nil and not magicTalentReservedCard(card.guid)
             and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid,seat))
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
@@ -709,6 +789,7 @@ local function candidateCosts(seat,need,talentGUID)
         local data=gameCards[card.guid]
         if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
+            and state(card.guid)==nil and not magicTalentReservedCard(card.guid)
             and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid,seat))
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
@@ -756,7 +837,8 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
         end
         s.color=s.costColors[1]
     elseif source~=nil and not discardCost(seat,source) then return end
-    gStates.magicTalentPreview=s
+    gStates.magicTalentPreviews=gStates.magicTalentPreviews or {}
+    gStates.magicTalentPreviews[talentGUID]=s
     if #s.order>0 then borrow(s,1) end
     if #s.order==0 then
         safeBroadcastToColor("Magic Talent: no matching Spell is in the offer.",
@@ -764,58 +846,43 @@ local function start(seat,mode,color,source,copy,costs,talentGUID)
     end
 end
 
-function magicTalentSync()
-    if gStates==nil or gStates.firstStarted~=true then return end
-    local s=state()
-    local seat=currentSeat()
-    if seat==nil or (s~=nil and (s.seatPos~=seat or not talentInPlay(seat,s.talentGUID))) then
-        if s~=nil then magicTalentClose(true) end
+local function startSource(seat,talentGUID)
+    if state(talentGUID)~=nil or not talentInPlay(seat,talentGUID) then return end
+    local entitlement=maximalEntitlement(seat,talentGUID)
+    if isAncients(talentGUID) then
+        if entitlement==nil and not (gStates.ancientsOfferClaims or {})[talentGUID]
+            and #ancientsOrder(seat,talentGUID)>0 then
+            start(seat,"ancients","Gold",nil,nil,nil,talentGUID)
+        end
+    elseif isTome(talentGUID) then
+        local cost,color=candidateCost(seat,talentGUID)
+        if cost~=nil and #offerOrder(color)>0 then
+            start(seat,"tome",color,cost,nil,nil,talentGUID)
+        end
+    elseif entitlement~=nil and entitlement.powered==true then
+        local paid=strongColor(seat,1,entitlement,talentGUID)
+        if paid~=nil then start(seat,"strong",paid,nil,entitlement,nil,talentGUID) end
+    elseif entitlement~=nil then
+        local costs=candidateCosts(seat,entitlement.count,talentGUID)
+        if costs~=nil then start(seat,"basic",costs[1].color,nil,entitlement,costs,talentGUID) end
+    else
+        local cost,color=candidateCost(seat,talentGUID)
+        if cost~=nil then start(seat,"basic",color,cost,nil,nil,talentGUID) return end
+        local paid=strongColor(seat,nil,nil,talentGUID)
+        if paid~=nil then start(seat,"strong",paid,nil,nil,nil,talentGUID) end
+    end
+end
+
+local function syncSession(s,seat)
+    if not liveSession(s) then return end
+    if seat==nil or s.seatPos~=seat or not talentInPlay(seat,s.talentGUID) then
+        closeSession(s,true)
         return
     end
-    local copy=s~=nil and maximalEntitlement(seat,s.talentGUID) or nil
-    if s~=nil and s.copy~=nil
-        and (copy==nil or s.copy.count~=copy.count
-            or s.copy.powered~=(copy.powered==true)
-            or s.copy.sourceGUID~=copy.sourceGUID) then
-        -- If Maximal Effect's physical link is undone, every temporary
-        -- Spell returns to the offer and its cast stops contributing.
-        magicTalentClose(true)
-        s=nil
-    end
-    if s==nil then
-        -- Each physical source has its own mana and discard footprint.
-        -- Keep the existing single browser/loan session; never transfer its
-        -- entitlement to another copy merely because both are in play.
-        for _,talentGUID in ipairs(talentsInPlay(seat)) do
-            local entitlement=maximalEntitlement(seat,talentGUID)
-            if isAncients(talentGUID) then
-                if entitlement==nil and not (gStates.ancientsOfferClaims or {})[talentGUID]
-                    and #ancientsOrder(seat,talentGUID)>0 then
-                    start(seat,"ancients","Gold",nil,nil,nil,talentGUID)
-                    return
-                end
-            elseif isTome(talentGUID) then
-                local cost,color=candidateCost(seat,talentGUID)
-                if cost~=nil and #offerOrder(color)>0 then
-                    start(seat,"tome",color,cost,nil,nil,talentGUID)
-                    return
-                end
-            elseif entitlement~=nil and entitlement.powered==true then
-                local paid=strongColor(seat,1,entitlement,talentGUID)
-                if paid~=nil then start(seat,"strong",paid,nil,entitlement,nil,talentGUID) return end
-            elseif entitlement~=nil then
-                local costs=candidateCosts(seat,entitlement.count,talentGUID)
-                if costs~=nil then
-                    start(seat,"basic",costs[1].color,nil,entitlement,costs,talentGUID)
-                    return
-                end
-            else
-                local cost,color=candidateCost(seat,talentGUID)
-                if cost~=nil then start(seat,"basic",color,cost,nil,nil,talentGUID) return end
-                local paid=strongColor(seat,nil,nil,talentGUID)
-                if paid~=nil then start(seat,"strong",paid,nil,nil,nil,talentGUID) return end
-            end
-        end
+    local copy=maximalEntitlement(seat,s.talentGUID)
+    if s.copy~=nil and (copy==nil or s.copy.count~=copy.count
+        or s.copy.powered~=(copy.powered==true) or s.copy.sourceGUID~=copy.sourceGUID) then
+        closeSession(s,true)
         return
     end
     if s.mode=="ancients" then
@@ -827,11 +894,11 @@ function magicTalentSync()
         s.order=order
         s.index=index or 1
         if #order==0 then
-            gStates.magicTalentPreview=nil
+            closeSession(s,true)
         elseif s.cardGUID==nil then
             borrow(s,1)
         else
-            magicTalentEnsureControls(seat)
+            ensureControls(s)
         end
         return
     end
@@ -862,23 +929,35 @@ function magicTalentSync()
     end
 end
 
+function magicTalentSync()
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local seat=currentSeat()
+    -- Reconcile existing loans first, then offer unreserved cards to sources
+    -- in stable GUID order. Closing one source cannot close another.
+    for _,s in ipairs(sessionList()) do syncSession(s,seat) end
+    if seat==nil then return end
+    for _,guid in ipairs(talentsInPlay(seat)) do startSource(seat,guid) end
+end
+
 -- Committed physical loans occupy their original offer slot until returned.
 -- Reflow may update the saved home, never move the active Spell itself.
 function magicTalentOfferLoanHomes()
-    local s=state()
-    if s==nil then return {} end
     local homes={}
-    for guid,home in pairs(s.loans or {}) do homes[guid]=home end
-    if s.mode=="basic" and s.cardGUID~=nil and s.home~=nil
-        and paymentStillOnSpell(s) then homes[s.cardGUID]=s.home end
+    for _,s in ipairs(sessionList()) do
+        for guid,home in pairs(s.loans or {}) do homes[guid]=home end
+        if s.mode=="basic" and s.cardGUID~=nil and s.home~=nil
+            and paymentStillOnSpell(s) then homes[s.cardGUID]=s.home end
+    end
     return homes
 end
 
 -- Return uncommitted previews before the offer's grid counts/moves cards.
 function magicTalentOfferWillChange()
-    local s=state()
-    if s~=nil and s.cardGUID~=nil
-        and not (s.mode=="basic" and paymentStillOnSpell(s)) then returnPreview(s,true) end
+    for _,s in ipairs(sessionList()) do
+        if s.cardGUID~=nil and not (s.mode=="basic" and paymentStillOnSpell(s)) then
+            returnPreview(s,true)
+        end
+    end
 end
 
 function magicTalentScheduleCheck(movedGUID)
@@ -905,7 +984,7 @@ end
 
 function magicTalentObjectDropped(playerColor,obj)
     if obj==nil then return end
-    local s=state()
+    local s=cardSession(obj.guid)
     if s~=nil and obj.guid==s.cardGUID then
         local card=getObjectFromGUID(obj.guid)
         if card~=nil then
@@ -917,18 +996,19 @@ function magicTalentObjectDropped(playerColor,obj)
         end
     end
     -- Ignore unrelated table drops; the live Magic Talent/loan is all that matters.
-    if s~=nil or #talentsInPlay(currentSeat())>0 then magicTalentScheduleCheck(obj.guid) end
+    if next(sessions())~=nil or #talentsInPlay(currentSeat())>0 then magicTalentScheduleCheck(obj.guid) end
 end
 
 function magicTalentRestoreOnLoad()
-    local s=state()
-    if s==nil then return end
-    if not talentInPlay(s.seatPos,s.talentGUID) then magicTalentClose(true) return end
-    if s.cardGUID~=nil then
-        local card=getObjectFromGUID(s.cardGUID)
-        if card==nil then magicTalentClose(true) return end
-        browseSerial=browseSerial+1
-        controls(s)
+    if next(sessions())==nil then return end
+    for _,s in ipairs(sessionList()) do
+        if not talentInPlay(s.seatPos,s.talentGUID)
+            or (s.cardGUID~=nil and getObjectFromGUID(s.cardGUID)==nil) then
+            closeSession(s,true)
+        elseif s.cardGUID~=nil then
+            bumpBrowse(s)
+            controls(s)
+        end
     end
     magicTalentScheduleCheck()
 end

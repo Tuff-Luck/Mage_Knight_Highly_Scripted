@@ -4579,9 +4579,9 @@ trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scann
 -- single mana that normally powers an Advanced Action. Read the same released
 -- die faces/crystals as the ordinary tracker, even when its panel is minimized.
 trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
-function magicTalentManaPayments(seatPos,talentGUID)
+function magicTalentManaPayments(seatPos,talentGUID,sourceGUIDs)
     return trackerPrivate.manaPayments.magicTalentManaPayments(seatPos,
-        footprint,manaColor,trackerPrivate.readyForXZ,talentGUID)
+        footprint,manaColor,trackerPrivate.readyForXZ,talentGUID,sourceGUIDs)
 end
 
 factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject
