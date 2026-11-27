@@ -45,6 +45,7 @@ local finish=assert(reader:find("-- Bonus choices are independent",start,true))
 local methods=reader:sub(start,finish-1)
 local script=[[
 local combatConfig={}
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")}
 local combatCalcOn=true
 local combatCumbersomeActive=false
 local combatPsychicActive=false
@@ -91,6 +92,23 @@ eq(phase.check("card",false,nil,uses({attack=2},{healing=1})),true,
     "Unphased healing cannot invent another combat phase")
 eq(phase.check("swift",false,nil,uses({key="reduce"},{ranged=2})),false,
     "Enemy Attack reductions cannot accompany a different combat phase")
+
+-- The same composite checker also rejects unpaid repeated choices,
+-- including the same coloured selection twice on a borrowed Pure Magic.
+local paidRepeat=uses({key="attack",attack=7},{key="attack",attack=7})
+paidRepeat.borrowed=true
+paidRepeat.effectManaSpec={colors={Red="attack",Blue="block"}}
+paidRepeat.effectManaPayments={{guid="red1",color="Red"}}
+paidRepeat.effectManaGoldAllowed=true
+eq(phase.check("card",true,nil,paidRepeat),false,"One physical mana cannot pay two repeated choices")
+paidRepeat.effectManaPayments[2]={guid="red2",color="Red"}
+eq(phase.check("card",true,nil,paidRepeat),true,"Two distinct matching mana validate both applications")
+paidRepeat.effectManaPayments[2]={guid="red1",color="Red"}
+eq(phase.check("card",true,nil,paidRepeat),false,"Duplicate mana GUID invalidates repeat")
+paidRepeat.effectManaPayments[2]={guid="gold1",color="Gold"}
+eq(phase.check("card",true,nil,paidRepeat),true,"Legal Gold can pay second application")
+paidRepeat.effectManaGoldAllowed=false
+eq(phase.check("card",true,nil,paidRepeat),false,"Illegal Gold retracts repeated resources")
 
 -- Exercise the real Diplomacy conversion limiter with two copied uses.
 local a=assert(reader:find("combatConfig.conversionFor=function",1,true))

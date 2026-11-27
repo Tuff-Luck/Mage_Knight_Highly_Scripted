@@ -388,8 +388,8 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
         and not combatConfig.compositePhasesMatch(
             guid,powered,mainChoices,record.repeatLink) then
         safeBroadcastToColor(
-            "Maximal Effect: repeated options must resolve in one phase. "
-            .."Adjust the other rows; mixed phases contribute nothing until compatible.",
+            "Repeated effect: each choice needs its own payment and all uses must resolve in one phase. "
+            .."Adjust the rows or payments; incompatible choices contribute nothing.",
             player.color,warningColor)
     end
     if selectedMoveOnly or (previousMoveRole=="combat"

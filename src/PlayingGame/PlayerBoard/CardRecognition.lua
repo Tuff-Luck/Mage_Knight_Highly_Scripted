@@ -4160,15 +4160,25 @@ end
 combatConfig.compositePhasesMatch=function(guid,powered,choices,repeatLink)
     if repeatLink==nil or (repeatLink.count or 1)<2 then return true end
     local phase=nil
+    local selectedCategories={}
     for index=1,repeatLink.count do
         local options=repeatLink.options~=nil
             and repeatLink.options[index] or choices
         local selected=combatConfig.repeatChoiceFor(guid,powered,options,index)
+        if repeatLink.effectManaSpec~=nil then
+            if selected==nil then return false end
+            selectedCategories[index]=choiceCategory(selected)
+        end
         local current=combatConfig.compositeChoicePhase(guid,selected)
         if current~=nil then
             if phase~=nil and current~=phase then return false end
             phase=current
         end
+    end
+    if repeatLink.effectManaSpec~=nil then
+        return trackerPrivate.manaPayments.effectManaSelectionsPaid(
+            repeatLink.effectManaSpec,repeatLink.effectManaPayments,
+            selectedCategories,repeatLink.effectManaGoldAllowed,repeatLink.count)
     end
     return true
 end
@@ -5652,14 +5662,22 @@ local function renderSeat(seatPos)
     -- Only infer an effect after assigning separate casting/power/effect
     -- payments. If Gold or multiple valid assignments leave alternatives,
     -- show the supported choices rather than choosing a mana token by GUID.
-    local function paidManaChoices(guid,rule,strong,boost)
+    local function paidManaChoices(guid,rule,strong,boost,repeatLink)
         local freeSide
         if magicTalentOfferCastSide~=nil then freeSide=magicTalentOfferCastSide(seatPos,guid) end
         local needPower=freeSide==nil and powered[guid]==true and boost==nil
         local spec=freeSide~=nil and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
-        local possible,anyColor=effectManaPossibilities(spec,
-            effectManaByCard[guid] or {},needPower,
-            resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
+        local candidates=effectManaByCard[guid] or {}
+        local goldAllowed=resourceCardsGoldAllowed()
+        -- Free borrowed repeats need a separate printed effect payment for
+        -- each row, not a single valid option multiplied by the repeat count.
+        if freeSide~=nil and repeatLink~=nil and repeatLink.borrowed then
+            repeatLink.effectManaSpec=spec
+            repeatLink.effectManaPayments=candidates
+            repeatLink.effectManaGoldAllowed=goldAllowed
+        end
+        local possible,anyColor=effectManaPossibilities(spec,candidates,needPower,
+            goldAllowed,resourceCardsBlackAllowed())
         local choices={}
         for _,choice in ipairs(sideChoices(rule,strong) or {}) do
             if anyColor or possible[choiceCategory(choice)] then

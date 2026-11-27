@@ -327,7 +327,8 @@ local function clean(card)
 end
 
 -- Use the normal repeated-Action resolver only for supported effects.
--- Nested browsers and independent effect-mana choices remain separate work.
+-- Nested browsers retain their own use lifecycle. Effect mana choices
+-- are checked against distinct payments by the shared repeated calculator.
 local function ancientsCanRepeat(s,guid)
     local data=gameCards[guid]
     local rule=data~=nil and cardResourceDefinitions~=nil
@@ -335,7 +336,7 @@ local function ancientsCanRepeat(s,guid)
     return s.mode=="ancients" and s.copy~=nil and s.copy.powered==true
         and s.used<s.limit and (s.ancientsLoans or {})[guid]==true
         and data~=nil and data.resourceTracked~=false and data.resourceAlwaysNeutral~=true
-        and rule~=nil and rule.effectManaChoice==nil and rule.poweredLink==nil
+        and rule~=nil and rule.poweredLink==nil
         and (rule.requiredLink==nil or rule.requiredLink.mode~="repeat")
 end
 

@@ -48,7 +48,8 @@ function M.process(context)
             linkedChoices=repeatedColor.options[1]
         end
         if rule~=nil and rule.effectManaChoice~=nil then
-            linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid])
+            linkedChoices=paidManaChoices(card.guid,rule,isStrong,boostBy[card.guid],
+                repeatByTarget[card.guid])
         end
         -- Cold Toughness uses the enemy being blocked in the Combat Calculator,
         -- not an enemy physically placed on the Action card. Read the active lock

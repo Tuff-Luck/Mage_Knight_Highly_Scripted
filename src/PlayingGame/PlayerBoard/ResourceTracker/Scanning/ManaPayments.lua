@@ -51,6 +51,35 @@ local function effectManaPossibilities(spec,payments,needPower,goldAllowed,black
     return possible,anyColor
 end
 
+-- Repeated granted effects have one independent effect-selection payment
+-- per use. Match the chosen categories to distinct physical mana objects,
+-- preferring exact colours over legal Gold. The source's casting/power
+-- entitlement is already resolved by the caller.
+local function effectManaSelectionsPaid(spec,payments,selections,goldAllowed,count)
+    local exact,wildcards,seen={},0,{}
+    for _,payment in ipairs(payments or {}) do
+        if payment.guid~=nil and not seen[payment.guid] then
+            seen[payment.guid]=true
+            local category=spec.colors[payment.color]
+            if payment.color=="Gold" and goldAllowed then
+                wildcards=wildcards+1
+            elseif category~=nil then
+                exact[category]=(exact[category] or 0)+1
+            end
+        end
+    end
+    for index=1,count do
+        local category=selections[index]
+        if category==nil then return false end
+        if (exact[category] or 0)>0 then
+            exact[category]=exact[category]-1
+        elseif wildcards>0 then
+            wildcards=wildcards-1
+        else return false end
+    end
+    return true
+end
+
 -- Casting and effect-selection mana do not qualify for Mana Overload.
 local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,selectedCategory)
     if selectedCategory==nil and type(blackAllowed)=="string" then
@@ -273,6 +302,7 @@ end
 return {
     effectManaPossibilities=effectManaPossibilities,
     effectManaPowerColors=effectManaPowerColors,
+    effectManaSelectionsPaid=effectManaSelectionsPaid,
     bestManaCard=bestManaCard,
     magicTalentManaPayments=magicTalentManaPayments,
     magicTalentSpellCastingPaid=magicTalentSpellCastingPaid,

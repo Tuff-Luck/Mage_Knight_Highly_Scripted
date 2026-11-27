@@ -72,6 +72,28 @@ run("resource-tracker-mana-roles",function()
     print("Independent mana roles and Gold/Black permissions passed")
 end)
 
+run("repeated-effect-mana",function()
+    local spec={colors={Red="attack",Blue="block",Green="move",White="influence"}}
+    local function mana(guid,color) return {guid=guid,color=color} end
+    local red1,red2,blue,gold=mana("r1","Red"),mana("r2","Red"),mana("b1","Blue"),mana("g1","Gold")
+    local function paid(items,selected,goldAllowed,count)
+        return payment.effectManaSelectionsPaid(spec,items,selected,goldAllowed,count or 2)
+    end
+    assert(not paid({red1},{"attack","attack"},true),"One mana cannot pay twice")
+    assert(not paid({red1,red1},{"attack","attack"},true),"Duplicate GUID cannot pay twice")
+    assert(paid({red1,red2},{"attack","attack"},false),"Two distinct red payments")
+    assert(paid({red1,blue},{"attack","block"},false),"Different choices each use their own mana")
+    assert(not paid({red1,blue},{"attack","attack"},false),"Wrong colour cannot pay second use")
+    assert(paid({gold,red1},{"attack","block"},true),"Exact colour reserved before wildcard")
+    assert(paid({gold,red1},{"block","attack"},true),"Selection order does not change validity")
+    assert(not paid({gold,red1},{"block","attack"},false),"Illegal Gold cannot pay")
+    assert(not paid({gold,gold},{"block","attack"},true),"Same Gold cannot fill two roles")
+    assert(not paid({red1,red2},{"attack"},true),"Missing second selection")
+    assert(not paid({red1,red2,gold},{"attack","block","move"},true,3),"One Gold cannot cover two missing colours")
+    assert(paid({red1,red2,gold},{"attack","attack","move"},true,3),"Three independent payments")
+    print("Repeated effect mana selection regressions passed")
+end)
+
 run("resource-tracker-unit-mana",function()
     -- Unit payment permission and signature checks use the real extracted helpers.
     local gold,black=true,false
