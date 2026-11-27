@@ -37,7 +37,7 @@ local expected={
     ["Amulet of Darkness"]="artifactAmuletDarkness",
     ["Amulet of The Sun"]="artifactAmuletSun",
     ["Golden Grail"]="artifactGoldenGrail",["Bow of Starsdawn"]="artifactBowOfStarsdawn",
-    ["Book of Wisdom"]="artifactUtility",
+    ["Book of Wisdom"]="artifactBookOfWisdom",
     ["Shield of the Fallen Kings"]="artifactShieldOfTheFallenKings"
 }
 local seen,physical={},0
