@@ -5017,62 +5017,8 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
             return link~=nil and not link.borrowed and link or nil
         end
     end
-    local zone=getObjectFromGUID(playerPlayAreas[seatPos])
-    if zone==nil then return nil end
-    local objects=zone.getObjects()
-    local target=nil
-    for _,obj in ipairs(objects) do
-        if obj.guid==targetGUID then target=obj break end
-    end
-    local data=target~=nil and gameCards[target.guid] or nil
-    if data==nil or (data.cardType~="Starting" and data.cardType~="Advanced Action")
-        or cardPosture(target)~="upright" then return nil end
-    for _,source in ipairs(objects) do
-        local sourceData=gameCards[source.guid]
-        local rule=sourceData~=nil and cardResourceDefinitions[sourceData.resourceKey] or nil
-        local spec=rule~=nil and rule.requiredLink or nil
-        if spec~=nil and spec.mode=="repeat" and source.is_face_down~=true
-            and cardPosture(source)=="upright" then
-            local area=footprint(source)
-            local best,bestPriority,bestArea=nil,-1,0
-            for _,candidate in ipairs(objects) do
-                local details=gameCards[candidate.guid]
-                if candidate.guid~=source.guid and details~=nil
-                    and (details.cardType=="Starting" or details.cardType=="Advanced Action")
-                    and (magicTalentReservedCard==nil or not magicTalentReservedCard(candidate.guid))
-                    and cardPosture(candidate)=="upright" then
-                    local overlap=overlapArea(area,footprint(candidate))
-                    local priority=candidate.is_face_down==true and 1 or 0
-                    if overlap>0 and (priority>bestPriority
-                        or (priority==bestPriority and (overlap>bestArea
-                            or (overlap==bestArea and best~=nil
-                                and candidate.guid<best.guid)))) then
-                        best,bestPriority,bestArea=candidate,priority,overlap
-                    end
-                end
-            end
-            if best~=nil and best.guid==targetGUID then
-                local strong=false
-                for _,mana in ipairs(objects) do
-                    local color=manaColor(mana)
-                    -- A held or smooth-moving mana object is not a settled payment,
-                    -- even if TTS still reports it inside the shallow play zone.
-                    if color~=nil and trackerPrivate.readyForXZ(mana)
-                        and matchesCardMana(source,color) then
-                        local p=mana.getPosition()
-                        local x,z=p.x or p[1],p.z or p[3]
-                        if math.abs(x-area.x)<area.halfX
-                            and math.abs(z-area.z)<area.halfZ then
-                            strong=true break
-                        end
-                    end
-                end
-                return {powered=strong,sourceGUID=source.guid,
-                    count=strong and spec.poweredCount or spec.normalCount}
-            end
-        end
-    end
-    return nil
+    local repeats=trackerPrivate.physicalActionLinkSnapshot(seatPos,true)
+    return repeats[targetGUID]
 end
 
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
@@ -5087,6 +5033,9 @@ end
 -- the two throw-away links; Spells/Artifacts may pay some discard costs but
 -- must never be promoted to throw-away because of that.
 function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,hasDiscard)
+    if repeats==nil and discarded==nil then
+        repeats,discarded,hasDiscard=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
+    end
     trackerPrivate.throwAwayLinksByGUID=trackerPrivate.throwAwayLinksByGUID or {}
     local prior=trackerPrivate.throwAwayLinksByGUID
     if discarded~=nil then trackerPrivate.throwAwaySourcesByGUID={} end
@@ -5095,7 +5044,6 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
         present[card.guid]=true
         local repeatLink=repeats~=nil and repeats[card.guid] or nil
         local repeated=repeatLink~=nil and not repeatLink.borrowed
-            or (repeats==nil and resourceCardsMaximalEffectLink(seatPos,card.guid)~=nil)
         local costSource=discarded~=nil and discarded[card.guid] or nil
         local costData=costSource~=nil and gameCards[costSource] or nil
         local costRule=costData~=nil and cardResourceDefinitions[costData.resourceKey] or nil
@@ -5130,6 +5078,7 @@ function resourceCardsMaximalEffectSyncMarks(seatPos,cards,repeats,discarded,has
     -- dispatch and keep the temporary guard until the actual move settles.
     -- No per-link history: a later genuine rearrangement can tuck again.
     if discarded~=nil and gStates~=nil and gStates.preEndTurn~=true
+        and resourceCardsPanelOpen()
         and playerBoardSendCardUnder~=nil and not trackerPrivate.throwUnderPending then
         for _,card in ipairs(cards or {}) do
             local guid=card.guid
@@ -5314,10 +5263,20 @@ function resourceCardsMaximalEffectOffDrop(obj)
     local seat=current~=nil and current.seatPos or nil
     local data=gameCards~=nil and gameCards[obj.guid] or nil
     local artifact=data~=nil and data.cardType=="Artifact" and data.full==nil
-    if seat==nil or (not artifact
-        and not objectGUIDInZone("8fac50",playerPlayAreas[seat])
-        and not objectGUIDInZone("d030d8",playerPlayAreas[seat])
-        and next(trackerPrivate.maximalMarkedByGUID or {})==nil) then return end
+    if seat==nil then return end
+    if not artifact and next(trackerPrivate.maximalMarkedByGUID or {})==nil then
+        local zone=getObjectFromGUID(playerPlayAreas[seat])
+        local relevant=false
+        for _,card in ipairs(zone~=nil and zone.getObjects() or {}) do
+            local details=gameCards[card.guid]
+            local rule=details~=nil and cardResourceDefinitions[details.resourceKey] or nil
+            local link=rule~=nil and rule.requiredLink or nil
+            if link~=nil and (link.mode=="repeat" or link.mode=="throwAway") then
+                relevant=true break
+            end
+        end
+        if not relevant then return end
+    end
     local guid=obj.guid
     local function update()
         if gStates==nil or gStates.preEndTurn==true or resourceCardsPanelOpen() then return end
@@ -5418,6 +5377,49 @@ trackerPrivate.skillLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Cards
 local matchingSidewaysMana=trackerPrivate.skillLinks.matchingSidewaysMana
 local resolveSkillCardLinks=trackerPrivate.skillLinks.resolveSkillCardLinks
 local resolveManaSkillLinks=trackerPrivate.skillLinks.resolveManaSkillLinks
+
+-- Lightweight physical payment/link reconciliation for closed-tracker
+-- workflows. Do not publish totals, mutate play order, or restack objects.
+-- The direct-only query is also used by offer browsers to establish a
+-- parent's Maximal Effect entitlement, without re-entering that browser.
+function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
+    local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+    local cards,wounds,skills,manaObjects,footprints,placements={},{},{},{},{},{}
+    for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
+        if trackerPrivate.readyForXZ(obj) then
+            local kind=resourceObjectKind(obj)
+            local list=nil
+            if kind=="card" and trackerPrivate.bannerCardForm(obj.guid)~="half"
+                and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(obj.guid,seatPos)) then
+                local allowed
+                if directOnly then
+                    allowed=magicTalentReservedCard==nil or not magicTalentReservedCard(obj.guid)
+                else
+                    allowed=magicTalentInactivePreview==nil or not magicTalentInactivePreview(obj.guid)
+                end
+                if allowed then list=cards end
+            elseif kind=="wound" then list=wounds
+            elseif kind=="skill" then list=skills
+            elseif kind=="mana" and (manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid)) then
+                list=manaObjects
+            end
+            if list~=nil then
+                list[#list+1]=obj
+                placements[obj.guid]="play"
+                if kind~="mana" then footprints[obj.guid]=footprint(obj) end
+            end
+        end
+    end
+    table.sort(skills,function(a,b) return a.guid<b.guid end)
+    return trackerPrivate.scanPayments.resolve({
+        seatPos=seatPos,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,
+        footprints=footprints,placements=placements,trackerPrivate=trackerPrivate,
+        resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
+        cardPosture=cardPosture,matchesCardMana=matchesCardMana,manaColor=manaColor,
+        effectManaPossibilities=effectManaPossibilities,resolveActionLinks=resolveActionLinks,
+        linkOnly=true,directOnly=directOnly
+    })
+end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
 -- Skills outside the active player's Play Area are not counted.

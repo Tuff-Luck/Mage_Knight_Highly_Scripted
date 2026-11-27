@@ -68,6 +68,27 @@ eq(used.outside,nil,"Outside-zone mana not spent")
 eq(used.held,nil,"Held mana not spent")
 eq(env.gStates.resourceCardPlayOrder.card,env.gStates.resourceCardPlayOrder.remembered,
     "Already-present cards share an ordinal")
+local orderBefore=env.gStates.resourceCardPlayOrder
+local called=false
+env.resourceCardsMaximalEffectSyncMarks=function() error("Read-only link snapshot must not update marks") end
+local onlyRepeats,onlyCosts,onlyPaid=pay.resolve({
+    seatPos=1,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,footprints=footprints,
+    placements=placements,trackerPrivate=tracker,resolveManaSkillLinks=function() return {},{},{} end,
+    resolveSkillCardLinks=function() return {},{},{} end,cardPosture=function() return "upright" end,
+    matchesCardMana=function(obj,color) return obj.guid=="card" and color=="Red" end,
+    manaColor=function(obj) return obj.color end,linkOnly=true,directOnly=true,
+    resolveActionLinks=function(_cards,_wounds,_footprints,powered)
+        eq(powered.card,true,"Link-only uses ordinary mana assignment")
+        called=true
+        return {},{},{},{cost="source"},{source=true},{},{target={count=2}},{}
+    end
+})
+eq(called,true,"Read-only snapshot uses shared link resolver")
+eq(onlyRepeats.target.count,2,"Repeated link returned")
+eq(onlyCosts.cost,"source","Throw cost returned")
+eq(onlyPaid.source,true,"Cost completion returned")
+eq(env.gStates.resourceCardPlayOrder,orderBefore,"Read-only snapshot preserves play order")
+env.resourceCardsMaximalEffectSyncMarks=function() end
 print("Scan observation and mana coordination regressions passed")
 
 -- Direct Maximal Effect + Pure Magic: face-down target accepts only

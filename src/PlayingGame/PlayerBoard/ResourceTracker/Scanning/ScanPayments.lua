@@ -19,6 +19,7 @@ function M.resolve(context)
     -- Cards already present when opening a saved/minimized tracker have no
     -- reliable order; give them one shared ordinal instead of inventing one.
     -- Subsequent real zone entries are recorded immediately at entry time.
+    if not context.linkOnly then
     gStates.resourceCardPlayOrder=gStates.resourceCardPlayOrder or {}
     gStates.resourceCardPlaySerial=gStates.resourceCardPlaySerial or 0
     local missingOrder=false
@@ -35,6 +36,7 @@ function M.resolve(context)
             end
         end
     end
+    end
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
@@ -45,7 +47,7 @@ function M.resolve(context)
     -- strong side; one token can never fill both roles.
     local effectManaByCard,specialPaymentByCard,freeCastSides={},{},{}
     for _,card in ipairs(cards) do
-        if magicTalentOfferCastSide~=nil then
+        if not context.directOnly and magicTalentOfferCastSide~=nil then
             local side=magicTalentOfferCastSide(seatPos,card.guid)
             if side~=nil then freeCastSides[card.guid]=side end
         end
@@ -167,6 +169,7 @@ function M.resolve(context)
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget,borrowedRepeats)
+    if context.linkOnly then return repeatByTarget,discarded,hasDiscard end
     -- A direct Maximal Effect target can be face down. Its printed effect
     -- mana remains payable even though ordinary card power is forbidden.
     -- Do not reassign a token already owned by another card or Skill.

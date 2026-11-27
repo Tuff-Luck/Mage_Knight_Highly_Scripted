@@ -42,6 +42,7 @@ local function card(guid,x)
     c.setRotation=function() end
     c.setPosition=function() end
     c.getGMNotes=function() return "" end
+    c.isSmoothMoving=function() return false end
     return c
 end
 local maximal=card("8fac50",0)
@@ -76,7 +77,7 @@ local env={
     },
     getObjectFromGUID=function(id) return objects[id] end,
     resourceCardsPanelOpen=function() return false end,
-    cardPosture=function() return "upright" end,
+    cardPosture=function(obj) return obj.posture or "upright" end,
     footprint=function(obj) return {x=obj.x,z=0,halfX=1,halfZ=1} end,
     overlapArea=function(a,b)
         return math.max(0,math.min(a.x+a.halfX,b.x+b.halfX)
@@ -88,6 +89,27 @@ local env={
 }
 setmetatable(env,{__index=_G})
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+-- Exercise the actual shared read-only payment/link snapshot.
+env.trackerPrivate.scanPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPayments.lua","t",env))()
+local manaPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ManaPayments.lua","t",env))()
+env.trackerPrivate.bestManaCard=manaPayments.bestManaCard
+env.trackerPrivate.bannerCardForm=function(_guid) return nil end
+env.resourceObjectKind=function(obj) return obj.type=="Card" and "card" or (obj.color~=nil and "mana" or nil) end
+env.resolveManaSkillLinks=function() return {},{},{} end
+env.resolveSkillCardLinks=function() return {},{},{} end
+env.effectManaPossibilities=manaPayments.effectManaPossibilities
+env.resourceCardsGoldAllowed=function() return true end
+env.resourceCardsBlackAllowed=function() return false end
+env.resourceCardsArtifactBroken=function() return false end
+package.path="src/?.lua;"..package.path
+env.resolveActionLinks=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua","t",env))()({
+    overlapArea=env.overlapArea,cardPosture=env.cardPosture,
+    canPayDiscard=function(obj) return obj.posture=="discard" end,
+    linkedColorChoices=function() return {{attack=5}} end,
+    resourceCardsArtifactBroken=function(guid,obj) return env.resourceCardsArtifactBroken(guid,obj) end
+})
+assert(load(extract(reader,"function trackerPrivate.physicalActionLinkSnapshot(","-- Physical Skill GUIDs"),
+    "Read-only physical links","t",env))()
 local code=extract(reader,
     "function resourceCardsMaximalEffectMarkerNoop()",
     "-- Generic Skill-card links")
@@ -171,6 +193,22 @@ env.resourceCardsPanelOpen=function() return false end
 zone.getObjects=function() return {maximal,training} end
 methods.sync(1,{ritual,ritualCost},{},
     {[ritualCost.guid]=ritual.guid},{[ritual.guid]=false})
+-- With no full scan or cache, the physical throw-away links still exist.
+zone.getObjects=function() return {ritual,ritualCost} end
+methods.sync(1,{ritual,ritualCost})
+eq(methods.marked(ritualCost),true,"Closed tracker resolves Ritual Attack")
+eq(env.gStates.resourceCardPlayOrder,nil,"Link-only scan does not record play order")
+env.cardResourceDefinitions.decompose={requiredLink={mode="throwAway"}}
+env.gameCards[ritual.guid].resourceKey="decompose"
+methods.sync(1,{ritual,ritualCost})
+eq(methods.marked(ritualCost),true,"Closed tracker resolves Decompose")
+methods.beforeEnd(1)
+eq(env.gStates.throwAwayCleanupByGUID[ritualCost.guid],"ritualAttack","Closed tracker saves generic throw-away verdict")
+ritualCost.posture="discard"
+methods.sync(1,{ritual,ritualCost})
+eq(methods.marked(ritualCost),false,"Invalidated throw-away clears marker while closed")
+ritualCost.posture="upright"
+zone.getObjects=function() return {maximal,training} end
 methods.sync(1,{discardSource,spell,artifact},{},
     {[spell.guid]=discardSource.guid,[artifact.guid]=discardSource.guid},
     {[discardSource.guid]=true})
