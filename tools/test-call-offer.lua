@@ -111,6 +111,13 @@ publishPublicUICallbacks=function(callbacks)
 end
 dofile("src/PlayingGame/Interface/UIAssets.lua")
 dofile("tools/load-offer-helpers.lua")
+-- Use the production posture predicate rather than a permissive mock.
+local handle=assert(io.open("src/PlayingGame/PlayerBoard/CardFlow.lua","r"))
+local flow=handle:read("*a")
+handle:close()
+local firstLine=assert(flow:find("function cardEffectIsVertical(card)",1,true))
+local after=assert(flow:find("--End-turn card cleanup",firstLine,true))
+assert(load(flow:sub(firstLine,after-1),"Card posture","t",_G))()
 dofile("src/PlayingGame/Offers/CallOffer.lua")
 local function hasArrow(card,direction)
     for _,node in ipairs(card.UI.getXmlTable()) do
@@ -312,5 +319,33 @@ eq(callOfferBorrowedUnitForSeat(1),nil,"face-down spell grants no Unit source")
 callOfferSpellChanged()
 eq(gStates.callOfferPreview,nil,"flipped face-down closes browser")
 eq(second.position[1],31.2,"face-down flip restores Unit to offer")
+-- Playing the Spell sideways for +1 must not loan a Unit. Rotating
+-- upright opens the normal browser, and rotating back closes it again.
+spell.is_face_down=false
+spell.setRotation({0,90,0})
+callOfferSpellChanged()
+eq(gStates.callOfferPreview,nil,"sideways Spell cannot open browser")
+spell.setRotation({0,180,0})
+callOfferSpellChanged()
+eq(gStates.callOfferPreview.unitGUID,second.guid,"upright Spell loans Unit")
+spell.setRotation({0,90,0})
+eq(callOfferBorrowedUnitForSeat(1),nil,"sideways Spell grants no activation")
+callOfferCycleClicked({color="Red"},"","CallOfferControl_222222_next")
+eq(gStates.callOfferPreview.unitGUID,second.guid,"sideways Spell cannot cycle")
+callOfferRestoreOnLoad()
+eq(gStates.callOfferPreview,nil,"sideways saved Spell returns borrowed Unit")
+eq(second.position[1],31.2,"sideways saved Spell restored offer position")
+-- A delayed army drop cannot recruit after the source ceases to be active.
+spell.setRotation({0,180,0})
+callOfferSpellChanged()
+second.resting=false
+second.setPosition({-60,1,-34.74})
+callOfferObjectDropped(second)
+spell.setRotation({0,90,0})
+second.resting=true
+settlePending()
+eq(gStates.callOfferGloryClaimed,nil,"invalidated Spell cannot recruit")
+eq(gStates.callOfferPreview,nil,"invalidated Spell closes loan")
+eq(second.position[1],31.2,"invalidated drop restores Unit")
 assert(stopped>0,"borrowed Unit activation was released")
 print("Call Offer browser regressions passed")
