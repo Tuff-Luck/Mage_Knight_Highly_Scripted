@@ -21,6 +21,29 @@ return function(deps)
         end
         for _,card in ipairs(cards) do links[card.guid]={} end
         for _,wound in ipairs(wounds) do links[wound.guid]={} end
+
+        -- All consuming links require an unused physical payment. Keep
+        -- this separate from the effect's own allowed card types/posture:
+        -- a tilted discard and an upright throw-away are not interchangeable.
+        local function unusedCost(candidate)
+            local guid=candidate.guid
+            return discarded[guid]==nil and not boostClaimed[guid]
+                and not reservedCost(guid) and not manaPowered[guid]
+                and #links[guid]==0 and skillLinksByTarget[guid]==nil
+        end
+
+        local function handDeedCost(candidate)
+            local data=gameCards[candidate.guid]
+            if data==nil or data.full~=nil or candidate.getGMNotes()=="Quest"
+                or candidate.getGMNotes()=="Wound" then return false end
+            if data.cardType=="Artifact" then
+                -- A half Banner is an attachment, not a separate hand card;
+                -- a broken Artifact already represents its own played effect.
+                return not resourceCardsArtifactBroken(candidate.guid,candidate)
+            end
+            return data.cardType=="Starting" or data.cardType=="Advanced Action"
+                or data.cardType=="Spell"
+        end
         local function connect(source,target)
             links[source.guid][#links[source.guid]+1]=target.guid
             links[target.guid][#links[target.guid]+1]=source.guid
@@ -127,9 +150,7 @@ return function(deps)
                         local other=gameCards[candidate.guid]
                         return other~=nil
                             and (other.cardType=="Starting" or other.cardType=="Advanced Action")
-                            and discarded[candidate.guid]==nil and not boostClaimed[candidate.guid]
-                            and not reservedCost(candidate.guid)
-                            and not manaPowered[candidate.guid] and #links[candidate.guid]==0
+                            and unusedCost(candidate) and handDeedCost(candidate)
                             and cardPosture(candidate)=="upright"
                     end,"faceDown",true)
                     if target==nil then break end
@@ -161,18 +182,18 @@ return function(deps)
                 local paid=0
                 for _=1,need do
                     local target=nearestOverlap(source,function(candidate)
-                        local targetData=gameCards[candidate.guid]
-                        return not discarded[candidate.guid] and not boostClaimed[candidate.guid]
-                            and not reservedCost(candidate.guid)
-                            and candidate.guid~=boostSource[source.guid]
-                            and not manaPowered[candidate.guid]
-                            and #links[candidate.guid]==0
-                            and targetData~=nil
-                            and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
-                                or targetData.cardType=="Spell" or targetData.cardType=="Artifact")
-                            and candidate.getGMNotes()~="Wound"
-                            and candidate.getGMNotes()~="Quest"
-                            and canPayDiscard(candidate)
+                        if not unusedCost(candidate) or not handDeedCost(candidate)
+                            or candidate.guid==boostSource[source.guid]
+                            or not canPayDiscard(candidate) then return false end
+                        -- Colour-dependent costs (e.g. Druidic Staff) must
+                        -- provide a real printed option, not merely overlap.
+                        if rule.linkedColorEffects~=nil then
+                            local strong=manaPowered[source.guid]==true or boostBy[source.guid]~=nil
+                            if repeated~=nil then strong=repeated.powered end
+                            local options=linkedColorChoices(rule,candidate.guid,strong)
+                            return options~=nil and #options>0
+                        end
+                        return true
                     end,"discard",true)
                     if target==nil then break end
                     discarded[target.guid]=source.guid
@@ -219,20 +240,14 @@ return function(deps)
                 local woundUse,cardUse={},1
                 for _,target in ipairs(choices) do
                     local isWound=target.getGMNotes()=="Wound"
-                    local targetData=gameCards[target.guid]
-                    local eligible=isWound or (targetData~=nil
-                        and (targetData.cardType=="Starting" or targetData.cardType=="Advanced Action"
-                            or targetData.cardType=="Spell" or targetData.cardType=="Artifact"))
+                    local eligible=isWound or handDeedCost(target)
                     if target.guid~=source.guid and eligible
                         and (not spec.woundOnly or isWound)
                         -- Maximal Effect repeats independent Stout Resolve payments.
                         and (not isWound or woundPayments<(spec.maxWounds or 0)
                             *(repeated~=nil and repeated.count or 1))
-                        and discarded[target.guid]==nil and not boostClaimed[target.guid]
-                        and not reservedCost(target.guid)
-                        and #links[target.guid]==0 and skillLinksByTarget[target.guid]==nil
-                        and not manaPowered[target.guid]
-                        and target.is_face_down~=true and cardPosture(target)=="discard"
+                        and unusedCost(target)
+                        and canPayDiscard(target)
                         and overlapArea(footprints[source.guid],footprints[target.guid])>0 then
                         -- Physical costs are sorted by overlap. Assign Wounds to
                         -- separate applications (at most one per application) and

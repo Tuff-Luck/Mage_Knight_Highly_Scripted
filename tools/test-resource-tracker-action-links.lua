@@ -140,4 +140,57 @@ broken.art=true
 links,boost,source,discarded,paid,linked,repeats,bonuses=scan({artifact,cost})
 eq(discarded.cost,nil,"Thrown Artifact does not consume basic discard payment")
 eq(bonuses.art,nil,"Thrown Artifact has no basic discard bonus")
+-- Shared cost eligibility: these cards may not pay a second effect,
+-- irrespective of which resolver would otherwise select them.
+local mandatory=card("mandatory","improv",0)
+local optional=card("optional","stout",0)
+local thrown=card("thrown","utilityThrow",0)
+local skillCost=card("skillCost",nil,0.1,"discard")
+local halfBanner=card("halfBanner",nil,0.2,"discard",false,"Artifact")
+env.gameCards.halfBanner.full="banner"
+local brokenCost=card("brokenCost",nil,0.3,"discard",false,"Artifact")
+broken.brokenCost=true
+local questCost=card("questCost",nil,0.4,"discard")
+questCost.getGMNotes=function() return "Quest" end
+local reserved=card("reserved",nil,0.5,"discard")
+env.magicTalentReservedCard=function(guid) return guid==reserved.guid end
+local valid=card("valid",nil,0.6,"discard",false,"Spell")
+links,boost,source,discarded,paid=scan(
+    {mandatory,skillCost,halfBanner,brokenCost,questCost,reserved,valid},nil,nil,{skillCost=true})
+eq(paid.mandatory,true,"Mandatory discard finds unused ordinary deed")
+eq(discarded.valid,"mandatory","Valid cost is selected despite lower overlap")
+for _,costCard in ipairs({skillCost,halfBanner,brokenCost,questCost,reserved}) do
+    eq(discarded[costCard.guid],nil,"Ineligible mandatory cost: "..costCard.guid)
+end
+links,boost,source,discarded,paid,linked,repeats,bonuses=scan(
+    {optional,skillCost,halfBanner,brokenCost,questCost,reserved,valid},nil,{optional=true},{skillCost=true})
+eq(bonuses.optional,2,"Optional discard uses same exclusions")
+eq(discarded.valid,"optional","Valid optional cost selected")
+for _,costCard in ipairs({skillCost,halfBanner,brokenCost,questCost,reserved}) do
+    eq(discarded[costCard.guid],nil,"Ineligible optional cost: "..costCard.guid)
+end
+skillCost.posture="upright"
+reserved.posture="upright"
+questCost.posture="upright"
+local validThrow=card("validThrow",nil,0.7,"upright",true)
+links,boost,source,discarded,paid=scan(
+    {thrown,skillCost,reserved,questCost,validThrow},nil,nil,{skillCost=true})
+eq(paid.thrown,true,"Throw-away finds unused eligible Action")
+eq(discarded.validThrow,"thrown","Valid throw-away selected")
+eq(discarded.skillCost,nil,"Skill-linked Action cannot pay throw-away")
+eq(discarded.reserved,nil,"Borrowed Action cannot pay throw-away")
+eq(discarded.questCost,nil,"Quest cannot pay throw-away")
+
+env.cardResourceDefinitions.staff={requiredLink={mode="discard"},linkedColorEffects={
+    normal={Red={key="red"},Blue={key="blue"}},powered={}}}
+local staff=card("staff","staff",0,nil,false,"Artifact")
+local colourless=card("colourless",nil,0.1,"discard",false,"Artifact",{})
+local matching=card("matching",nil,0.6,"discard",false,"Spell",{"Red"})
+links,boost,source,discarded,paid=scan({staff,colourless})
+eq(paid.staff,false,"Colourless card cannot pay colour-dependent effect")
+eq(discarded.colourless,nil,"Colourless card remains unused")
+links,boost,source,discarded,paid,linked=scan({staff,colourless,matching})
+eq(paid.staff,true,"Matching coloured deed pays Staff")
+eq(linked.staff,matching.guid,"Colour eligibility precedes overlap")
+eq(discarded.colourless,nil,"Invalid cost not consumed")
 print("Action link priority, stronger grants, repeated payments and discard exclusions passed")
