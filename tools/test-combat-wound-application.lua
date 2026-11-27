@@ -1170,3 +1170,59 @@ do
     getObjectFromGUID=originalGet
 end
 print("Shared manual and calculated Wound delivery regressions passed")
+
+-- Isolate the actual Glade path and permanent Wound removal service.
+do
+    local removed=0
+    local wound={guid="gladeWound",type="Card",getGMNotes=function() return "Wound" end,
+        destruct=function() removed=removed+1 end}
+    local ordinary={guid="deed",type="Card",getGMNotes=function() return "" end,
+        destruct=function() error("Ordinary deed must not be removed as a Wound") end}
+    local deck={guid="discardDeck",type="Deck",getObjects=function()
+        return {{guid="deed",gm_notes=""},{guid="gladeWound",gm_notes="Wound"}}
+    end}
+    local xml={}
+    deck.getButtons=function() return {} end
+    deck.UI={getXmlTable=function() return xml end,setXmlTable=function(value) xml=value end}
+    local discard={getObjects=function() return {deck} end}
+    local play={getPosition=function() return {-60,1,-39} end}
+    local env=setmetatable({
+        gStates={turnNumber=1,preEndTurn=true,positionMageKnight={[5]="Dummy"}},
+        turnOrder={{seatPos=1,mage="Arythea",avatarLocation="glade",deadDeckInventory={"gladeWound","deed"}}},
+        deedDeckDiscardZones={[1]="discard"},playerPlayAreas={[1]="play"},
+        getObjectFromGUID=function(guid) return ({discard=discard,play=play,discardDeck=deck})[guid] end,
+        legalPlayerCheck=function(_color,_seat) return true end,
+        playerDropoutInactive=function(_index) return false end,
+        scenarioRestLocationIsAvailable=function() return true end,
+        UI={getAttribute=function(_id,_attribute) return "true" end},
+        safeBroadcastToColor=function(_message,_color,_tint) end,
+        safeTakeObject=function(_scope,_source,_params) return nil end
+    },{__index=_G})
+    local function extract(first,last)
+        local a=assert(cardflow:find(first,1,true))
+        local b=assert(cardflow:find(last,a+#first,true))
+        assert(load(cardflow:sub(a,b-1),"Wound removal fixture","t",env))()
+    end
+    extract("function deedInventoryForgetCard(","--End-turn card cleanup")
+    extract("local gladeDiscardHealButtonGUID=nil","-- Coral Quick Witted scheduling")
+    env.gladeDiscardHeal(deck,"Red",false)
+    eq(env.gStates.gladeDiscardHealUsed[1],nil,"Failed Glade extraction does not spend entitlement")
+    eq(#xml,1,"Failed extraction restores discard button")
+    local takes=0
+    env.safeTakeObject=function(_scope,source,params)
+        eq(source,deck,"Glade uses discard container only")
+        eq(params.guid,wound.guid,"Extracts Wound rather than ordinary deed")
+        takes=takes+1
+        return wound
+    end
+    env.gladeDiscardHeal(deck,"Red",false)
+    eq(env.gStates.gladeDiscardHealUsed[1],true,"Successful extraction spends Glade entitlement")
+    env.gladeDiscardHeal(deck,"Red",false)
+    eq(takes,1,"Duplicate Glade click cannot extract a second Wound")
+    eq(env.deedRemoveWoundCard(ordinary),false,"Ordinary deed excluded")
+    eq(env.deedRemoveWoundCard(wound),true,"Wound permanently removed")
+    eq(removed,1,"One Wound destroyed")
+    eq(#env.turnOrder[1].deadDeckInventory,1,"Removed Wound no longer owned")
+    eq(env.turnOrder[1].deadDeckInventory[1],"deed","Other deed retained")
+end
+print("Glade extraction and shared Wound removal regressions passed")

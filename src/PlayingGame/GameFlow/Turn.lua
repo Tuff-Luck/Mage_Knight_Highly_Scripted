@@ -720,11 +720,10 @@ local function turnDrawCompletedTurnHand(player)
 end
 
 local function turnCleanupCompletedTurnBoard()
-	--remove any wound cards played because of glade, regardless of which face is showing.
+	-- Preserve the existing Rewards Claimed manual Wound-removal gesture.
+	-- Like explicit face-down throws, these use the infinite Wound supply.
 	for _, playAreaObj in pairs(getObjectFromGUID(playerPlayAreas[turnOrder[gStates.turnNumber].seatPos]).getObjects()) do
-		if playAreaObj.getGMNotes()=="Wound" then
-			getObjectFromGUID(trashCan).putObject(playAreaObj)
-		end
+		deedRemoveWoundCard(playAreaObj)
 	end
 
 	--re-enable night tactic six buttons

@@ -1102,6 +1102,18 @@ function deedInventoryForgetCard(guid)
     end
 end
 
+-- Wounds come from an infinite bag. Permanent removal is destruction,
+-- not a transfer to Trash. This helper is deliberately not a Heal-point
+-- spender: the caller owns eligibility, timing and the reason for removal.
+function deedRemoveWoundCard(card)
+    if card==nil or card.type~="Card" or card.getGMNotes()~="Wound" then return false end
+    local guid=card.guid
+    if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
+    card.destruct()
+    deedInventoryForgetCard(guid)
+    return true
+end
+
 --End-turn card cleanup belongs with deed/card flow rather than Combat. Return the current
 --discard destination because the first loose card becomes the physical discard pile.
 function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
@@ -1186,14 +1198,14 @@ function cleanupPlayedCardAtEndTurn(card, playerIndex, cardDestination)
 			resourceCardsMaximalEffectMark(card,false)
 		end
 		local guid=card.guid
-		if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
 		if thrownWound then
-			card.destruct()
+			deedRemoveWoundCard(card)
 		else
+			if playAreaScaleForgetObject~=nil then playAreaScaleForgetObject(card) end
 			card.setScale({1.5,1,1.5})
 			trash.putObject(card)
+			deedInventoryForgetCard(guid)
 		end
-		deedInventoryForgetCard(guid)
 		return cardDestination
 	end
 
@@ -1812,9 +1824,9 @@ local function clearGladeDiscardHealButtons()
 		end
 	end
 end
-local function gladeDiscardWound(playerIndex)
-	local details=turnOrder[playerIndex]
-	local zone=details~=nil and getObjectFromGUID(deedDeckDiscardZones[details.seatPos]) or nil
+-- Read only the requested zone. Normal Heal effects must not use discard
+-- or deck Wounds unless their printed rules explicitly allow that zone.
+local function findWoundInZone(zone)
 	if zone==nil then return nil, nil end
 	for _, obj in pairs(zone.getObjects()) do
 		if obj.type=="Card" and obj.getGMNotes()=="Wound" then return obj, obj.guid end
@@ -1823,6 +1835,11 @@ local function gladeDiscardWound(playerIndex)
 		end
 	end
 	return nil, nil
+end
+local function gladeDiscardWound(playerIndex)
+	local details=turnOrder[playerIndex]
+	local zone=details~=nil and getObjectFromGUID(deedDeckDiscardZones[details.seatPos]) or nil
+	return findWoundInZone(zone)
 end
 function refreshGladeDiscardHealButton()
 	clearGladeDiscardHealButtons()
@@ -1857,6 +1874,8 @@ function gladeDiscardHeal(obj, playerColor, altClick)
 	if gStates.gladeDiscardHealUsed[details.seatPos]==true then refreshGladeDiscardHealButton() return end
 	local source, woundGUID=gladeDiscardWound(playerIndex)
 	if source==nil or woundGUID==nil then refreshGladeDiscardHealButton() return end
+	-- Reserve the click before moving anything; release it on failed
+	-- extraction so the player can retry the same entitlement.
 	gStates.gladeDiscardHealUsed[details.seatPos]=true
 	clearGladeDiscardHealButtons()
 	local playArea=getObjectFromGUID(playerPlayAreas[details.seatPos])
@@ -1867,11 +1886,16 @@ function gladeDiscardHeal(obj, playerColor, altClick)
 		wound.setScale({1.5,1,1.5})
 	end
 	if source.type=="Deck" then
-		safeTakeObject("CardFlow",source,{guid=woundGUID, position=destination, rotation={0,180,0}, smooth=true, callback_function=finishHeal})
+		local extracted=safeTakeObject("CardFlow",source,{guid=woundGUID, position=destination, rotation={0,180,0}, smooth=true, callback_function=finishHeal})
+		if extracted==nil then
+			gStates.gladeDiscardHealUsed[details.seatPos]=nil
+			refreshGladeDiscardHealButton()
+			safeBroadcastToColor("Unable to extract the discard Wound. Try again.",playerColor,warningColor)
+		end
 	else
 		source.setScale({1.5,1,1.5})
-		source.setRotationSmooth({0,180,0})
-		source.setPositionSmooth(destination)
+		source.setRotationSmooth({0,180,0},false,false)
+		source.setPositionSmooth(destination,false,false)
 		finishHeal(source)
 	end
 end
