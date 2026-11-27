@@ -5643,8 +5643,11 @@ local function renderSeat(seatPos)
     -- payments. If Gold or multiple valid assignments leave alternatives,
     -- show the supported choices rather than choosing a mana token by GUID.
     local function paidManaChoices(guid,rule,strong,boost)
-        local needPower=powered[guid]==true and boost==nil
-        local possible,anyColor=effectManaPossibilities(rule.effectManaChoice,
+        local freeSide
+        if magicTalentOfferCastSide~=nil then freeSide=magicTalentOfferCastSide(seatPos,guid) end
+        local needPower=freeSide==nil and powered[guid]==true and boost==nil
+        local spec=freeSide~=nil and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
+        local possible,anyColor=effectManaPossibilities(spec,
             effectManaByCard[guid] or {},needPower,
             resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
         local choices={}

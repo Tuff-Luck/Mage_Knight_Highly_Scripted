@@ -856,8 +856,18 @@ function offerAdjust(player, mouseButton, id)
 		return
 	end
 
-    -- Borrowed Spell stays in the old slot until we return it. Reflow the real
-    -- offer only after Magic Talent has restored its physical preview.
+    -- A committed loan still occupies its home column. Shrinking through
+    -- that column would remove an in-use card from the public offer.
+    if delta<0 and magicTalentOfferLoanHomes~=nil then
+        for _,home in pairs(magicTalentOfferLoanHomes()) do
+            if math.floor(((home.position[1]-21.6)/4.8)+0.5)==oldSize then
+                safeBroadcastToColor("Finish the borrowed Spell before removing its offer slot.",
+                    player.color,warningColor)
+                return
+            end
+        end
+    end
+    -- Uncommitted previews are restored before the grid changes.
     if magicTalentOfferWillChange~=nil then magicTalentOfferWillChange() end
 
 	--Capture both live sources before moving their zones. Growing can then draw from those exact objects

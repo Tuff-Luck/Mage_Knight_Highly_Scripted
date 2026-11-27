@@ -3,9 +3,15 @@
 -- then a matching offer Spell may be cast by paying its normal mana on that Spell.
 -- Strong: place the blue (or legal Day gold) power mana AND another coloured mana
 -- on Magic Talent. Only then does the matching claim browser appear.
+-- Tome of All Spells uses the same matching-colour discard and real
+-- Spell browser, but a confirmed Cast grants the printed side for free.
+local function isTome(guid)
+    return guid=="085e68" and gameCards[guid]~=nil
+end
+
 local function isTalent(guid)
     local data=gameCards[guid]
-    return data~=nil and data.resourceKey=="magicTalent"
+    return data~=nil and (data.resourceKey=="magicTalent" or isTome(guid))
 end
 local CONTROL_PREFIX="MagicTalentControl_"
 local CONTROL_PREFIXES={CONTROL_PREFIX,"ResourceCardChoice_","AttackAssignmentSource_"}
@@ -24,7 +30,7 @@ local function currentSeat()
 end
 
 local function maximalEntitlement(seat,talentGUID)
-    return resourceCardsMaximalEffectLink~=nil
+    return not isTome(talentGUID) and resourceCardsMaximalEffectLink~=nil
         and resourceCardsMaximalEffectLink(seat,talentGUID) or nil
 end
 
@@ -142,7 +148,14 @@ local function controls(s)
         end
     end
     local images=callOfferAppendBrowseControls(xml,card.guid,CONTROL_PREFIX,
-        "magicTalentClicked",s.mode=="strong")
+        "magicTalentClicked",s.mode=="strong" or s.mode=="tome")
+    if s.mode=="tome" then
+        for _,node in ipairs(xml) do
+            if node.attributes~=nil and node.attributes.id==CONTROL_PREFIX..card.guid.."_claim" then
+                node.attributes.text="Cast"
+            end
+        end
+    end
     if s.mode=="basic" and (s.limit or 1)>1 then
         for _,entry in ipairs({
             {suffix="nextUse",text="Next",x="-115"},
@@ -175,7 +188,7 @@ function magicTalentEnsureControls(seat)
         elseif id==CONTROL_PREFIX..card.guid.."_nextUse" then nextUse=true
         elseif id==CONTROL_PREFIX..card.guid.."_sameUse" then sameUse=true end
     end
-    if not previous or not nextArrow or (s.mode=="strong" and not take)
+    if not previous or not nextArrow or ((s.mode=="strong" or s.mode=="tome") and not take)
         or (s.mode=="basic" and (s.limit or 1)>1
             and (not nextUse or not sameUse)) then controls(s) end
 end
@@ -243,6 +256,31 @@ function magicTalentReservedCard(guid)
         or (s~=nil and (s.cardGUID==guid or (s.loans or {})[guid]~=nil))
 end
 
+-- Gaining a card is not casting it. Tome likewise needs an explicit Cast
+-- before its mana-free effect exists. Returning cards are always inert.
+function magicTalentInactivePreview(guid)
+    local s=state()
+    return returning[guid]==true or (s~=nil and s.cardGUID==guid
+        and (s.mode=="strong" or s.mode=="tome"))
+end
+
+-- nil = ordinary payment rules; false = free basic; true = free stronger.
+-- Never use an 'and ... or nil' expression here: false is meaningful.
+function magicTalentOfferCastSide(seat,guid)
+    local s=state()
+    if s==nil or s.seatPos~=seat or s.mode~="tomeCast" or s.freeGUID~=guid
+        or not talentInPlay(seat,s.talentGUID) then return nil end
+    local spell=getObjectFromGUID(guid)
+    if not cardEffectIsVertical(spell)
+        or not objectGUIDInZone(guid,playerPlayAreas[seat]) then return nil end
+    return s.freeStrong==true
+end
+
+function magicTalentTomeCommitted(guid)
+    local s=state()
+    return s~=nil and s.mode=="tomeCast" and s.talentGUID==guid
+end
+
 function magicTalentOfferSpellCastCount(seat,guid)
     local s=state()
     if s==nil or s.seatPos~=seat or s.mode=="strong" or s.mode=="claimed" then return 1 end
@@ -260,6 +298,9 @@ end
 -- validates the real blue + black casting mana on the loaned Spell.
 function magicTalentBorrowedTimeBendingPaid(seat)
     local s=state()
+    if s~=nil and s.mode=="tomeCast" then
+        return magicTalentOfferCastSide(seat,GUID.card.timeBending)==true
+    end
     if s==nil or (s.mode~="basic" and s.mode~="completed") or s.seatPos~=seat
         or (s.cardGUID~=GUID.card.timeBending
             and (s.loans or {})[GUID.card.timeBending]==nil) then return false end
@@ -276,7 +317,8 @@ local function borrow(s,index)
     local guid=s.order[index]
     local card=guid~=nil and getObjectFromGUID(guid) or nil
     local talent=getObjectFromGUID(s.talentGUID)
-    if card==nil or talent==nil or (s.loans or {})[guid]~=nil
+    if card==nil or talent==nil or (s.loans or {})[guid]~=nil or returning[guid]
+        or (trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid))
         or not objectGUIDInZone(guid,GUID.zone.offer) then return false end
     s.index=index
     s.cardGUID=guid
@@ -333,8 +375,9 @@ local function cycle(s,delta)
     for step=1,count do
         local index=((s.index-1+step*delta)%count)+1
         local guid=s.order[index]
-        if guid~=s.cardGUID and (objectGUIDInZone(guid,GUID.zone.offer)
-            or returning[guid]==true) then
+        if guid~=s.cardGUID and (s.loans or {})[guid]==nil
+            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(guid))
+            and (objectGUIDInZone(guid,GUID.zone.offer) or returning[guid]==true) then
             -- A returning card must settle back in its offer slot first.
             if returning[guid] then return end
             remember(s)
@@ -385,6 +428,28 @@ local function claim(s)
         return not objectGUIDInZone(gainedGUID,GUID.zone.offer)
     end,8)
     if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+end
+
+local function castTome(s)
+    if state()~=s or s.mode~="tome" or currentSeat()~=s.seatPos
+        or not talentInPlay(s.seatPos,s.talentGUID) then return end
+    local guid=s.cardGUID
+    local spell=guid~=nil and getObjectFromGUID(guid) or nil
+    if spell==nil or not cardEffectIsVertical(spell) or not matching(guid,s.color)
+        or not objectGUIDInZone(guid,playerPlayAreas[s.seatPos]) then return end
+    s.freeStrong=resourceCardsArtifactBroken(s.talentGUID,getObjectFromGUID(s.talentGUID))==true
+    s.freeGUID=guid
+    s.mode="tomeCast"
+    s.loans[guid]=s.home
+    s.cardGUID,s.home=nil,nil
+    s.used=1
+    browseSerial=browseSerial+1
+    clean(spell)
+    if resourceCardsSourceChanged~=nil then resourceCardsSourceChanged() end
+    -- Call to Arms has an independent physical Unit browser.
+    if guid=="2eb8e8" and callOfferSpellEntered~=nil then
+        callOfferSpellEntered(guid,s.seatPos)
+    end
 end
 
 -- A copied basic Magic Talent is one composite effect with independent
@@ -450,7 +515,8 @@ publishPublicUICallbacks({
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(nextUse)$") end
         if guid==nil then guid,action=id:match("^MagicTalentControl_([0-9a-f]+)_(sameUse)$") end
         if guid~=s.cardGUID then return end
-        if action=="claim" then claim(s)
+        if action=="claim" then
+            if s.mode=="tome" then castTome(s) else claim(s) end
         elseif action=="nextUse" or action=="sameUse" then
             advanceBasic(s,action=="sameUse")
         else cycle(s,action=="previous" and -1 or 1) end
@@ -480,6 +546,7 @@ local function candidateCost(seat,talentGUID)
         local data=gameCards[card.guid]
         if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
+            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid,seat))
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
             local p=ttsVectorArray(card.getPosition())
@@ -504,6 +571,7 @@ local function candidateCosts(seat,need,talentGUID)
         local data=gameCards[card.guid]
         if card.type=="Card" and card.guid~=talentGUID
             and fromHand[card.guid]==seat and color~=nil
+            and (trainingOfferReservedCard==nil or not trainingOfferReservedCard(card.guid,seat))
             and data~=nil and data.cardType~="Artifact"
             and data.cardType~="Wound" and card.resting==true then
             local p=ttsVectorArray(card.getPosition())
@@ -581,7 +649,13 @@ function magicTalentSync()
         -- entitlement to another copy merely because both are in play.
         for _,talentGUID in ipairs(talentsInPlay(seat)) do
             local entitlement=maximalEntitlement(seat,talentGUID)
-            if entitlement~=nil and entitlement.powered==true then
+            if isTome(talentGUID) then
+                local cost,color=candidateCost(seat,talentGUID)
+                if cost~=nil and #offerOrder(color)>0 then
+                    start(seat,"tome",color,cost,nil,nil,talentGUID)
+                    return
+                end
+            elseif entitlement~=nil and entitlement.powered==true then
                 local paid=strongColor(seat,1,entitlement,talentGUID)
                 if paid~=nil then start(seat,"strong",paid,nil,entitlement,nil,talentGUID) return end
             elseif entitlement~=nil then
@@ -599,7 +673,7 @@ function magicTalentSync()
         end
         return
     end
-    if s.mode=="basic" then
+    if s.mode=="basic" or s.mode=="tome" then
         if s.cardGUID==nil and (s.used or 0)<(s.limit or 1) then
             s.order=offerOrder(s.color)
             s.index=1
@@ -626,11 +700,23 @@ function magicTalentSync()
     end
 end
 
--- Return the real Spell before the offer's grid counts/moves its cards.
--- The saved basic/strong entitlement survives this temporary reflow.
+-- Committed physical loans occupy their original offer slot until returned.
+-- Reflow may update the saved home, never move the active Spell itself.
+function magicTalentOfferLoanHomes()
+    local s=state()
+    if s==nil then return {} end
+    local homes={}
+    for guid,home in pairs(s.loans or {}) do homes[guid]=home end
+    if s.mode=="basic" and s.cardGUID~=nil and s.home~=nil
+        and paymentStillOnSpell(s) then homes[s.cardGUID]=s.home end
+    return homes
+end
+
+-- Return uncommitted previews before the offer's grid counts/moves cards.
 function magicTalentOfferWillChange()
     local s=state()
-    if s~=nil and s.cardGUID~=nil then returnPreview(s,true) end
+    if s~=nil and s.cardGUID~=nil
+        and not (s.mode=="basic" and paymentStillOnSpell(s)) then returnPreview(s,true) end
 end
 
 function magicTalentScheduleCheck(movedGUID)

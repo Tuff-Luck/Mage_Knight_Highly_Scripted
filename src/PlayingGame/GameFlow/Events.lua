@@ -1923,7 +1923,7 @@ function __onObjectEnterZone_raw(zone, obj)
 		if terrainTiles[ctx.objGUID]~=nil then runtimeMapInvalidateTerrain() else runtimeMapInvalidateObjects() end
 	end
 	if handleZoneEnterPrelude(ctx)==true then return end
-    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="magicTalent" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and (gameCards[ctx.objGUID].resourceKey=="magicTalent" or ctx.objGUID=="085e68") and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
     end
     if ctx.objGUID=="2eb8e8" and ctx.playerZoneKind=="play" then
@@ -2088,7 +2088,7 @@ function __onObjectLeaveZone_raw(zone, obj)
     if gameCards[ctx.objGUID]~=nil and (gameCards[ctx.objGUID].resourceKey=="training" or gameCards[ctx.objGUID].resourceKey=="artifactBookOfWisdom") and ctx.playerZoneKind=="play" then
         trainingOfferScheduleCardCheck()
     end
-    if gameCards[ctx.objGUID]~=nil and gameCards[ctx.objGUID].resourceKey=="magicTalent" and ctx.playerZoneKind=="play" then
+    if gameCards[ctx.objGUID]~=nil and (gameCards[ctx.objGUID].resourceKey=="magicTalent" or ctx.objGUID=="085e68") and ctx.playerZoneKind=="play" then
         magicTalentScheduleCheck()
     end
     if ctx.objType=="Card" and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="hand" then
@@ -2554,7 +2554,7 @@ function __onObjectRotate_raw(object, spin, flip, player_color, old_spin, old_fl
         callOfferScheduleSpellCheck()
     end
     if gameCards[cardGUID]~=nil and (gameCards[cardGUID].resourceKey=="training" or gameCards[cardGUID].resourceKey=="artifactBookOfWisdom") then trainingOfferScheduleCardCheck() end
-    if gameCards[cardGUID]~=nil and gameCards[cardGUID].resourceKey=="magicTalent" then magicTalentScheduleCheck() end
+    if gameCards[cardGUID]~=nil and (gameCards[cardGUID].resourceKey=="magicTalent" or cardGUID=="085e68") then magicTalentScheduleCheck() end
 	if cardGUID==meditationTranceCardGUID or isSteadyTempoGUID(cardGUID)==true
 		or cardGUID==tacticCard[2] or cardGUID==GUID.card.bannerOfCommandToken then
 		refreshCardEffectAfterRotation(cardGUID)

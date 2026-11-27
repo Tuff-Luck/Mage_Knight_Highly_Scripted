@@ -140,7 +140,8 @@ function M.observe(context)
         if kind=="card" and placements[guid]=="play"
             and trackerPrivate.bannerCardForm(guid)~="half"
             and (trainingOfferReservedCard==nil
-                or not trainingOfferReservedCard(guid,seatPos)) then
+                or not trainingOfferReservedCard(guid,seatPos))
+            and (magicTalentInactivePreview==nil or not magicTalentInactivePreview(guid)) then
             cards[#cards+1]=obj
             footprints[guid]=footprint(obj)
         elseif kind=="wound" and placements[guid]=="play" then

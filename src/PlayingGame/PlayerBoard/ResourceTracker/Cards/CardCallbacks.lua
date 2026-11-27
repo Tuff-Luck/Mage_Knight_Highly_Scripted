@@ -163,6 +163,11 @@ function M.artifactBreak(player,value,id,resourceCardsDetailsOpen,cardPosture,ca
         or not cardInSeatPlayArea(guid,current.seatPos)
         or combatConfig.phaseObjectLocked(guid) then return end
     local broken=resourceCardsArtifactBroken(guid,card)
+    if magicTalentTomeCommitted~=nil and magicTalentTomeCommitted(guid) then
+        safeBroadcastToColor("Tome of All Spells: cast already completed. Use Rewind to undo.",
+            player.color,warningColor)
+        return
+    end
     if data.resourceKey=="artifactBookOfWisdom"
         and ((gStates.trainingOfferClaims or {})[guid] or 0)>0 then
         safeBroadcastToColor("Book of Wisdom: exchange already completed. Use Rewind to undo.",

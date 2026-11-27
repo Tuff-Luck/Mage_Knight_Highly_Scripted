@@ -184,6 +184,10 @@ end
 -- Read the physical Blue casting payment and a separate Black strong-side payment;
 -- the mere presence of the Spell in the play area does not establish either.
 local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,manaColor,manaInsideFootprint)
+    if card~=nil and magicTalentOfferCastSide~=nil then
+        local side=magicTalentOfferCastSide(seatPos,card.guid)
+        if side~=nil then return card.guid==GUID.card.timeBending and side end
+    end
     if card==nil or card.guid~=GUID.card.timeBending
         or card.is_face_down==true or cardPosture(card)~="upright"
         or not resourceCardsBlackAllowed() then return false end

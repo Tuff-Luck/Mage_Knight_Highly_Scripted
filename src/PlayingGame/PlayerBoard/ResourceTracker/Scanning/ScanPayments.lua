@@ -43,8 +43,12 @@ function M.resolve(context)
     -- Some cards require a separate coloured mana payment to choose their
     -- effect. Record those candidates before deciding which mana powers the
     -- strong side; one token can never fill both roles.
-    local effectManaByCard,specialPaymentByCard={},{}
+    local effectManaByCard,specialPaymentByCard,freeCastSides={},{},{}
     for _,card in ipairs(cards) do
+        if magicTalentOfferCastSide~=nil then
+            local side=magicTalentOfferCastSide(seatPos,card.guid)
+            if side~=nil then freeCastSides[card.guid]=side end
+        end
         local data=gameCards[card.guid]
         local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
         if rule~=nil and rule.effectManaChoice~=nil then
@@ -56,6 +60,18 @@ function M.resolve(context)
         -- spell-effect or mana-conversion paths.
         if color=="Black" and not resourceCardsBlackAllowed() then return end
         local data=gameCards[card.guid]
+        -- Free casting does not consume ordinary colour or Black mana.
+        -- Extra printed effect payments still belong to their own role.
+        if freeCastSides[card.guid]~=nil then
+            local spec=specialPaymentByCard[card.guid]
+            if spec==nil or (spec.colors[color]==nil
+                and not (color=="Gold" and resourceCardsGoldAllowed())) then return end
+            local candidates=effectManaByCard[card.guid] or {}
+            candidates[#candidates+1]={guid=manaGUID,color=color}
+            effectManaByCard[card.guid]=candidates
+            usedMana[manaGUID]=card.guid
+            return
+        end
         if data~=nil and data.cardType=="Spell" and color~="Black"
             and matchesCardMana(card,color) then
             spellCastingPaid[card.guid]=true
@@ -90,6 +106,12 @@ function M.resolve(context)
             local color=manaColor(mana)
             if color~=nil then
                 local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
+                    if freeCastSides[card.guid]~=nil then
+                        local spec=specialPaymentByCard[card.guid]
+                        return cardPosture(card)=="upright" and card.is_face_down~=true
+                            and spec~=nil and (spec.colors[color]~=nil
+                                or (color=="Gold" and resourceCardsGoldAllowed()))
+                    end
                     return cardPosture(card)=="upright" and card.is_face_down~=true
                         and (matchesCardMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
@@ -113,7 +135,11 @@ function M.resolve(context)
         local spec=specialPaymentByCard[guid]
         local options,wildcard=effectManaPossibilities(spec,candidates,true,
             resourceCardsGoldAllowed(),resourceCardsBlackAllowed())
-        if wildcard or next(options)~=nil then powered[guid]=true end
+        if freeCastSides[guid]==nil and (wildcard or next(options)~=nil) then powered[guid]=true end
+    end
+    for guid,strong in pairs(freeCastSides) do
+        spellCastingPaid[guid]=true
+        powered[guid]=strong
     end
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=

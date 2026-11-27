@@ -341,3 +341,54 @@ magicTalentSync()
 eq(magicTalentBorrowedTimeBendingSource(1),alternate.guid,"Time Bending sets aside actual source copy")
 magicTalentClose(true)
 print("Alternate Magic Talent copy passed")
+
+-- Tome uses the same physical browser, but an explicit Cast replaces
+-- the regular Spell payment. Check both sides and the no-preview rule.
+magicTalentClose(true)
+maximalCopy=nil
+payments={}
+talent.setPosition({0,1,-40})
+alternate.setPosition({0,1,-40})
+local tome=fakeCard("085e68",0,0)
+cards[#cards+1]=tome
+objects[tome.guid]=tome
+gameCards[tome.guid]={cardType="Artifact",resourceKey="artifactUtility"}
+local tomeBroken=false
+resourceCardsArtifactBroken=function(_guid,_card) return tomeBroken end
+red1.setPosition({10,1,-20})
+red2.setPosition({15,1,-20})
+redCost.setPosition({0.4,1,0.2})
+magicTalentHandLeft(redCost.guid,1)
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Tome opens shared browser")
+eq(s.mode,"tome","Tome awaits explicit Cast")
+eq(magicTalentInactivePreview(red1.guid),true,"Tome preview is inert")
+eq(magicTalentOfferCastSide(1,red1.guid),nil,"No free cast while browsing")
+eq(inZone(redCost.guid,"discard"),true,"Tome discards matching hand card")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red1.guid.."_next")
+eq(s.cardGUID,red2.guid,"Tome can change uncast preview")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..red2.guid.."_claim")
+eq(s.mode,"tomeCast","Tome confirms cast")
+eq(magicTalentOfferCastSide(1,red2.guid),false,"Free basic side is distinct from nil")
+eq(magicTalentOfferCastSide(2,red2.guid),nil,"Other seat cannot borrow free cast")
+eq(magicTalentTomeCommitted(tome.guid),true,"Confirmed Tome side is locked")
+eq(magicTalentReservedCard(red2.guid),true,"Tome retains physical loan")
+local homes=magicTalentOfferLoanHomes()
+eq(homes[red2.guid]~=nil,true,"Committed Spell occupies its offer home")
+magicTalentOfferWillChange()
+eq(inZone(red2.guid,"play"),true,"Reflow does not return committed Spell early")
+homes[red2.guid].position={12,1,-20}
+magicTalentClose(true)
+eq(inZone(red2.guid,"offer"),true,"Basic Tome returns loan")
+eq(red2.position[1],12,"Borrowed Spell returns to reflowed home")
+tomeBroken=true
+redCost.setPosition({0.4,1,0.2})
+magicTalentHandLeft(redCost.guid,1)
+magicTalentSync()
+s=assert(gStates.magicTalentPreview,"Broken Tome opens browser")
+magicTalentClicked({color="Blue"},nil,"MagicTalentControl_"..s.cardGUID.."_claim")
+local borrowed=s.freeGUID
+eq(magicTalentOfferCastSide(1,borrowed),true,"Broken Tome grants free strong cast during Day")
+magicTalentClose(true)
+eq(inZone(borrowed,"offer"),true,"Strong Tome returns loan")
+print("Tome of All Spells browser regressions passed")

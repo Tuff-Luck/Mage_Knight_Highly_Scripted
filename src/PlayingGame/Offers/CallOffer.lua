@@ -12,7 +12,8 @@ end
 -- A Training/Book exchange preview is never a played Spell, even though
 -- its physical card temporarily sits in the play area.
 local function exchangePreview(guid)
-    return trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid)
+    return (trainingOfferReservedCard~=nil and trainingOfferReservedCard(guid))
+        or (magicTalentInactivePreview~=nil and magicTalentInactivePreview(guid))
 end
 
 -- Shared object-UI navigation builder, used by Training's Advanced Action

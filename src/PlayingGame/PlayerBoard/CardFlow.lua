@@ -1642,6 +1642,7 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 	local offerSize=deedOfferBoundedSize(gStates.offerSize)
 	gStates.offerSize=offerSize
 	local offerList={{}, {}}
+	local borrowedHomes=magicTalentOfferLoanHomes~=nil and magicTalentOfferLoanHomes() or {}
 	local movedCards={}
 	local offerZone=getObjectFromGUID(GUID.zone.offer)
 	if offerZone==nil then return movedCards end
@@ -1672,6 +1673,14 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 		end
 	end
 
+	-- A borrowed Spell is still a member of the public offer, even when
+	-- its real card is on the play mat. Count its saved home in the grid.
+	for guid,home in pairs(borrowedHomes) do
+		local p=home.position
+		local row=math.floor(((-p[3]-10.2)/6)+0.5)
+		local column=math.floor(((p[1]-21.6)/4.8)+0.5)
+		if row>=1 and row<=2 and column>=1 and column<=offerSize then offerList[row][column]=guid end
+	end
 	for column=1,offerSize do
 		for row=1,2 do
 			if offerList[row][column]==nil then
@@ -1681,11 +1690,18 @@ local function compactAndRefillDeedOfferRaw(suppressAdjustUIRefresh,sourceOverri
 					if moveGUID~=nil then
 						local cardMove=getObjectFromGUID(moveGUID)
 						if cardMove~=nil then
-							cardMove.unlock()
-							cardMove.setPositionSmooth({(column*4.8)+21.6,1.5,-((row*6)+10.2)},false,false)
-							cardMove.setRotationSmooth({0,180,0},false,false)
-							lockOfferCardWhenResting(moveGUID)
-							movedCards[#movedCards+1]=moveGUID
+							local target={(column*4.8)+21.6,1.5,-((row*6)+10.2)}
+							local home=borrowedHomes[moveGUID]
+							if home~=nil then
+								home.position=target
+								home.rotation={0,180,0}
+							else
+								cardMove.unlock()
+								cardMove.setPositionSmooth(target,false,false)
+								cardMove.setRotationSmooth({0,180,0},false,false)
+								lockOfferCardWhenResting(moveGUID)
+								movedCards[#movedCards+1]=moveGUID
+							end
 							offerList[row][column]=moveGUID
 							offerList[row][replaceColumn]=nil
 							filled=true
