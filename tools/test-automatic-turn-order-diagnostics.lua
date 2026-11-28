@@ -136,7 +136,7 @@ local eventStart=assert(eventSource:find(
 local eventFinish=assert(eventSource:find(
     "\nfunction __tryObjectEnterContainer_raw",eventStart,true))
 local eventImplementation=eventSource:sub(eventStart,eventFinish-1)
-    .."\nreturn protectedObjectDestroyAudit, protectedDestroyEvidence.observe"
+    .."\nreturn protectedObjectDestroyAudit, protectedDestroyEvidence.observe, protectedDestroyEvidence.recordObject, protectedDestroyEvidence.trailSnapshot"
 local destroyPending={}
 local inTeardown=false
 local fakeTime=1700000000.25
@@ -166,9 +166,14 @@ local destroyEnv={
     log=env.log
 }
 setmetatable(destroyEnv,{__index=_G})
-local destroyAudit,recordDestroy=assert(load(eventImplementation,
+local destroyAudit,recordDestroy,recordObject,destroyTrail=assert(load(eventImplementation,
     "Protected object audit","t",destroyEnv))()
 objects.missing456=nil
+for i=1,22 do recordObject("recent-"..i,{type="Tile",getPosition=function() return {1,2,3} end}) end
+assert(not destroyTrail():find("recent-1 ",1,true) and not destroyTrail():find("recent-2 ",1,true))
+assert(destroyTrail():find("recent-22 type=Tile position=(1.00,2.00,3.00)",1,true))
+recordObject("expired",{getPosition=function() error("destroyed") end})
+assert(destroyTrail():find("expired object state unavailable",1,true))
 recordDestroy()
 destroyAudit("missing456")
 destroyAudit("missing456")
@@ -187,6 +192,8 @@ assert(#reports==3,"Missing protected token should be reported")
 assert(reports[3].name=="protectedObjectDestroyAudit")
 assert(reports[3].context:find("seat=5 mage=Dummy",1,true))
 assert(reports[3].context:find("Lookup after 120 frames: NOT FOUND",1,true))
+assert(reports[3].context:find("recent-22 type=Tile position=(1.00,2.00,3.00)",1,true))
+assert(reports[3].context:find("Gameplay turn commits since destroy: 0",1,true))
 assert(reports[3].context:find("Entered container=trash",1,true),
     "Destroy report must retain the last recorded container destination")
 assert(reports[3].context:find("Token destroyed (UTC): "..
@@ -307,5 +314,18 @@ assert(destroyEnv.protectedTableTeardownLikely()==false,
 for _=1,49 do recordDestroy() end
 assert(destroyEnv.protectedTableTeardownLikely()==true,
     "The shared guard must recognise a 50-callback burst")
+
+-- A still-missing assigned token gets a single positive follow-up after a
+-- completed gameplay turn, rather than assuming a rewind from a recent save.
+objects["519f96"]={}
+objects["turn-zone"]={}
+objects["map-zone"]={}
+objects.missing456=nil
+local beforeProgress=#reports
+destroyEnv.protectedTurnOrderTurnCommitted()
+local afterProgress=#reports
+assert(afterProgress>beforeProgress,"Confirmed continued gameplay should produce follow-up evidence")
+destroyEnv.protectedTurnOrderTurnCommitted()
+assert(#reports==afterProgress,"Follow-up must be deduplicated")
 
 print("Automatic turn-order token diagnostics passed")
