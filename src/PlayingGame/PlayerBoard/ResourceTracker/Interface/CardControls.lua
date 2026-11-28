@@ -157,7 +157,7 @@ return function(deps)
             and gStates.startingCardSelections[card.guid] or nil
         local influenceAction=rule~=nil and rule.influenceAction~=nil
             and not combatEnemyInPlay and special~=nil and special.influenceAction==true
-        local influenceHealing=influenceAction and (special.influenceHealing or 0) or 0
+        local influenceHealing=influenceAction and special~=nil and (special.influenceHealing or 0) or 0
         local recruitmentCount=0
         if rule~=nil and rule.recruitmentReward~=nil and unitRecruitmentCount~=nil then
             local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
