@@ -227,6 +227,12 @@ function onObjectDestroy(destroyedObj)
 		end)
 end
 
+function onObjectStateChange(object, old_state_guid)
+	return safeCallback("onObjectStateChange", function()
+		protectedTurnOrderTokenStateChanged(object,old_state_guid)
+	end)
+end
+
 function onObjectEnterZone(zone, obj)
 	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
@@ -863,6 +869,12 @@ function fameReputationAdvanceCoopRewardPhase()
 	end)
 end
 
+-- Co-op combat queues rewards for the later reward phase. A missing commit
+-- marker during the combat handoff is intentional, not a failed reward commit.
+local function fameRepRewardsDeferred()
+	return gStates.coopAssaultPhase=="combat"
+end
+
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
@@ -870,7 +882,7 @@ function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	-- initial reward commit; otherwise a premature click could award Fame before
 	-- all defeated monsters have returned and their rewards have settled.
 	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
-	if coopRewards~=true then
+	if coopRewards~=true and not fameRepRewardsDeferred() then
 		if gStates.preEndTurn==true then
 			if fameRepEnsureRewardCommitted(playerIndex)~=true then return false end
 		elseif syncPostCommitAdjustments(playerIndex)==false then
@@ -893,7 +905,7 @@ function fameReputationOnLoadRaw(saved_data, loaded_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()
-		if gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil then
+		if not fameRepRewardsDeferred() and gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil then
 			local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[gStates.turnNumber] or nil
 			if committed==nil and ((turnOrder[gStates.turnNumber].fameGain or 0)~=0 or (turnOrder[gStates.turnNumber].repGain or 0)~=0) then
 				applyPlayerFameReputation(gStates.turnNumber)
@@ -1003,7 +1015,8 @@ local function protectedTurnOrderTokenObjectState(obj)
 			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,
 			tonumber(p.z or p[3]) or 0) or "unknown"
 		return "type="..tostring(obj.type).." position="..position
-			.." resting="..tostring(obj.resting)
+			.." resting="..tostring(obj.resting).." faceDown="..tostring(obj.is_face_down)
+			.." locked="..tostring(obj.locked)
 	end)
 	return ok and description or "object state unavailable: "..tostring(description)
 end
@@ -1011,9 +1024,9 @@ local function protectedTurnOrderTokenRecord(guid,event,obj)
 	if type(guid)~="string" or protectedObjectKind(guid)~="Round Order token" then return end
 	protectedTurnOrderTokenSequence=protectedTurnOrderTokenSequence+1
 	local history=protectedTurnOrderTokenTrail[guid] or {}
-	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". "..event.." "
+	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". ["..os.date("!%H:%M:%S",os.time()).." UTC] "..event.." "
 		..protectedTurnOrderTokenObjectState(obj)
-	if #history>8 then table.remove(history,1) end
+	if #history>12 then table.remove(history,1) end
 	protectedTurnOrderTokenTrail[guid]=history
 end
 function protectedTurnOrderTokenSetup(obj,sourceBag,position)
@@ -1023,6 +1036,27 @@ function protectedTurnOrderTokenSetup(obj,sourceBag,position)
 		"Setup took token from cloned bag="..tostring(sourceBag and sourceBag.guid)
 			.." intended position=("..intended..")",obj)
 end
+-- Record only assigned tokens, without changing their movement or identity.
+function protectedTurnOrderTokenScriptMove(obj,position,reason)
+	if obj==nil then return end
+	pcall(function()
+		protectedTurnOrderTokenRecord(obj.guid,"Script move ("..tostring(reason)
+			..") target=("..table.concat(position,",")..")",obj)
+	end)
+end
+
+function protectedTurnOrderTokenStateChanged(obj,oldGUID)
+	pcall(function()
+		local newGUID=obj~=nil and obj.guid or nil
+		if type(oldGUID)=="string" then
+			protectedTurnOrderTokenRecord(oldGUID,"State changed: "..oldGUID.." -> "..tostring(newGUID),obj)
+		end
+		if newGUID~=oldGUID then
+			protectedTurnOrderTokenRecord(newGUID,"State changed from "..tostring(oldGUID),obj)
+		end
+	end)
+end
+
 -- The game intentionally moves certain protected pieces into Trash: tactics at round end,
 -- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
 function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
@@ -1055,6 +1089,8 @@ function __onPlayerAction_raw(player,action,targets)
 	for _,obj in ipairs(targets or {}) do
 		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
 		if kind~=nil then
+			protectedTurnOrderTokenRecord(obj.guid,"Blocked player action "..tostring(action)
+				.." color="..tostring(player and player.color),obj)
 			if player~=nil and player.color~=nil then
 				broadcastToColor(kind.." is protected against player deletion.",player.color,{1,0.72,0.35})
 			end
@@ -1068,7 +1104,22 @@ local protectedDestroyAuditPending={}
 -- Cheap aggregate of *all* onObjectDestroy callbacks, not only protected tokens.
 -- 15 one-second buckets avoid allocating a new history entry for every destroyed
 -- TTS object (important on slower machines and during mass scene teardown).
-local protectedDestroyEvidence={total=0,buckets={}}
+local protectedDestroyEvidence={total=0,buckets={},trail={},turnCommits=0,followups={}}
+-- Keep only strings and a fixed-size rolling window, never dying TTS userdata.
+function protectedDestroyEvidence.recordObject(guid,obj)
+	local ok,description=pcall(function()
+		local p=obj.getPosition()
+		return "type="..tostring(obj.type).." position="..string.format("(%.2f,%.2f,%.2f)",
+			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,tonumber(p.z or p[3]) or 0)
+	end)
+	local trail=protectedDestroyEvidence.trail
+	trail[#trail+1]=os.date("!%H:%M:%S",os.time()).." UTC "..tostring(guid)
+		.." "..(ok and description or "object state unavailable")
+	if #trail>20 then table.remove(trail,1) end
+end
+function protectedDestroyEvidence.trailSnapshot()
+	return #protectedDestroyEvidence.trail>0 and table.concat(protectedDestroyEvidence.trail,"\n") or "none"
+end
 function protectedDestroyEvidence.observe()
 	local second=math.floor(os.time())
 	local index=(second%15)+1
@@ -1173,7 +1224,9 @@ local function protectedObjectDestroyAudit(guid)
 		destroyCount=protectedDestroyEvidence.total,
 		recentCount=protectedDestroyEvidence.recent(startedAt),
 		anchors=protectedDestroyEvidence.anchorSnapshot(),
-		otherTokens=protectedDestroyEvidence.otherTokensSnapshot(guid)
+		otherTokens=protectedDestroyEvidence.otherTokensSnapshot(guid),
+		trail=protectedDestroyEvidence.trailSnapshot(),
+		turnCommits=protectedDestroyEvidence.turnCommits
 	} or true
 	-- Shutdown destroys objects in stages; the old two-frame check could run while
 	-- anchors were still present and dispatch a spurious remote error report.
@@ -1202,6 +1255,9 @@ local function protectedObjectDestroyAudit(guid)
 					break
 				end
 			end
+			if protectedDestroyEvidence.turnCommits==evidence.turnCommits then
+				protectedDestroyEvidence.followups[guid]={destroyedAt=evidence.destroyedAt,owner=owner}
+			end
 			reportAutomaticLuaDiagnostic("protectedObjectDestroyAudit",
 				"Round Order token disappeared after destroy callback GUID="..tostring(guid),
 				"Owner at destroy audit: "..owner
@@ -1221,10 +1277,32 @@ local function protectedObjectDestroyAudit(guid)
 					.."\nShutdown anchors at verification: "..protectedDestroyEvidence.anchorSnapshot()
 					.."\nOther turn-order tokens at destroy: "..evidence.otherTokens
 					.."\nOther turn-order tokens at verification: "..protectedDestroyEvidence.otherTokensSnapshot(guid)
+					.."\nGameplay turn commits since destroy: "..tostring(protectedDestroyEvidence.turnCommits-evidence.turnCommits)
+					.."\nLast 20 destruction callbacks at token destroy:\n"..evidence.trail
+					.."\nLast 20 destruction callbacks at verification:\n"..protectedDestroyEvidence.trailSnapshot()
 					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
 						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
 	end,PROTECTED_DESTROY_AUDIT_GRACE_FRAMES)
+end
+
+-- One positive follow-up per incident, only if a gameplay turn actually commits
+-- in the same script session. No follow-up is not evidence of a stopped game.
+function protectedTurnOrderTurnCommitted()
+	protectedDestroyEvidence.turnCommits=protectedDestroyEvidence.turnCommits+1
+	for guid,evidence in pairs(protectedDestroyEvidence.followups) do
+		protectedDestroyEvidence.followups[guid]=nil
+		if not eventsExitTeardown() and protectedDestroyEvidence.objectStatus(guid)=="MISSING"
+			and protectedObjectKind(guid)=="Round Order token" and reportAutomaticLuaDiagnostic~=nil then
+			reportAutomaticLuaDiagnostic("protectedTurnOrderTurnCommitted",
+				"Gameplay continued with missing Round Order token GUID="..guid,
+				"Original destroy (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",evidence.destroyedAt)
+				.."\nOwner: "..evidence.owner.."\nRound="..tostring(gStates.currentRound)
+				.." turn="..tostring(gStates.turnNumber)
+				.."\nOther tokens: "..protectedDestroyEvidence.otherTokensSnapshot(guid)
+				.."\nShutdown anchors: "..protectedDestroyEvidence.anchorSnapshot())
+		end
+	end
 end
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -2090,6 +2168,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)
 	if not guidOK or type(destroyedGuid)~="string" or destroyedGuid=="" then return end
 	protectedDestroyEvidence.observe()
+	protectedDestroyEvidence.recordObject(destroyedGuid,destroyedObj)
 	-- Combat cleanup refreshes target buttons/lines. Run it after TTS finishes retiring the
 	-- object, rather than recalculating while the dying object is still in physics/zone lists.
 	safeWaitFrames("Events",function() attackAssignmentsClearForObject(destroyedGuid) end,1)
@@ -6445,7 +6524,8 @@ do
         local ui=UI
         if record.guid~=nil then
             local obj=getObjectFromGUID(record.guid)
-            ui=obj~=nil and obj.UI or nil
+            if obj==nil or obj.UI==nil then return end
+            ui=obj.UI
         end
         if ui~=nil and ui.getAttribute(id.."Image","image")==record.pressed
             and enabled(ui,id) then
@@ -21330,8 +21410,10 @@ function tacticToggle()
 			local tokenGUID=details~=nil and details.turnOrderTokenGUID or nil
 			local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
 			if token~=nil then
+				local target={-1.90, 1.2, -18.00-(1.4*a)}
+				if protectedTurnOrderTokenScriptMove~=nil then protectedTurnOrderTokenScriptMove(token,target,"tactic sort") end
 				token.unlock()
-				token.setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+				token.setPositionSmooth(target,false,false)
 			else
 				-- Keep normal tactic selection moving, but send enough state to the
 				-- bug-report Sheet to investigate why a protected token was unavailable.
@@ -22073,6 +22155,7 @@ function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
 	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then apocalypseDragonRefreshGroundAttackSuppression() end
 	if gStates.tacticShown==false then startOfTurn() else claimButtonRefresh() end
 	scheduleAvatarDropRefresh()
+	if gStates.tacticShown==false and protectedTurnOrderTurnCommitted~=nil then pcall(protectedTurnOrderTurnCommitted) end
 	return gStates.turnNumber
 end
 
@@ -28549,7 +28632,11 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 		return
 	end
 	local skipped,preventAll={},false
-	if resourceCardsSummonPlan~=nil then skipped,preventAll=resourceCardsSummonPlan(id) end
+	if resourceCardsSummonPlan~=nil then
+		local plannedSkipped,plannedPrevent=resourceCardsSummonPlan(id)
+		skipped=plannedSkipped
+		preventAll=plannedPrevent==true
+	end
 	local remaining=0
 	for order in ipairs(monsterData.monsters) do
 		if not skipped[order] then remaining=remaining+1 end
@@ -32338,7 +32425,8 @@ end
 -- physical throw-away entitlement of an ordinary Maximal Effect target.
 function magicTalentOfferActionRepeat(seat,guid)
     local s=cardSession(guid)
-    local count=s~=nil and tonumber((s.ancientsRepeatCounts or {})[guid]) or nil
+    if s==nil then return nil end
+    local count=tonumber((s.ancientsRepeatCounts or {})[guid])
     if count==nil or count<2 or magicTalentOfferCastSide(seat,guid)~=true then return nil end
     return {powered=true,count=count,sourceGUID=s.talentGUID,borrowed=true}
 end
@@ -33505,7 +33593,7 @@ function trainingOfferObjectDropped(playerColor,obj)
         local guid=obj.guid
         safeWaitCondition("Offers.Training",function()
             local state=currentState()
-            if state~=active or state.cardGUID~=guid then return end
+            if state==nil or state~=active or state.cardGUID~=guid then return end
             local held=getObjectFromGUID(guid)
             if held==nil then return end
             state.display=ttsVectorArray(held.getPosition())
@@ -33610,6 +33698,7 @@ local excluded={["0a2e0b"]=true,["d8e49b"]=true,["9c5c38"]=true,["5c2da0"]=true}
 local transferSerial=0
 local spellMoveSerial=0 -- Invalidate stale leave-zone checks during drag/rearrangement.
 
+---@return CallOfferPreviewState?
 local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
 end
@@ -33995,6 +34084,7 @@ end
 function callOfferClaimAtSlot(guid,seatPos,x,layout,command,onSettled)
     if callOfferRecruitmentCandidate(guid,seatPos)==nil or cardFlowUnitClaimBusy() then return false end
     local current=previewState()
+    if current==nil then return false end
     local unit=getObjectFromGUID(guid)
     if unit==nil then return end
     transferSerial=transferSerial+1
@@ -34033,7 +34123,7 @@ function callOfferObjectDropped(obj,playerColor)
     local serial=transferSerial
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
-        if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
+        if current==nil or current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
         if playerColor~=nil and legalPlayerCheck(playerColor,current.seatPos,"NoDummyException")~=true then return end
         local spell=getObjectFromGUID(current.spellGUID)
         if not validSpell(current.seatPos,spell) then
@@ -56318,7 +56408,7 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
         end
     end
     local repeats=trackerPrivate.physicalActionLinkSnapshot(seatPos,true)
-    return repeats[targetGUID]
+    return repeats~=nil and repeats[targetGUID] or nil
 end
 
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
@@ -58820,7 +58910,7 @@ return function(deps)
             local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
             local requirement=rule~=nil and rule.requiredLink or nil
             local repeated=repeatByTarget[source.guid]
-            if requirement~=nil and requirement.mode=="throwAway"
+            if rule~=nil and requirement~=nil and requirement.mode=="throwAway"
                 and (discarded[source.guid]==nil or repeated~=nil)
                 and (source.is_face_down~=true or repeated~=nil)
                 and cardPosture(source)=="upright" then
@@ -60006,7 +60096,7 @@ return function(deps)
             and gStates.startingCardSelections[card.guid] or nil
         local influenceAction=rule~=nil and rule.influenceAction~=nil
             and not combatEnemyInPlay and special~=nil and special.influenceAction==true
-        local influenceHealing=influenceAction and (special.influenceHealing or 0) or 0
+        local influenceHealing=influenceAction and special~=nil and (special.influenceHealing or 0) or 0
         local recruitmentCount=0
         if rule~=nil and rule.recruitmentReward~=nil and unitRecruitmentCount~=nil then
             local active=turnOrder~=nil and gStates~=nil and turnOrder[gStates.turnNumber] or nil
@@ -64565,7 +64655,7 @@ return function(combatConfig)
             score=score+state.spent*100
             -- Equal-cost routes must not depend on Lua hash iteration order.
             if score<math.huge and (bestScore==nil or score<bestScore
-                or (score==bestScore and state.route<bestState.route)) then
+                or (score==bestScore and bestState~=nil and state.route<bestState.route)) then
                 bestScore,bestState,bestReductions=score,state,reductions
             end
         end
@@ -66334,7 +66424,7 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     if not sideways and rule~=nil and rule.woundPaymentChoice==category then
         -- Only an actual option selection (not opening the row) deals
         -- its Wound. Stale base controls cannot pay a repeated application.
-        if record==nil or cardPosture(card)~="upright"
+        if data==nil or record==nil or cardPosture(card)~="upright"
             or (card.is_face_down==true and record.repeatLink==nil)
             or (record.repeatLink~=nil and repeatIndex==nil)
             or (data.cardType=="Spell" and record.spellCastPaid~=true)
@@ -68837,7 +68927,7 @@ function M.sourceClicked(player,value,id,combatEnemyInPlay,unitResourceDefinitio
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
     local data=gameCards~=nil and gameCards[guid] or nil
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if combatEnemyInPlay and rule~=nil
+    if combatEnemyInPlay and data~=nil and rule~=nil
         and (data.resourceKey=="artifactDruidicStaff" or rule.readyOutsideCombat==true) then return end
     if not resourceCardsReadySourceValid(sourceKey) then return end
     local limit=resourceCardsReadySourceLevelLimit(sourceKey)
@@ -81169,13 +81259,13 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="473"
+local automaticLuaErrorReporterVersion="474"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together
 -- to avoid consuming extra chunk-level locals in the bundled Global script.
 local automaticLuaErrorSession={
-	modLoadedAt=os.time(),lastSaveAt=nil,
+	modLoadedAt=os.time(),lastSaveAt=nil,saveTrail={},
 	utcTimestamp=function(timestamp)
 		return os.date("!%Y-%m-%d %H:%M:%S UTC",timestamp)
 	end,
@@ -81192,6 +81282,7 @@ local automaticLuaErrorSession={
 function automaticLuaRecordModLoad()
 	automaticLuaErrorSession.modLoadedAt=os.time()
 	automaticLuaErrorSession.lastSaveAt=nil
+	automaticLuaErrorSession.saveTrail={}
 	automaticLuaErrorSession.loadStage="onLoad entered"
 end
 -- An incomplete load retains its final stage until a new load starts.
@@ -81208,6 +81299,11 @@ function automaticLuaLoadStageContext()
 end
 function automaticLuaRecordModSave()
 	automaticLuaErrorSession.lastSaveAt=os.time()
+	local trail=automaticLuaErrorSession.saveTrail
+	local state=type(gStates)=="table" and gStates or {}
+	trail[#trail+1]=automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.lastSaveAt)
+		.." round="..tostring(state.currentRound).." turn="..tostring(state.turnNumber)
+	if #trail>8 then table.remove(trail,1) end
 end
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
@@ -81497,6 +81593,11 @@ local function reportAutomaticLuaError(functionName, errorText, context, heading
 	if automaticLuaErrorSession.lastSaveAt~=nil then
 		comment=comment.."\nLast onSave (UTC): "..automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.lastSaveAt)
 			.."\nTime since onSave: "..tostring(math.max(0,math.floor(now-automaticLuaErrorSession.lastSaveAt))).."s"
+	end
+	if functionName=="protectedObjectDestroyAudit" or functionName=="protectedTurnOrderTurnCommitted" then
+		comment=comment.."\n"..automaticLuaLoadStageContext()
+			.."\nRecent onSave events (current script session):\n"
+			..(#automaticLuaErrorSession.saveTrail>0 and table.concat(automaticLuaErrorSession.saveTrail,"\n") or "none")
 	end
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
