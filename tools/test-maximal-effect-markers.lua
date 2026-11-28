@@ -50,8 +50,9 @@ local training=card("6fdeb0",0.3)
 local ordinary=card("a11111",6)
 local objects={[maximal.guid]=maximal,[training.guid]=training,
     [ordinary.guid]=ordinary}
+local zoneObjects={maximal,training}
 local zone={getObjects=function()
-    return {maximal,training}
+    return {table.unpack(zoneObjects)}
 end}
 local trashed={}
 local trash={putObject=function(target)
@@ -60,6 +61,9 @@ local trash={putObject=function(target)
 end}
 objects.zone=zone
 objects.trash=trash
+local panelOpen=false
+local artifactThrown=false
+local artifactGUID
 local env={
     Global={},trackerPrivate={readyForXZ=dofile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/PhysicalObjects.lua").readyForXZ},
     combatConfig={cardInTransit=function() return false end},
@@ -76,7 +80,7 @@ local env={
         maximalEffect={requiredLink={mode="repeat",normalCount=3,poweredCount=2}}
     },
     getObjectFromGUID=function(id) return objects[id] end,
-    resourceCardsPanelOpen=function() return false end,
+    resourceCardsPanelOpen=function() return panelOpen end,
     cardPosture=function(obj) return obj.posture or "upright" end,
     footprint=function(obj) return {x=obj.x,z=0,halfX=1,halfZ=1} end,
     overlapArea=function(a,b)
@@ -103,7 +107,9 @@ env.resolveSkillCardLinks=function() return {},{},{} end
 env.effectManaPossibilities=manaPayments.effectManaPossibilities
 env.resourceCardsGoldAllowed=function() return true end
 env.resourceCardsBlackAllowed=function() return false end
-env.resourceCardsArtifactBroken=function() return false end
+env.resourceCardsArtifactBroken=function(guid,_obj)
+    return guid==artifactGUID and artifactThrown
+end
 package.path="src/?.lua;"..package.path
 env.resolveActionLinks=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua","t",env))()({
     overlapArea=env.overlapArea,cardPosture=env.cardPosture,
@@ -131,10 +137,10 @@ eq(methods.link(1,training.guid).count,3,"Physical OFF link finds three basic us
 local amulet=card("amulet",10)
 env.gameCards.amulet={cardType="Artifact",resourceKey="testAmulet"}
 env.cardResourceDefinitions.testAmulet={artifactMana="gold"}
-local originalZone=zone.getObjects
+local originalZone=zoneObjects
 local originalResolve=env.trackerPrivate.scanPayments.resolve
 local originalPermissions=env.combatConfig.amuletMana
-zone.getObjects=function() return {maximal,training,amulet} end
+zoneObjects={maximal,training,amulet}
 env.trackerPrivate.scanPayments.resolve=function(context)
     eq(env.combatConfig.amuletMana.gold,true,"Live Amulet grants Gold in link-only scan")
     return originalResolve(context)
@@ -143,17 +149,14 @@ methods.link(1,training.guid)
 eq(env.combatConfig.amuletMana,originalPermissions,"Calculator permission table restored")
 eq(env.combatConfig.amuletMana.gold,false,"Link-only scan leaves cached flags unchanged")
 env.trackerPrivate.scanPayments.resolve=originalResolve
-zone.getObjects=originalZone
+zoneObjects=originalZone
 
 -- Artifacts use the same existing red X, driven by the saved Throw state.
 -- Recover removes it; repeated recalculation must not duplicate the marker.
 local artifact=card("af0001",7)
 objects[artifact.guid]=artifact
 env.gameCards[artifact.guid]={cardType="Artifact",resourceKey="artifactUtility"}
-local artifactThrown=false
-env.resourceCardsArtifactBroken=function(guid)
-    return guid==artifact.guid and artifactThrown
-end
+artifactGUID=artifact.guid
 methods.sync(1,{artifact},{})
 eq(methods.marked(artifact),false,"Unthrown Artifact has no X")
 artifactThrown=true
@@ -197,9 +200,9 @@ eq(methods.throwReason(ritualCost),nil,
     "Incomplete Ritual Attack cannot throw its payment")
 eq(methods.marked(ritualCost),false,"Incomplete Ritual Attack clears X")
 -- Ritual Attack also needs its linked cost to survive a mid-cleanup save.
-env.resourceCardsPanelOpen=function() return true end
+panelOpen=true
 env.resourceCardScanBySeat[1]={cards={[ritualCost.guid]={}}}
-zone.getObjects=function() return {ritual,ritualCost} end
+zoneObjects={ritual,ritualCost}
 methods.sync(1,{ritual,ritualCost},{},
     {[ritualCost.guid]=ritual.guid},{[ritual.guid]=true})
 env.gStates.preEndTurn=true
@@ -220,12 +223,12 @@ env.trackerPrivate.throwAwayLinksByGUID={}
 eq(methods.throwReason(ritualCost),"ritualAttack",
     "Resumed cleanup must still throw the Ritual Attack cost")
 env.gStates.preEndTurn=false
-env.resourceCardsPanelOpen=function() return false end
-zone.getObjects=function() return {maximal,training} end
+panelOpen=false
+zoneObjects={maximal,training}
 methods.sync(1,{ritual,ritualCost},{},
     {[ritualCost.guid]=ritual.guid},{[ritual.guid]=false})
 -- With no full scan or cache, the physical throw-away links still exist.
-zone.getObjects=function() return {ritual,ritualCost} end
+zoneObjects={ritual,ritualCost}
 methods.sync(1,{ritual,ritualCost})
 eq(methods.marked(ritualCost),true,"Closed tracker resolves Ritual Attack")
 eq(env.gStates.resourceCardPlayOrder,nil,"Link-only scan does not record play order")
@@ -239,7 +242,7 @@ ritualCost.posture="discard"
 methods.sync(1,{ritual,ritualCost})
 eq(methods.marked(ritualCost),false,"Invalidated throw-away clears marker while closed")
 ritualCost.posture="upright"
-zone.getObjects=function() return {maximal,training} end
+zoneObjects={maximal,training}
 methods.sync(1,{discardSource,spell,artifact},{},
     {[spell.guid]=discardSource.guid,[artifact.guid]=discardSource.guid},
     {[discardSource.guid]=true})
@@ -270,19 +273,19 @@ eq(basicUses,3,"Training has three uses while OFF")
 local alternateTraining=card("4808f2",5)
 objects[alternateTraining.guid]=alternateTraining
 env.gameCards[alternateTraining.guid]={cardType="Advanced Action",resourceKey="training"}
-local originalZoneObjects=zone.getObjects
-zone.getObjects=function() return {maximal,training,alternateTraining} end
+local originalZoneObjects=zoneObjects
+zoneObjects={maximal,training,alternateTraining}
 local altPowered,altUses=trainingMode(1,alternateTraining.guid)
 eq(altPowered,false,"Alternate Training does not borrow original mana")
 eq(altUses,1,"Alternate Training does not inherit another card's copies")
 local altMaximal=card("d030d8",5.1)
 objects[altMaximal.guid]=altMaximal
 env.gameCards[altMaximal.guid]={cardType="Advanced Action",resourceKey="maximalEffect"}
-zone.getObjects=function() return {maximal,training,alternateTraining,altMaximal} end
+zoneObjects={maximal,training,alternateTraining,altMaximal}
 altPowered,altUses=trainingMode(1,alternateTraining.guid)
 eq(altPowered,false,"Alternate copied Training basic side")
 eq(altUses,3,"Alternate Maximal Effect repeats alternate Training")
-zone.getObjects=originalZoneObjects
+zoneObjects=originalZoneObjects
 methods.sync(1,{maximal,training},{[training.guid]={count=3,powered=false}})
 eq(methods.marked(training),true,"Linked card displays red X")
 eq(#training.getButtons(),1,"Only one X")
@@ -297,21 +300,22 @@ eq(methods.marked(training),true,"Flip face up retains X")
 methods.sync(1,{maximal,training},{})
 eq(methods.marked(training),false,"Removing link clears X")
 
+local manaSmoothMoving=false
 local mana={guid="mana1",color="Red",getPosition=function() return {0,1,0} end,
-    isSmoothMoving=function() return false end}
-zone.getObjects=function() return {maximal,training,mana} end
+    isSmoothMoving=function() return manaSmoothMoving end}
+zoneObjects={maximal,training,mana}
 local strong=methods.link(1,training.guid)
 eq(strong.count,2,"Powered OFF link gives two uses")
 eq(strong.powered,true,"Powered copy is strong")
 mana.held_by_color="Blue"
 eq(methods.link(1,training.guid).count,3,"Held mana cannot power OFF link")
 mana.held_by_color=nil
-mana.isSmoothMoving=function() return true end
+manaSmoothMoving=true
 eq(methods.link(1,training.guid).count,3,"Smooth-moving mana cannot power OFF link")
-mana.isSmoothMoving=function() return false end
-zone.getObjects=function() return {maximal,training} end
+manaSmoothMoving=false
+zoneObjects={maximal,training}
 eq(methods.link(1,training.guid).count,3,"Out-of-zone mana cannot power OFF link")
-zone.getObjects=function() return {maximal,training,mana} end
+zoneObjects={maximal,training,mana}
 eq(methods.link(1,training.guid).count,2,"Released live-zone mana restores stronger copy")
 local poweredTraining,strongUses=trainingMode(1)
 eq(poweredTraining,true,"Powered copied Training while OFF")
@@ -321,7 +325,7 @@ local flippedTraining,flippedUses=trainingMode(1)
 eq(flippedTraining,true,"Thrown-away Training still powered")
 eq(flippedUses,2,"Face-down Training retains two uses")
 training.is_face_down=false
-zone.getObjects=function() return {maximal,training} end
+zoneObjects={maximal,training}
 
 -- Cleanup consumes a marked face-up Action instead of returning it to
 -- the discard pile. Unmarked Actions still use the normal discard branch.
