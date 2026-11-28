@@ -1304,6 +1304,7 @@ function refreshMeditationTrance()
 end
 
 -- The shared payment-change path also runs when the Resource Tracker is closed.
+local meditationPaymentSerial=0
 function meditationPaymentChanged(movedGUID,seatPos)
     if gStates==nil or gStates.firstStarted~=true then return end
     local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
@@ -1311,8 +1312,15 @@ function meditationPaymentChanged(movedGUID,seatPos)
     local card=getObjectFromGUID(meditationTranceCardGUID)
     if card==nil or (gStates.meditationTranceState==nil
         and not objectGUIDInZone(card.guid,playerPlayAreas[player.seatPos])) then return end
+    meditationPaymentSerial=meditationPaymentSerial+1
+    local serial=meditationPaymentSerial
     safeWaitFrames("PlayerBoard.CardFlow",function()
-        safeWaitCondition("PlayerBoard.CardFlow",refreshMeditationTrance,function()
+        if serial~=meditationPaymentSerial then return end
+        safeWaitCondition("PlayerBoard.CardFlow",function()
+            if serial==meditationPaymentSerial and not player.endCalled
+                and turnOrder[gStates.turnNumber]==player then refreshMeditationTrance() end
+        end,function()
+            if serial~=meditationPaymentSerial then return true end
             local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
             return moved==nil or ((moved.held_by_color==nil or moved.held_by_color=="")
                 and not moved.isSmoothMoving() and (moved.type=="Dice" or moved.resting==true))

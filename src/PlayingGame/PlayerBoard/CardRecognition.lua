@@ -6341,9 +6341,9 @@ end
 -- Limit it to play-area changes that can affect card payment allocation.
 function trackerPrivate.browserPaymentChanged(obj,seatPos)
     if obj==nil then return end
-    local kind=resourceObjectKind(obj)
-    if kind=="card" or kind=="skill" or kind=="mana"
-        or (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") then
+    local kind=(obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice")
+        and "mana" or resourceObjectKind(obj)
+    if kind=="card" or kind=="skill" or kind=="mana" then
         if callOfferPaymentChanged~=nil then callOfferPaymentChanged(obj.guid,seatPos) end
         if meditationPaymentChanged~=nil then meditationPaymentChanged(obj.guid,seatPos) end
     end

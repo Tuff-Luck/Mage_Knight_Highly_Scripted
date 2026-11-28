@@ -88,6 +88,7 @@ local env={
     end
 }
 setmetatable(env,{__index=_G})
+dofile("src/PlayingGame/Interface/UIAssets.lua")
 local assets=read("src/PlayingGame/Interface/UIAssets.lua")
 local sameStart=assert(assets:find("function resourceObjectUiSameXML(left,right)",1,true))
 local sameEnd=assert(assets:find("-- Legacy shared artwork",sameStart,true))
