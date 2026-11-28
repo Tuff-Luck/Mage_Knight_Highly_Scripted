@@ -219,7 +219,19 @@ do
     animationEnv.ButtonClickDown(nil,"-1",id)
     animationEnv.buttonAnimationCompleted("ButtonClickDown","-1",id)
     assert(#pending==0,"Mouse callback cannot schedule recovery")
-    animationEnv.buttonAnimationCompleted("testAction","-1",id)
+    -- Exercise the actual protected public callback boundary, rather than
+    -- assuming an action calls the recovery helper by hand.
+    animationEnv.automaticLuaProtectedCallbackDepth=0
+    animationEnv.safeCallback=function(_label,callback,_context) return callback() end
+    local reporting=read("src/ErrorReporting.lua")
+    assert(load(section(reporting,"local function automaticLuaUnpackArgs(","--Publish UI callbacks"),
+        "Protected action recovery","t",animationEnv))()
+    local clicks=0
+    local action=animationEnv.safePublicCallback("testAction",function(_player,_mouse,_id)
+        clicks=clicks+1
+        return "resolved"
+    end)
+    assert(action(nil,"-1",id)=="resolved" and clicks==1,"Action return and execution preserved")
     assert(#pending==1 and image==pressed,"Completed click schedules delayed recovery")
     pending[1]()
     assert(image==active,"Missing mouse-up recovers")

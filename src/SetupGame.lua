@@ -884,6 +884,7 @@ end
 --Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
 function setupGame(player, mouseButton, id, rewindReady)
 	return safeCallback("setupGame",function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("setupGame",mouseButton,id) end
 		if mouseButton=="-1" and rewindReady==true and gStates~=nil then
 			--Book.setPage expects a CLR Int32. Normalize scenario rule-page values before the delayed
 			--rulebook callback runs, including values restored from a string.

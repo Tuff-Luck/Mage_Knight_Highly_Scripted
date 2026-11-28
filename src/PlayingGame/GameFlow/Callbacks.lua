@@ -8,15 +8,24 @@ function skillMove(player, mouseButton, id, rewindReady)
 end
 
 function preEndTurn(player, mouseButton, id, rewindReady)
-	return safeCallback("preEndTurn", function() return __preEndTurn_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("preEndTurn", function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("preEndTurn",mouseButton,id) end
+		return __preEndTurn_raw(player, mouseButton, id, rewindReady)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function endTurn(player, mouseButton, id, rewindReady)
-	return safeCallback("endTurn", function() return __endTurn_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("endTurn", function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("endTurn",mouseButton,id) end
+		return __endTurn_raw(player, mouseButton, id, rewindReady)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function PreEndRound(player, mouseButton, id)
-	return safeCallback("PreEndRound", function() return __PreEndRound_raw(player, mouseButton, id) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("PreEndRound", function()
+		if buttonAnimationCompleted~=nil then buttonAnimationCompleted("PreEndRound",mouseButton,id) end
+		return __PreEndRound_raw(player, mouseButton, id)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function endRound(rewindReady)
