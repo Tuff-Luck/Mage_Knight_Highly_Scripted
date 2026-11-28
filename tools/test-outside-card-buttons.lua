@@ -45,6 +45,25 @@ assert(draw.attributes.width==top.attributes.width and draw.attributes.height==t
     and draw.attributes.scale==top.attributes.scale,"Draw 1 must not change shared dimensions")
 assert(draw.children[1].attributes.id==draw.attributes.id.."Image","Pressed artwork ID must match callback ID")
 assert(draw.children[2].children[1].attributes.resizeTextForBestFit=="true","Fit long labels")
+assert(draw.attributes.position==sideActionButtonPosition(1)
+    and top.attributes.position==sideActionButtonPosition(1),
+    "Single and upper spell actions share the same slot")
+for _,entry in ipairs({
+    {"meditationBot",2},{"tranceTop",4},{"tranceBot",5},
+    {"steadyTempoDiscard",1},{"steadyTempoBot",3},{"steadyTempoTop",5}
+}) do
+    assert(claimButton(card.guid,entry[1]).attributes.position==sideActionButtonPosition(entry[2]),
+        "Spell action must use its shared slot: "..entry[1])
+end
+local x,y=sideActionButtonPosition(1):match("^(%S+) (%S+)")
+local x2,y2=sideActionButtonPosition(2,"-35"):match("^(%S+) (%S+)")
+local x3,y3=sideActionButtonPosition(3):match("^(%S+) (%S+)")
+assert(x==x2 and x==x3 and tonumber(y2)-tonumber(y)==tonumber(y3)-tonumber(y2),
+    "All side slots share horizontal alignment and uniform vertical spacing")
+local cardControls=read("src/PlayingGame/PlayerBoard/ResourceTracker/Interface/CardControls.lua")
+local lift=assert(cardControls:find("trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)",1,true))
+local side=assert(cardControls:find('sideActionButtonPosition(3,buttonDepth)',lift,true))
+assert(lift<side,"Artifact artwork lift must precede fixed side action placement")
 assert(load(section(flow,"local function meditationPlayerIndex(","--Card-effect controls")
     ..section(flow,"local MEDITATION_BUTTON_SUFFIXES","local function meditationContainerIsDeedDeck"),
     "Meditation payment gating","t",env))()

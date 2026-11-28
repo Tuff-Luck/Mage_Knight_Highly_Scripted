@@ -97,24 +97,24 @@ do
         "artifact toggle display","t",testEnv))()
     local normal=button(card,"0 0 180","-35")
     local function caption(button) return button.children[2].children[1].attributes end
-    assert(normal.attributes.position=="-90 140 -35" and caption(normal).text=="THROW",
+    assert(normal.attributes.position==artifactActionButtonPosition(false,"-35") and caption(normal).text=="THROW",
         "THROW must sit at the bottom right")
-    assert(normal.attributes.height==150 and normal.attributes.width==250
-        and math.abs(tonumber(normal.attributes.scale:match("^%S+"))-0.32*2/3)<0.00001,
-        "Artifact and spell buttons must share the reduced fixed size")
+    assert(normal.attributes.height==150 and normal.attributes.width==335
+        and normal.attributes.scale=="0.16 0.16",
+        "Preserve the tuned shared button dimensions and bevel scale")
     assert(normal.children[1].attributes.image=="Sliced Button/Button Object Active"
         and caption(normal).resizeTextForBestFit=="true",
         "Use the spell artwork and fit the caption")
     selected=true
     local strong=button(card,"0 0 180","-35")
-    assert(strong.attributes.position=="0 -140 -35" and caption(strong).text=="RECOVER",
+    assert(strong.attributes.position==artifactActionButtonPosition(true,"-35") and caption(strong).text=="RECOVER",
         "RECOVER must sit above the artwork")
     testEnv.combatEnemyInPlay=true
     selected=false
     local waiting=button(card,"0 0 180","-35")
-    assert(waiting.attributes.position=="-90 140 -35" and caption(waiting).text=="WAIT",
+    assert(waiting.attributes.position==artifactActionButtonPosition(false,"-35") and caption(waiting).text=="WAIT",
         "Blocked THROW must stay at the lower right")
-    local draw=createOutsideCardButton("draw","global/cureDrawOne","Draw 1","155 -110 -10")
+    local draw=createOutsideCardButton("draw","global/cureDrawOne","Draw 1",sideActionButtonPosition(1))
     assert(draw.attributes.width==normal.attributes.width and draw.attributes.height==normal.attributes.height
         and draw.attributes.scale==normal.attributes.scale and caption(draw).resizeTextForBestFit=="true",
         "Long captions must not resize the shared button")

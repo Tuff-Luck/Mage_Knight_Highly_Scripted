@@ -597,59 +597,52 @@ return function(deps)
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
                 value=#children==0 and "Arm" or "",children=children}
         end
+        -- Lift only the artwork controls, before appending the fixed side slots.
+        if isArtifact and posture=="upright" then
+            trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
+        end
         if rule~=nil and rule.forkedLightning then
             local phase=gStates~=nil and gStates.forkedLightningPhase or "range"
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_forkPhase",
-                onClick="global/resourceCardsForkedLightningPhaseClicked",
-                position="160 0 "..buttonDepth,rotation=uiRotation,
-                width=140,height=90,scale="0.38 0.38",fontSize=47,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=phase=="range" and "RNG" or "ATK"}
+            xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_forkPhase",
+                "global/resourceCardsForkedLightningPhaseClicked",phase=="range" and "RNG" or "ATK",
+                sideActionButtonPosition(3,buttonDepth),uiRotation)
         end
         if rule~=nil and posture=="upright" and card.is_face_down~=true then
-            local function startingControl(suffix,label,active,x,y)
-                xml[#xml+1]={tag="Button",attributes={
-                    id="ResourceCardChoice_"..card.guid.."_"..suffix,
-                    onClick="global/resourceCardsStartingCardControlClicked",
-                    position=tostring(x).." "..tostring(y).." "..buttonDepth,
-                    rotation=uiRotation,width=160,height=90,scale="0.28 0.28",
-                    fontSize=41,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                    colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                        or "#454D5D|#69798E|#444C63|#454D5D"},
-                    value=label}
+            local function startingControl(suffix,label,active,slot)
+                xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_"..suffix,
+                    "global/resourceCardsStartingCardControlClicked",label,
+                    sideActionButtonPosition(slot,buttonDepth),uiRotation,active and "#B9E7AD" or nil)
             end
             if rule.interactionReward~=nil then
                 startingControl("interaction","INT",
-                    special~=nil and special.interaction==true,135,-125)
+                    special~=nil and special.interaction==true,1)
             elseif rule.recruitmentReward~=nil then
-                startingControl("recruitCount","REC "..tostring(recruitmentCount),recruitmentCount>0,135,-125)
+                startingControl("recruitCount","REC "..tostring(recruitmentCount),recruitmentCount>0,1)
             elseif rule.recruitDiscount~=nil and not powered then
                 startingControl("recruit","-2 REC",
-                    special~=nil and special.recruited==true,135,-125)
+                    special~=nil and special.recruited==true,1)
             elseif rule.influenceAction~=nil then
                 if not combatEnemyInPlay then
-                    startingControl("influenceAction","ACT",influenceAction,135,-125)
+                    startingControl("influenceAction","ACT",influenceAction,1)
                     if influenceAction then
                         startingControl("influenceHeal","HEAL "..tostring(influenceHealing),
-                            influenceHealing>0,135,-55)
+                            influenceHealing>0,2)
                         if powered and (canReadyUnit or readyCount>0) then
                             startingControl("ruthlessReady","RDY "..tostring(readyCount),
-                                readyCount>0,135,15)
+                                readyCount>0,3)
                         end
                     end
                 end
             elseif rule.readyWithInfluence~=nil and powered
                 and (canReadyUnit or readyCount>0) then
                 startingControl("ruthlessReady","RDY "..tostring(readyCount),
-                    readyCount>0,145,-125)
+                    readyCount>0,1)
             elseif rule.selectedTerrainDiscount~=nil and powered
                 and (tonumber(resources~=nil and resources.move) or 0)>0
                 and combatConfig.moveRoleForUI(card.guid)=="movement" then
                 startingControl("terrain",special~=nil and special.terrain~=nil
                     and special.terrain:sub(1,3):upper() or "TER",
-                    special~=nil and special.terrain~=nil,150,-125)
+                    special~=nil and special.terrain~=nil,1)
             end
         end
         if rule~=nil and isArtifact
@@ -657,13 +650,9 @@ return function(deps)
             and trackerPrivate.bannerStrongActive(card) and posture=="upright"
             and not combatEnemyInPlay and not combatCalcOn
             and not trackerPrivate.bannerEffectUses().healing[card.guid] then
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_healAllUnits",
-                onClick="global/resourceCardsArtifactHealUnitsClicked",
-                position="145 -145 "..buttonDepth,rotation=uiRotation,
-                width=160,height=85,scale="0.28 0.28",fontSize=40,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},value="HEAL"}
+            xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_healAllUnits",
+                "global/resourceCardsArtifactHealUnitsClicked","HEAL",
+                sideActionButtonPosition(1,buttonDepth),uiRotation)
         end
         if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
             -- Colour identity, not the shared numeric 'other=1', grants Ready.
@@ -680,13 +669,9 @@ return function(deps)
             local redReady=type(resources)=="table" and not combatEnemyInPlay
                 and (first=="red" or second=="red")
             if redReady then
-                xml[#xml+1]={tag="Button",attributes={
-                    id="AttackAssignmentSource_"..card.guid.."_0_unitReady",
-                    onClick="global/attackAssignmentReadySourceClicked",
-                    position="150 -145 "..buttonDepth,rotation=uiRotation,
-                    width=150,height=85,scale="0.28 0.28",fontSize=46,
-                    colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
-                    textAlignment="MiddleCenter"},value="RDY"}
+                xml[#xml+1]=createOutsideCardButton("AttackAssignmentSource_"..card.guid.."_0_unitReady",
+                    "global/attackAssignmentReadySourceClicked","RDY",
+                    sideActionButtonPosition(1,buttonDepth),uiRotation)
             end
         end
         if rule~=nil and rule.simultaneousReady==true and posture=="upright"
@@ -696,33 +681,13 @@ return function(deps)
                 local sourceKey=card.guid.."#ready"..index
                 local linked=gStates~=nil and gStates.unitReadyLinks~=nil
                     and gStates.unitReadyLinks[sourceKey]~=nil
-                xml[#xml+1]={tag="Button",attributes={
-                    id="ResourceCardChoice_"..card.guid.."_regenReady"..index,
-                    onClick="global/resourceCardsRegenerationReadyClicked",
-                    position="145 "..tostring(-125+(index-1)*62).." "..buttonDepth,
-                    rotation=uiRotation,width=150,height=90,scale="0.28 0.28",
-                    fontSize=44,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                    colors=linked and "#387D30|#4CA940|#387D30|#387D30"
-                        or "#454D5D|#69798E|#444C63|#454D5D"},
-                    value="RDY"..(repeatLink~=nil and tostring(index) or "")}
-            end
-        end
-        -- Outside text actions share the spell button renderer. Keep the
-        -- resource/target icon grid and tightly packed combat counters intact.
-        for i=otherControlCount+1,#xml do
-            local node=xml[i]
-            local attrs=node.attributes
-            local id=attrs~=nil and attrs.id or ""
-            if node.tag=="Button" and node.value~=nil and node.children==nil
-                and (attrs.onClick=="global/resourceCardsStartingCardControlClicked"
-                    or id:match("_forkPhase$") or id:match("_healAllUnits$")
-                    or id:match("_unitReady$") or id:match("_regenReady%d+$")) then
-                local tint=attrs.colors~=nil and attrs.colors:sub(1,7)=="#387D30" and "#B9E7AD" or nil
-                xml[i]=createOutsideCardButton(id,attrs.onClick,node.value,attrs.position,attrs.rotation,tint)
+                xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_regenReady"..index,
+                    "global/resourceCardsRegenerationReadyClicked",
+                    "RDY"..(repeatLink~=nil and tostring(index) or ""),
+                    sideActionButtonPosition(index,buttonDepth),uiRotation,linked and "#B9E7AD" or nil)
             end
         end
         if isArtifact and posture=="upright" then
-            trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
             xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)
             if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
                 xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,buttonDepth)

@@ -228,16 +228,42 @@ function resourceCardsExistingImageAssetsFor(ui,names)
     return mergeCustomImages(ui,needed)
 end
 
--- Shared fixed-size, beveled text controls for played cards. Keep the original
--- spell proportions at two-thirds scale; shrink labels, never grow the button.
+-- Card Action Button layout: adjust appearance and placement together here.
+-- Positive X is left; negative Y is up on an upright card.
+local cardActionButtonLayout={
+    width=335, height=150, scale="0.16 0.16", padding="30 30 30 30",
+    sideButtonX=145,
+    sideButtonTopY=-125,
+    sideButtonSpacing=55,
+    sideButtonDepth=-10, -- spell / claim-style controls
+    artifactThrowX=-77, artifactThrowY=137,
+    artifactRecoverX=0, artifactRecoverY=-137
+}
+
+-- Five standard vertical slots, numbered top to bottom. More rows can use
+-- the same spacing. Keep the tracker's existing face-relative depth when supplied.
+function sideActionButtonPosition(slot,depth)
+    local layout=cardActionButtonLayout
+    return layout.sideButtonX.." "..(layout.sideButtonTopY+(slot-1)*layout.sideButtonSpacing)
+        .." "..tostring(depth or layout.sideButtonDepth)
+end
+
+function artifactActionButtonPosition(broken,depth)
+    local layout=cardActionButtonLayout
+    return (broken and layout.artifactRecoverX or layout.artifactThrowX).." "
+        ..(broken and layout.artifactRecoverY or layout.artifactThrowY).." "..tostring(depth)
+end
+
+-- Shared fixed-size, beveled text controls for played cards.
 function createOutsideCardButton(id,callback,label,position,rotation,tint)
     return {tag="Button",attributes={
         id=id,onClick=callback,position=position,rotation=rotation or "0 0 180",
         onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-        width=335,height=150,scale="0.16 0.16"},
+        width=cardActionButtonLayout.width,height=cardActionButtonLayout.height,
+        scale=cardActionButtonLayout.scale},
         children={{tag="Image",attributes={id=id.."Image",
             image="Sliced Button/Button Object Active",type="Sliced",color=tint or "#FFFFFF"}},
-            {tag="HorizontalLayout",attributes={padding="30 30 30 30"},
+            {tag="HorizontalLayout",attributes={padding=cardActionButtonLayout.padding},
                 children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",
                     fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
                     resizeTextForBestFit="true",resizeTextMinSize=18,

@@ -4465,8 +4465,7 @@ trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
         and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
             or key=="artifactBannerFortitude")
     local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
-    -- Positive X is the screen-left side of an upright card.
-    local position=(broken and "0 -137 " or "-77 137 ")..buttonDepth
+    local position=artifactActionButtonPosition(broken,buttonDepth)
     return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_artifactBreak",
         "global/resourceCardsArtifactBreakClicked",label,position,uiRotation,
         (waitForCombat and "#A0A0A0") or nil)
@@ -4514,7 +4513,7 @@ trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
     used=math.max(0,math.min(2,tonumber(used) or 0))
     return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_grailFame",
         "global/resourceCardsArtifactGrailFameClicked","F "..tostring(used).."/2",
-        "145 -145 "..buttonDepth,uiRotation)
+        sideActionButtonPosition(1,buttonDepth),uiRotation)
 end
 
 trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({

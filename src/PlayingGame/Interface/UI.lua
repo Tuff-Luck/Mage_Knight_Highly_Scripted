@@ -2972,23 +2972,21 @@ function createClaimButton(objGUID, source, controlID)
 	local text="{en}^ CLAIM{it}^ PRENDI{ru}^ ЗАБРАТЬ{zh-tw}^ 選取{zh-cn}^ 选取{ko}^ 선택{es}^ RECLAMO{fr}^ Demande{pt-br}^ CLAMAR{de}^ ANSPRUCH"
 	local fontSize="90"
     local outside=false
-	--Meditation / Trance uses the exact same proven object-UI structure as Claim.
-	--Coordinates are tuned for four target spots marked during testing:
-	--red pair = Meditation, green pair = Trance.
+	-- Meditation uses the upper slots; Trance uses the lower slots.
 	if source=="meditationTop" or source=="meditationBot" or source=="tranceTop" or source=="tranceBot" then
 		outside=true
 		onClick=(source=="meditationTop" or source=="tranceTop") and "global/meditationTranceTop" or "global/meditationTranceBot"
 		text=(source=="meditationTop" or source=="tranceTop") and "Top" or "Bot"
-		if source=="meditationTop" then position="155 -105 -10" end
-		if source=="meditationBot" then position="155 -50 -10" end
-		if source=="tranceTop" then position="155 35 -10" end
-		if source=="tranceBot" then position="155 105 -10" end
+		if source=="meditationTop" then position=sideActionButtonPosition(1) end
+		if source=="meditationBot" then position=sideActionButtonPosition(2) end
+		if source=="tranceTop" then position=sideActionButtonPosition(4) end
+		if source=="tranceBot" then position=sideActionButtonPosition(5) end
 	end
 	-- A small confirmed draw helper for Cure, distinct from generic Draw Hand.
     if source=="cureDraw" then
         controlID=controlID or "ResourceCardChoice_CureDraw"
         outside=true
-        position="155 -110 -10"
+        position=sideActionButtonPosition(1)
         onClick="global/cureDrawOne"
         text="Draw 1"
     end
@@ -2997,9 +2995,9 @@ function createClaimButton(objGUID, source, controlID)
 	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
 		outside=true
 		onClick="global/steadyTempoChoice"
-		if source=="steadyTempoDiscard" then text="{en}Dis{it}Scarti{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position="155 -130 -10" end
-		if source=="steadyTempoBot" then text="{en}Bot{it}Fondo{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position="155 0 -10" end
-		if source=="steadyTempoTop" then text="{en}Top{it}Cima{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position="155 130 -10" end
+		if source=="steadyTempoDiscard" then text="{en}Dis{it}Scarti{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position=sideActionButtonPosition(1) end
+		if source=="steadyTempoBot" then text="{en}Bot{it}Fondo{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position=sideActionButtonPosition(3) end
+		if source=="steadyTempoTop" then text="{en}Top{it}Cima{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position=sideActionButtonPosition(5) end
 	end
 	for a=1, 32, 1 do
 		if source==tostring(a) or source=="higherLevelSkill" then
