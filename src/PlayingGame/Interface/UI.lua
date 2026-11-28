@@ -2658,7 +2658,9 @@ local function legacyObjectButtonImage(id,image)
 	id=tostring(id)
 	-- Card Action Buttons keep their gameplay IDs. Tracker controls put the
 	-- card GUID after a prefix; Cure uses a fixed control ID.
-	local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_")
+	local seat=tonumber(id:match("^PlayAreaScale(%d+)"))
+	local guid=(seat~=nil and playerBoard~=nil and playerBoard[seat])
+		or id:match("^ResourceCardChoice_([0-9a-f]+)_")
 		or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
 		or (id=="ResourceCardChoice_CureDraw" and "47e71c")
 		or id:sub(1,6)
@@ -2899,7 +2901,7 @@ local MONSTER_REPLENISH_TEXT="{en}Restock Empty Piles{it}Rifornisci Pile Vuote{r
 function monsterReplenishObjectOnLoad()
 	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
-    onClick="global/refillMonsterTokenPiles"
+    onClick="global/refillMonsterTokenPiles" onMouseDown="global/ButtonClickDown" onMouseUp="global/ButtonClickUp"
     tooltipPosition="Left" tooltipOffset="12"
     tooltipBackgroundColor="#24211DF2" tooltipBorderColor="#9E8665"
     tooltipTextColor="#F5E6CA" tooltipFontSize="15"

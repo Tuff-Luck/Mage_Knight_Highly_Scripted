@@ -51,7 +51,8 @@ do
     local pressed="Sliced Button/Button Object Deactive"
     local objects={}
     local animationEnv=setmetatable({
-        getObjectFromGUID=function(guid) return objects[guid] end
+        getObjectFromGUID=function(guid) return objects[guid] end,
+        playerBoard={"abcdef"}
     },{__index=_G})
     assert(load(section(ui,"local function legacyObjectButtonImage(","buttonImageResetGeneration={}"),
         "Object button animation","t",animationEnv))()
@@ -63,6 +64,12 @@ do
         {"333ccc",claimButton("333ccc","artifactReward")},
         {"444ddd",claimButton("444ddd","removeTactic1")},
         {"555eee",claimButton("555eee","1")},
+        {"abcdef",createOutsideCardButton("PlayAreaScale1Scope",
+            "global/playAreaScaleScope","Cards",sideActionButtonPosition(1))},
+        {"abc123",createOutsideCardButton("abc1231,2",
+            "global/exploreMap","EXPLORE",sideActionButtonPosition(1))},
+        {"d7a165",createOutsideCardButton("d7a165replenishMonsterPiles",
+            "global/refillMonsterTokenPiles","Restock Empty Piles",sideActionButtonPosition(1))},
         {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_artifactBreak",
             "global/resourceCardsArtifactBreakClicked","THROW",artifactActionButtonPosition(false,"-35"))},
         {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_grailFame",
@@ -114,7 +121,32 @@ do
         animationEnv.ButtonClickUp(nil,"-2",id)
         assert(writes==previous,"Removed control must not receive a stale image write")
     end
+    -- Scale arrows have seat-prefixed IDs and their own artwork pair.
+    for _,direction in ipairs({"Down","Up"}) do
+        local id="PlayAreaScale1Overkill"..direction
+        local raised="Overkill "..direction
+        local image=raised
+        objects.abcdef={UI={
+            getAttribute=function(key,attr)
+                assert(key==id.."Image" and attr=="image")
+                return image
+            end,
+            setAttribute=function(key,attr,value)
+                assert(key==id.."Image" and attr=="image")
+                image=value
+            end
+        }}
+        animationEnv.ButtonClickDownOverkill(nil,"-1",id)
+        assert(image==raised.." Deactive","Scale arrow presses")
+        animationEnv.ButtonClickUpOverkill(nil,"-1",id)
+        assert(image==raised,"Scale arrow releases")
+    end
 end
+local mapSource=read("src/PlayingGame/World/Map.lua")
+assert(mapSource:find('onClick="global/exploreMap", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp"',1,true),
+    "Explore must use explicit mouse-up without timed reset")
+assert(ui:find('onClick="global/refillMonsterTokenPiles" onMouseDown="global/ButtonClickDown" onMouseUp="global/ButtonClickUp"',1,true),
+    "Restock must use explicit press/release")
 -- Older saved claims may still point to buttonClicked. Verify that handler
 -- resolves the card UI and never touches global UI for a card claim.
 do

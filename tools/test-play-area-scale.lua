@@ -150,4 +150,33 @@ approx(deed.scale[1],0.9,"scripted movement keeps reduced scale")
 deed.smoothMoving=false
 pollConditions()
 approx(deed.scale[1],1.5,"scripted move restores on arrival")
+-- Inspect the actual generated controls: both arrows animate, scope is a
+-- raised text button, and the percentage remains a recessed read-only image.
+do
+    local xml={}
+    local board={guid="abcdef",UI={
+        getXmlTable=function() return xml end,
+        setXmlTable=function(value) xml=value end
+    }}
+    board.isDestroyed=function() return false end
+    board.getButtons=function() return {} end
+    board.getBounds=function() return {center={y=1},size={x=10,y=1,z=10}} end
+    board.getPosition=function() return {x=0,y=1,z=0} end
+    board.positionToLocal=function(pos) return {x=pos[1],z=pos[3]} end
+    objs.abcdef=board
+    playerBoard[1]=board.guid
+    turnOrder={{seatPos=1}}
+    turnOrderIndexAtSeat=function(seat) return seat==1 and 1 or nil end
+    refreshPlayAreaScaleControls()
+    eq(#xml,4,"scale control count")
+    for _,i in ipairs({1,3}) do
+        eq(xml[i].attributes.onMouseDown,"global/ButtonClickDownOverkill","arrow down")
+        eq(xml[i].attributes.onMouseUp,"global/ButtonClickUpOverkill","arrow up")
+    end
+    eq(xml[2].tag,"Image","percentage is not clickable")
+    eq(xml[2].attributes.image,"Overkill Text","percentage stays recessed")
+    eq(xml[4].children[1].attributes.image,"Sliced Button/Button Object Active","scope is raised")
+    eq(xml[4].attributes.onMouseDown,"global/ButtonClickDown","scope down")
+    eq(xml[4].attributes.onMouseUp,"global/ButtonClickUp","scope up")
+end
 print("Play Area scale regressions passed")

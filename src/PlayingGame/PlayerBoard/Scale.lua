@@ -375,13 +375,17 @@ local function playAreaScaleBoardButtons(board,seat)
         return string.format("%.3f %.3f",value,value)
     end
     local function imageButton(id,callback,image,offset,width,height,scale)
+        local arrow=image=="Overkill Down" or image=="Overkill Up"
+        local suffix=arrow and "Overkill" or ""
+        local imageAttributes={id=id.."Image",image=image}
+        if not arrow then imageAttributes.type="Sliced" end
         return {tag="Button",attributes={
             id=id,onClick="global/"..callback,
-            onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+            onMouseDown="global/ButtonClickDown"..suffix,onMouseUp="global/ButtonClickUp"..suffix,
             height=height,width=width,position=uiPosition(offset),
             rotation="0 0 180",scale=uiScale(scale),
             color="rgba(0,0,0,0.0)"
-        },children={{tag="Image",attributes={id=id.."Image",image=image}}}}
+        },children={{tag="Image",attributes=imageAttributes}}}}
     end
 
     -- Left to right:  <  [100%]  >  [Cards/All]
@@ -402,7 +406,7 @@ local function playAreaScaleBoardButtons(board,seat)
                 color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
         imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",
             upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
-        imageButton(prefix.."Scope","playAreaScaleScope","Overkill Text",
+        imageButton(prefix.."Scope","playAreaScaleScope","Sliced Button/Button Object Active",
             scopeX,ui.boxWidth,ui.boxHeight,ui.scopeScale)
     }
     items[4].children[#items[4].children+1]={tag="Text",attributes={
