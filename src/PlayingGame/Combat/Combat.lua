@@ -3062,7 +3062,11 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 		return
 	end
 	local skipped,preventAll={},false
-	if resourceCardsSummonPlan~=nil then skipped,preventAll=resourceCardsSummonPlan(id) end
+	if resourceCardsSummonPlan~=nil then
+		local plannedSkipped,plannedPrevent=resourceCardsSummonPlan(id)
+		skipped=plannedSkipped
+		preventAll=plannedPrevent==true
+	end
 	local remaining=0
 	for order in ipairs(monsterData.monsters) do
 		if not skipped[order] then remaining=remaining+1 end
