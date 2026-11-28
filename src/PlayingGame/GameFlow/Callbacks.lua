@@ -119,6 +119,12 @@ function onObjectDestroy(destroyedObj)
 		end)
 end
 
+function onObjectStateChange(object, old_state_guid)
+	return safeCallback("onObjectStateChange", function()
+		protectedTurnOrderTokenStateChanged(object,old_state_guid)
+	end)
+end
+
 function onObjectEnterZone(zone, obj)
 	return safeZoneCallback("onObjectEnterZone", __onObjectEnterZone_raw, zone, obj)
 end
