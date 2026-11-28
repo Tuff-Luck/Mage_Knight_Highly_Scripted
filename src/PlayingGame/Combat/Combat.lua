@@ -882,8 +882,7 @@ local function combatReturnPreEndTurnDie(cleanupPlayer,diceGUID)
 	for _, diceG in pairs(gStates.coopAssaultDice) do
 		local die=getObjectFromGUID(diceG)
 		if die~=nil then
-			die.setPosition({-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)})
-			die.randomize()
+			manaSourceReturnDie(die,{-12.5+(math.random()*7),2.7,-25.0+(math.random()*4.0)},cleanupPlayer~=nil)
 			onObjectRandomize({type="Dice"})
 		end
 	end
