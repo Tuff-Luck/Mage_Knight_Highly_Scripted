@@ -5,6 +5,21 @@ local excluded={["0a2e0b"]=true,["d8e49b"]=true,["9c5c38"]=true,["5c2da0"]=true}
 local transferSerial=0
 local spellMoveSerial=0 -- Invalidate stale leave-zone checks during drag/rearrangement.
 
+---@class CallOfferPlacement
+---@field position number[]
+---@field rotation number[]
+---@field scale? number[]
+
+---@class CallOfferPreviewState
+---@field spellGUID string
+---@field seatPos integer
+---@field order string[]
+---@field index integer
+---@field unitGUID? string
+---@field home? CallOfferPlacement
+---@field display? CallOfferPlacement
+
+---@return CallOfferPreviewState?
 local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
 end
@@ -390,6 +405,7 @@ end
 function callOfferClaimAtSlot(guid,seatPos,x,layout,command,onSettled)
     if callOfferRecruitmentCandidate(guid,seatPos)==nil or cardFlowUnitClaimBusy() then return false end
     local current=previewState()
+    if current==nil then return false end
     local unit=getObjectFromGUID(guid)
     if unit==nil then return end
     transferSerial=transferSerial+1
@@ -428,7 +444,7 @@ function callOfferObjectDropped(obj,playerColor)
     local serial=transferSerial
     safeWaitCondition("Offers.CallOffer",function()
         local current=previewState()
-        if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
+        if current==nil or current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
         if playerColor~=nil and legalPlayerCheck(playerColor,current.seatPos,"NoDummyException")~=true then return end
         local spell=getObjectFromGUID(current.spellGUID)
         if not validSpell(current.seatPos,spell) then
