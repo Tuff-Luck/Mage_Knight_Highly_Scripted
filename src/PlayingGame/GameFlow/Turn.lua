@@ -158,8 +158,10 @@ function tacticToggle()
 			local tokenGUID=details~=nil and details.turnOrderTokenGUID or nil
 			local token=tokenGUID~=nil and getObjectFromGUID(tokenGUID) or nil
 			if token~=nil then
+				local target={-1.90, 1.2, -18.00-(1.4*a)}
+				if protectedTurnOrderTokenScriptMove~=nil then protectedTurnOrderTokenScriptMove(token,target,"tactic sort") end
 				token.unlock()
-				token.setPositionSmooth({-1.90, 1.2, -18.00-(1.4*a)},false,false)
+				token.setPositionSmooth(target,false,false)
 			else
 				-- Keep normal tactic selection moving, but send enough state to the
 				-- bug-report Sheet to investigate why a protected token was unavailable.
@@ -901,6 +903,7 @@ function mergedTurnCommit(nextTurnNumber,newOutOfTurn,sameTurn)
 	if gStates.coopAssaultPhase=="combat" and coopAssaultTargetType~=nil and coopAssaultTargetType()=="dragon" and apocalypseDragonGroundCombatForPlayer~=nil and apocalypseDragonGroundCombatForPlayer(gStates.turnNumber)==true then apocalypseDragonRefreshGroundAttackSuppression() end
 	if gStates.tacticShown==false then startOfTurn() else claimButtonRefresh() end
 	scheduleAvatarDropRefresh()
+	if gStates.tacticShown==false and protectedTurnOrderTurnCommitted~=nil then pcall(protectedTurnOrderTurnCommitted) end
 	return gStates.turnNumber
 end
 
