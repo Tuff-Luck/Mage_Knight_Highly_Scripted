@@ -361,7 +361,7 @@ function M.choiceClicked(player,value,id,combatConfig,resourceCardsDetailsOpen,f
     if not sideways and rule~=nil and rule.woundPaymentChoice==category then
         -- Only an actual option selection (not opening the row) deals
         -- its Wound. Stale base controls cannot pay a repeated application.
-        if record==nil or cardPosture(card)~="upright"
+        if data==nil or record==nil or cardPosture(card)~="upright"
             or (card.is_face_down==true and record.repeatLink==nil)
             or (record.repeatLink~=nil and repeatIndex==nil)
             or (data.cardType=="Spell" and record.spellCastPaid~=true)
