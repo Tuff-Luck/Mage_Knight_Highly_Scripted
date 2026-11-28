@@ -79,13 +79,13 @@ local function playAreaScaleSeatContaining(guid)
 end
 
 local function playAreaScaleObjectHeld(obj)
-    if obj.held_by_color~=nil then return true end
+    if obj.held_by_color~=nil and obj.held_by_color~="" then return true end
     -- A Fixed-jointed summon may leave its zone while its summoner is held,
     -- even though TTS does not report the child as held itself.
     local attacked=gStates~=nil and gStates.attackedMonsters~=nil and gStates.attackedMonsters[obj.guid] or nil
     if attacked~=nil and attacked[3]=="summoned" and attacked[4]~=nil then
         local summoner=getObjectFromGUID(attacked[4])
-        if summoner~=nil and summoner.held_by_color~=nil then return true end
+        if summoner~=nil and summoner.held_by_color~=nil and summoner.held_by_color~="" then return true end
     end
     return false
 end
@@ -175,14 +175,14 @@ function playAreaScaleApplyObject(seat,obj,pending)
     if factor==1 then records[obj.guid]=nil else entry.factor=factor end
 end
 
--- A transient exit during a drag is not a real removal. Recheck X/Z
--- after release; the object need not finish falling vertically.
+-- A transient exit during a drag or a physical drop is not a real removal.
+-- Wait until physics and scripted movement have settled before restoring scale.
 local function playAreaScaleRecheckObject(guid)
     local records=gStates~=nil and gStates.playAreaScaledObjects or nil
     if records==nil or records[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
     if obj==nil then records[guid]=nil return end
-    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true then return end
+    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true or obj.resting~=true then return end
     local seat=playAreaScaleSeatContaining(guid)
     if seat~=nil then playAreaScaleApplyObject(seat,obj)
     else playAreaScaleRestore(obj) end
@@ -193,13 +193,27 @@ local function playAreaScaleWaitForSettle(guid)
     playAreaScaleSettling[guid]=true
     local function finish()
         playAreaScaleSettling[guid]=nil
+        local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+        if records==nil or records[guid]==nil then return end
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and not playAreaScaleObjectHeld(obj)
+            and (obj.resting~=true or obj.isSmoothMoving()==true) then
+            -- A timeout is not proof of removal; keep the reduced scale.
+            playAreaScaleWaitForSettle(guid)
+            return
+        end
         playAreaScaleRecheckObject(guid)
     end
-    safeWaitCondition("PlayerBoard.Scale",finish,function()
-        local obj=getObjectFromGUID(guid)
-        return obj==nil or (not playAreaScaleObjectHeld(obj)
-            and obj.isSmoothMoving()==false)
-    end,5,finish)
+    -- TTS can still report resting in the drop callback, before gravity takes over.
+    safeWaitFrames("PlayerBoard.Scale",function()
+        safeWaitCondition("PlayerBoard.Scale",finish,function()
+            local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+            if records==nil or records[guid]==nil then return true end
+            local obj=getObjectFromGUID(guid)
+            return obj==nil or (not playAreaScaleObjectHeld(obj)
+                and obj.resting==true and obj.isSmoothMoving()==false)
+        end,5,finish)
+    end,3)
 end
 
 -- Only objects already managed by the scaling system need a post-drop check.
@@ -233,8 +247,8 @@ function refreshPlayAreaScale(seat)
             if obj==nil then records[guid]=nil
             elseif playAreaScaleObjectHeld(obj) then
                 -- Lifting/rearranging does not undo scaling; the drop checks its destination.
-            elseif obj.isSmoothMoving()==true then
-                -- Scripted moves keep the same size until they reach their destination.
+            elseif playAreaScaleSettling[guid]==true or obj.resting~=true or obj.isSmoothMoving()==true then
+                -- Neither the zone refresh nor the drop callback may restore a falling object.
                 playAreaScaleWaitForSettle(guid)
             else
                 local destination=playAreaScaleSeatContaining(guid)
