@@ -488,6 +488,12 @@ function fameReputationAdvanceCoopRewardPhase()
 	end)
 end
 
+-- Co-op combat queues rewards for the later reward phase. A missing commit
+-- marker during the combat handoff is intentional, not a failed reward commit.
+local function fameRepRewardsDeferred()
+	return gStates.coopAssaultPhase=="combat"
+end
+
 function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	local playerIndex=gStates.turnNumber
 	local coopRewards=gStates.coopAssaultPhase=="rewards"
@@ -495,7 +501,7 @@ function fameReputationEndTurnRaw(player,mouseButton,id,rewindReady)
 	-- initial reward commit; otherwise a premature click could award Fame before
 	-- all defeated monsters have returned and their rewards have settled.
 	if gStates.preEndTurn==true and gStates.combatPreEndTurnRecovery~=nil then return end
-	if coopRewards~=true then
+	if coopRewards~=true and not fameRepRewardsDeferred() then
 		if gStates.preEndTurn==true then
 			if fameRepEnsureRewardCommitted(playerIndex)~=true then return false end
 		elseif syncPostCommitAdjustments(playerIndex)==false then
@@ -518,7 +524,7 @@ function fameReputationOnLoadRaw(saved_data, loaded_data)
 	--A save can occur after preEndTurn is set but before its delayed Fame/Rep commit callback. The absence
 	--of a persisted commit marker means the physical tracks still need the pending reward exactly once.
 	safeWaitFrames("FameReputation",function()
-		if gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil then
+		if not fameRepRewardsDeferred() and gStates.preEndTurn==true and turnOrder[gStates.turnNumber]~=nil then
 			local committed=gStates.fameRepCommitted~=nil and gStates.fameRepCommitted[gStates.turnNumber] or nil
 			if committed==nil and ((turnOrder[gStates.turnNumber].fameGain or 0)~=0 or (turnOrder[gStates.turnNumber].repGain or 0)~=0) then
 				applyPlayerFameReputation(gStates.turnNumber)

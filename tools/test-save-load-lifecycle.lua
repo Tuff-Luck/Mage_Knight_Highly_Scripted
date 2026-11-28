@@ -265,7 +265,7 @@ local fameEnv={
 }
 setmetatable(fameEnv,{__index=_G})
 local fameStart=assert(fameSource:find(
-    "function fameReputationOnLoadRaw(saved_data, loaded_data)",1,true))
+    "local function fameRepRewardsDeferred()",1,true))
 local restoreFame=assert(load(fameSource:sub(fameStart)..
     "\nreturn fameReputationOnLoadRaw","fame load recovery","t",fameEnv))()
 restoreFame("",nil)
@@ -274,6 +274,14 @@ fameEnv.gStates.fameRepCommitted={[1]={fame=3,rep=0}}
 restoreFame("",nil)
 eq(commits,1,"committed fame not applied twice")
 eq(reconciles,1,"committed fame routed to adjustment reconciliation")
+fameEnv.gStates.coopAssaultPhase="combat"
+fameEnv.gStates.fameRepCommitted=nil
+restoreFame("",nil)
+eq(commits,1,"co-op combat reload must not commit deferred Fame")
+eq(reconciles,1,"co-op combat reload must not reconcile deferred Fame")
+fameEnv.gStates.coopAssaultPhase="rewards"
+restoreFame("",nil)
+eq(commits,2,"co-op rewards reload still recovers missing commit")
 assert(events:find("gStates.endRoundResetPending==true",1,true)
     and callbacks:find("coralDrawChoiceRestoreState(",1,true),
     "end-of-round and pending Coral draw recovery must remain installed")
