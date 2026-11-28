@@ -154,9 +154,19 @@ approx(deed.scale[1],1.5,"scripted move restores on arrival")
 -- raised text button, and the percentage remains a recessed read-only image.
 do
     local xml={}
+    local rebuilds=0
+    local function findAttributes(id,nodes)
+        for _,node in ipairs(nodes) do
+            if node.attributes and node.attributes.id==id then return node.attributes end
+            local child=findAttributes(id,node.children or {})
+            if child then return child end
+        end
+    end
     local board={guid="abcdef",UI={
         getXmlTable=function() return xml end,
-        setXmlTable=function(value) xml=value end
+        setXmlTable=function(value) xml=value rebuilds=rebuilds+1 end,
+        getAttribute=function(id,key) return assert(findAttributes(id,xml))[key] end,
+        setAttribute=function(id,key,value) assert(findAttributes(id,xml))[key]=value end
     }}
     board.isDestroyed=function() return false end
     board.getButtons=function() return {} end
@@ -178,5 +188,41 @@ do
     eq(xml[4].children[1].attributes.image,"Sliced Button/Button Object Active","scope is raised")
     eq(xml[4].attributes.onMouseDown,"global/ButtonClickDown","scope down")
     eq(xml[4].attributes.onMouseUp,"global/ButtonClickUp","scope up")
+    local scopeScale=tonumber(xml[4].attributes.scale:match("^%S+"))
+    approx(xml[4].attributes.width*scopeScale,130*0.08,"scope rendered width unchanged")
+    approx(xml[4].attributes.height*scopeScale,90*0.08,"scope rendered height unchanged")
+    eq(xml[4].attributes.width,260,"larger logical button")
+    eq(xml[4].children[2].attributes.fontSize,72,"preserve rendered font size")
+    local function arrow(i,enabled,direction)
+        eq(xml[i].attributes.interactable,tostring(enabled),"arrow availability")
+        eq(xml[i].children[1].attributes.image,"Overkill "..direction..(enabled and "" or " Deactive"),"arrow artwork")
+        eq(xml[i].children[1].attributes.color,enabled and "#FFFFFF" or "#909090","arrow tint")
+    end
+    arrow(1,false,"Down")
+    arrow(3,true,"Up")
+    -- Authorised clicks exercise in-place state changes, not a UI rebuild.
+    local hand={getValue=function() return 1 end}
+    Hands={getHands=function() return {hand} end}
+    gStates.handColors={"Red"}
+    legalPlayerCheck=function(_color,_seatColor,_exception) return true end
+    local player={color="Red"}
+    local down,up="PlayAreaScale1OverkillDown","PlayAreaScale1OverkillUp"
+    playAreaScaleDown(player,"-1",down)
+    eq(gStates.playAreaScaleSettings[1].step,12,"lower bound unchanged")
+    for _=1,8 do playAreaScaleUp(player,"-1",up) end
+    arrow(1,true,"Down")
+    arrow(3,false,"Up")
+    eq(gStates.playAreaScaleSettings[1].step,20,"upper limit")
+    eq(xml[2].children[1].attributes.text,"100%","percentage label")
+    playAreaScaleUp(player,"-1",up)
+    eq(gStates.playAreaScaleSettings[1].step,20,"upper bound unchanged")
+    playAreaScaleDown(player,"-1",down)
+    arrow(1,true,"Down")
+    arrow(3,true,"Up")
+    -- Changing scope must not change held arrow artwork.
+    xml[1].children[1].attributes.image="Overkill Down Deactive"
+    playAreaScaleScope(player,"-1","PlayAreaScale1Scope")
+    eq(xml[1].children[1].attributes.image,"Overkill Down Deactive","preserve held arrow")
+    eq(rebuilds,1,"no control XML rebuild on click")
 end
 print("Play Area scale regressions passed")
