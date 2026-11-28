@@ -603,7 +603,8 @@ end
 -- physical throw-away entitlement of an ordinary Maximal Effect target.
 function magicTalentOfferActionRepeat(seat,guid)
     local s=cardSession(guid)
-    local count=s~=nil and tonumber((s.ancientsRepeatCounts or {})[guid]) or nil
+    if s==nil then return nil end
+    local count=tonumber((s.ancientsRepeatCounts or {})[guid])
     if count==nil or count<2 or magicTalentOfferCastSide(seat,guid)~=true then return nil end
     return {powered=true,count=count,sourceGUID=s.talentGUID,borrowed=true}
 end
