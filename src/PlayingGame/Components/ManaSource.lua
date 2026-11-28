@@ -79,10 +79,10 @@ end
 local sourceArrivalLocks={}
 local sourceArrivalsPending=0
 local sourceArrivalDice={}
-local function beginSourceArrival()
+local function beginSourceArrival(excludedGUID)
 	local zone=getObjectFromGUID(GUID.zone.mana)
 	for _,die in ipairs(zone~=nil and zone.getObjects() or {}) do
-		if die.type=="Dice" and die.resting==true and die.spawning~=true
+		if die.guid~=excludedGUID and die.type=="Dice" and die.resting==true and die.spawning~=true
 			and sourceArrivalDice[die.guid]~=true and (die.held_by_color==nil or die.held_by_color=="") and die.getLock()==false then
 			die.setLock(true)
 			sourceArrivalLocks[die.guid]=true
@@ -103,25 +103,46 @@ local function beginSourceArrival()
 	end
 end
 
-local function spawnReturnedSourceDie(spareDice,params)
-	local release=beginSourceArrival()
-	local ok,die=pcall(function() return spareDice.takeObject(params) end)
-	if not ok then release() error(die,0) end
-	if die==nil or die.guid==nil then release() return die end
+local function watchSourceArrival(die,release)
+	if die==nil or die.guid==nil then release() return end
 	local guid=die.guid
 	sourceArrivalDice[guid]=true
 	local function finish()
 		sourceArrivalDice[guid]=nil
 		release()
 	end
-	-- Extraction can leave a die temporarily frozen/resting before physics starts.
+	-- Extraction/relocation can report resting before physics starts.
 	safeWaitFrames("ManaSource",function()
 		safeWaitCondition("ManaSource",finish,function()
 			local current=getObjectFromGUID(guid)
 			return current==nil or (current.spawning~=true and current.resting==true)
 		end,10,finish)
 	end,2)
+end
+
+local function spawnReturnedSourceDie(spareDice,params)
+	local release=beginSourceArrival()
+	local ok,die=pcall(function() return spareDice.takeObject(params) end)
+	if not ok then release() error(die,0) end
+	watchSourceArrival(die,release)
 	return die
+end
+
+-- End-turn cleanup returns the original die rather than spawning a replacement.
+-- Use the same protection before teleporting it and starting the roll.
+-- During the new-round reset every Source die will intentionally be rerolled.
+function manaSourceReturnDie(die,position,protect)
+	if die==nil then return end
+	local release=protect~=false and beginSourceArrival(die.guid) or nil
+	local ok,err=pcall(function()
+		die.setPosition(position)
+		die.randomize()
+	end)
+	if not ok then
+		if release~=nil then release() end
+		error(err,0)
+	end
+	if release~=nil then watchSourceArrival(die,release) end
 end
 
 scheduleReturnedSourceMirror=function(sourceDie)
