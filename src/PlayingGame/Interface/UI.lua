@@ -2675,11 +2675,11 @@ end
 -- Permanent object UIs and shared Card Action Buttons use explicit pressed
 -- and released artwork, rather than toggling an image based on its last state.
 function ButtonClickDown(player,mouseButton,id)
-	if mouseButton~="-1" then return end
+	if mouseButton~="-1" and mouseButton~="-2" then return end
 	legacyObjectButtonImage(id,"Sliced Button/Button Object Deactive")
 end
 function ButtonClickUp(player,mouseButton,id)
-	if mouseButton~="-1" then return end
+	if mouseButton~="-1" and mouseButton~="-2" then return end
 	legacyObjectButtonImage(id,"Sliced Button/Button Object Active")
 end
 function ButtonClickDownOverkill(player,mouseButton,id)

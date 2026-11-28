@@ -90,9 +90,23 @@ do
         assert(image==active,"Mouse-up releases "..id)
         animationEnv.ButtonClickUp(nil,"-1",id)
         assert(image==active,"Repeated up must not toggle to pressed")
+        -- Right-click inputs (e.g. subtracting Grail Fame) use the same artwork.
+        animationEnv.ButtonClickDown(nil,"-2",id)
+        assert(image==pressed,"Right mouse-down presses "..id)
+        animationEnv.ButtonClickDown(nil,"-2",id)
+        assert(image==pressed,"Repeated right down stays pressed")
+        animationEnv.ButtonClickUp(nil,"-2",id)
+        assert(image==active,"Right mouse-up releases "..id)
+        animationEnv.ButtonClickUp(nil,"-2",id)
+        assert(image==active,"Repeated right up stays released")
+        local beforeIgnored=writes
+        animationEnv.ButtonClickDown(nil,"-3",id)
+        animationEnv.ButtonClickUp(nil,"-3",id)
+        assert(writes==beforeIgnored,"Other mouse buttons must not animate")
         image=nil
         local previous=writes
         animationEnv.ButtonClickUp(nil,"-1",id)
+        animationEnv.ButtonClickUp(nil,"-2",id)
         assert(writes==previous,"Removed control must not receive a stale image write")
     end
 end
