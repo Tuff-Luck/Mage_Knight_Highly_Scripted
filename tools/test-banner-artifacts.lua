@@ -222,11 +222,14 @@ assert(hit("enemy#attack2").wounded,
 -- cancellation, and Arcane Immunity must reject the non-attack effect.
 local addSource=between(effects,"function combatEffectAdd(",
     "\nend\n")
+local helpers=effects:sub(assert(effects:find("function combatEffectPreventsAttack(",1,true)),
+    assert(effects:find("function combatEffectAdd(",1,true))-1)
 local add,setImmune=assert(load([[
 local immune=false
 local monsterPugs={}
 local gStates={monsterPerks={}}
 local function combatEffectImmune() return immune end
+]]..helpers..[[
 function combatEffectAdd(
 ]]..addSource.."\n"..[[
 end

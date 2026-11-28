@@ -70,6 +70,7 @@ local enemies={legal={guid="legal"},invalid={guid="invalid",is_face_down=true}}
 local reminder={guid="reminder"}
 local state={targets={effect="invalid"},explicit={effect=true}}
 local pruned=0
+dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local chooserEnv=setmetatable({
     combatAssignmentState=state,
     attackAssignmentsTargetGUIDs=function() return arrows end,

@@ -51,7 +51,7 @@ assert(not reader:find('dodgeSplitMode',1,true),"Remove obsolete Dodge split sta
 -- Exercise combatEffectAdd's actual registration of two reductions on one enemy.
 -- Both must have separate IDs; targeting either one at any printed attack
 -- must NOT affect the targeting of the other.
-local effectStart=assert(combat:find("function combatEffectAdd(",1,true))
+local effectStart=assert(combat:find("function combatEffectPreventsAttack(",1,true))
 local effectSource=combat:sub(effectStart)
 local add=assert(load([=[
 monsterPugs={}
