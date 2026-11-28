@@ -385,7 +385,7 @@ local function playAreaScaleBoardButtons(board,seat)
             height=height,width=width,position=uiPosition(offset),
             rotation="0 0 180",scale=uiScale(scale),
             color="rgba(0,0,0,0.0)"
-        },children={{tag="Image",attributes=imageAttributes}}}}
+        },children={{tag="Image",attributes=imageAttributes}}}
     end
 
     -- Left to right:  <  [100%]  >  [Cards/All]
