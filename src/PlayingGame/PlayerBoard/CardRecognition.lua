@@ -4667,7 +4667,7 @@ trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scann
 trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 function magicTalentManaPayments(seatPos,talentGUID,sourceGUIDs)
     return trackerPrivate.manaPayments.magicTalentManaPayments(seatPos,
-        footprint,manaColor,trackerPrivate.readyForXZ,talentGUID,sourceGUIDs)
+        footprint,trackerPrivate.paymentManaColorForSeat(seatPos),trackerPrivate.readyForXZ,talentGUID,sourceGUIDs)
 end
 
 factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject
@@ -4754,7 +4754,10 @@ local function matchesCardMana(card,color)
     local data=gameCards[card.guid]
     if data==nil then return color=="Red" or color=="Blue" or color=="Green" or color=="White" end
     if data.cardType=="Artifact" then return false end
-    if color=="Gold" then return resourceCardsGoldAllowed() end
+    if trackerPrivate.manaPayments.wildcard(color,resourceCardsGoldAllowed()) then
+        return card.guid~="e2b570" or color=="Gold"
+    end
+    if color=="Gold" then return false end
     if color=="Black" then return resourceCardsBlackAllowed() and data.cardType=="Spell" end
     local colors=data.color
     if type(colors)=="string" then return colors==color end
@@ -4767,9 +4770,57 @@ end
 -- A borrowed Spell's casting payment must remain on its physical card.
 -- This check also works with the Resource Tracker minimized, when its cached
 -- records are deliberately cleared. A lone Black die never casts a Spell.
+-- The exception is established from a normal White payment, before any
+-- black/gold die can become a wildcard. Use the same highest-card policy as
+-- the payment scan, and the live board when the tracker is minimized.
+function trackerPrivate.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,reserved,sideways)
+    local active=false
+    if cards==nil then
+        cards,manaObjects,footprints={},{},{}
+        local zone=seatPos~=nil and playerPlayAreas~=nil
+            and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
+        if zone~=nil then
+            for _,obj in ipairs(zone.getObjects()) do
+                if trackerPrivate.readyForXZ(obj) then
+                    local kind=resourceObjectKind(obj)
+                    if kind=="card" and (magicTalentInactivePreview==nil or not magicTalentInactivePreview(obj.guid)) then
+                        cards[#cards+1]=obj
+                        footprints[obj.guid]=footprint(obj)
+                    elseif kind=="mana" and (manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid)) then
+                        manaObjects[#manaObjects+1]=obj
+                    end
+                end
+            end
+        end
+    end
+    local storm
+    for _,card in ipairs(cards) do
+        if card.guid=="e2b570" and card.is_face_down~=true and cardPosture(card)=="upright" then
+            storm=card break
+        end
+    end
+    if storm~=nil then
+        for _,mana in ipairs(manaObjects) do
+            local color=manaColor(mana)
+            if (placements==nil or placements[mana.guid]=="play")
+                and (reserved==nil or reserved[mana.guid]==nil)
+                and (sideways==nil or sideways[mana.guid]==nil)
+                and (color=="White" or (color=="Gold" and resourceCardsGoldAllowed())) then
+                local best=trackerPrivate.manaPayments.bestManaCard(mana,cards,footprints,function(card)
+                    return card.is_face_down~=true and cardPosture(card)=="upright" and matchesCardMana(card,color)
+                end)
+                if best==storm then active=true break end
+            end
+        end
+    end
+    return function(mana)
+        return trackerPrivate.manaPayments.stormColor(manaColor(mana),mana.type=="Dice",active)
+    end
+end
+
 function magicTalentSpellCastingPaid(seatPos,guid)
     return trackerPrivate.manaPayments.magicTalentSpellCastingPaid(seatPos,guid,
-        footprint,cardPosture,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
+        footprint,cardPosture,trackerPrivate.paymentManaColorForSeat(seatPos),trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- Count distinct physical casting payments for repeated uses of the same
@@ -4777,7 +4828,7 @@ end
 -- duplicates are counted only once.
 function magicTalentSpellCastingPaymentCount(seatPos,guid)
     return trackerPrivate.manaPayments.magicTalentSpellCastingPaymentCount(seatPos,guid,
-        footprint,cardPosture,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
+        footprint,cardPosture,trackerPrivate.paymentManaColorForSeat(seatPos),trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- A powered link grants a target Action card its strong side for free and can
@@ -4902,10 +4953,11 @@ function resourceCardsMountainLoreEndTurnBonus(seatPos)
 
     -- When tracking is closed, recover unambiguous physical payments and
     -- links rather than assuming the card was not played on its strong side.
+    local paymentColor=trackerPrivate.paymentManaColorForSeat(seatPos)
     local function paidManaOn(target)
         local area=footprint(target)
         for _,obj in ipairs(objects) do
-            local color=manaColor(obj)
+            local color=paymentColor(obj)
             if color~=nil and matchesCardMana(target,color) then
                 local pos=obj.getPosition()
                 if math.abs(pos[1]-area.x)<area.halfX
@@ -4970,8 +5022,9 @@ function resourceCardsTrainingMode(seatPos,trainingGUID)
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if card==nil or zone==nil or card.is_face_down==true then return false,1 end
     local area=footprint(card)
+    local paymentColor=trackerPrivate.paymentManaColorForSeat(seatPos)
     for _,obj in ipairs(zone.getObjects()) do
-        local color=manaColor(obj)
+        local color=paymentColor(obj)
         if color~=nil and matchesCardMana(card,color) then
             local pos=obj.getPosition()
             if math.abs(pos[1]-area.x)<area.halfX
@@ -4993,8 +5046,9 @@ function resourceCardsSteadyTempoPowered(seatPos,cardGUID)
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     if zone==nil then return false end
     local area=footprint(card)
+    local paymentColor=trackerPrivate.paymentManaColorForSeat(seatPos)
     for _,mana in ipairs(zone.getObjects()) do
-        local color=manaColor(mana)
+        local color=paymentColor(mana)
         if color~=nil and matchesCardMana(card,color) then
             local pos=mana.getPosition()
             if math.abs(pos[1]-area.x)<area.halfX
@@ -5101,7 +5155,7 @@ end
 -- additional casting/claim payments, even if overlapping cards share X/Z.
 function resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID)
     return trackerPrivate.manaPayments.resourceCardsMaximalEffectSourceManaGUIDs(seatPos,sourceGUID,
-        footprint,manaColor,trackerPrivate.readyForXZ,matchesCardMana)
+        footprint,trackerPrivate.paymentManaColorForSeat(seatPos),trackerPrivate.readyForXZ,matchesCardMana)
 end
 
 -- One shared linked-throw decision, kept separate from ordinary discard
@@ -5374,14 +5428,14 @@ trackerPrivate.bestManaCard=require("PlayingGame.PlayerBoard.ResourceTracker.Sca
 -- the mere presence of the Spell in the play area does not establish either.
 function resourceCardsTimeBendingPaid(seatPos,card)
     return trackerPrivate.manaPayments.resourceCardsTimeBendingPaid(seatPos,card,
-        footprint,cardPosture,manaColor,manaInsideFootprint)
+        footprint,cardPosture,trackerPrivate.paymentManaColorForSeat(seatPos),manaInsideFootprint)
 end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from
 -- either overlapping board zone, even with the Resource Tracker collapsed.
-local function unitManaCounts(unit,seatPos,source,crystalsOnly)
+local function unitManaCounts(unit,seatPos,source,crystalsOnly,paymentColor)
     return trackerPrivate.manaPayments.unitManaCounts(unit,seatPos,source,crystalsOnly,
-        footprint,manaColor,trackerPrivate.readyForXZ,isManaTokenFigurine,manaInsideFootprint)
+        footprint,crystalsOnly and manaColor or (paymentColor or trackerPrivate.paymentManaColorForSeat(seatPos)),trackerPrivate.readyForXZ,isManaTokenFigurine,manaInsideFootprint)
 end
 
 local function unitAbilityPaid(ability,counts)
@@ -5485,6 +5539,7 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
         resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
         cardPosture=cardPosture,matchesCardMana=matchesCardMana,manaColor=manaColor,
         effectManaPossibilities=effectManaPossibilities,resolveActionLinks=resolveActionLinks,
+        paymentManaColorForSeat=trackerPrivate.paymentManaColorForSeat,
         linkOnly=true,directOnly=directOnly
     })
     combatConfig.amuletMana=previous
@@ -5736,9 +5791,10 @@ local function renderSeat(seatPos)
         resolveManaSkillLinks=resolveManaSkillLinks, resolveSkillCardLinks=resolveSkillCardLinks,
         trackerPrivate=trackerPrivate, cardPosture=cardPosture, matchesCardMana=matchesCardMana,
         manaColor=manaColor, effectManaPossibilities=effectManaPossibilities,
-        resolveActionLinks=resolveActionLinks,
+        resolveActionLinks=resolveActionLinks, paymentManaColorForSeat=trackerPrivate.paymentManaColorForSeat,
     })
     if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.payments",scanStage) end
+    local paymentManaColor=trackerPrivate.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,manaByObject,sidewaysSkillMana)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false
@@ -5749,7 +5805,7 @@ local function renderSeat(seatPos)
     local usesSkillLocation=false
     trackerPrivate.scanFinalization.passiveTerrain({
         seatPos=seatPos, terrainModifiers=terrainModifiers, ownedSkillAtSeat=ownedSkillAtSeat,
-        footprint=footprint, manaObjects=manaObjects, placements=placements, manaColor=manaColor,
+        footprint=footprint, manaObjects=manaObjects, placements=placements, manaColor=paymentManaColor,
         manaInsideFootprint=manaInsideFootprint,
     })
     -- Only infer an effect after assigning separate casting/power/effect
@@ -5834,7 +5890,9 @@ local function renderSeat(seatPos)
         allUnitResistances=allUnitResistances, combatCalcOn=combatCalcOn, combatConfig=combatConfig,
         trackerPrivate=trackerPrivate, unitResourceDefinitions=unitResourceDefinitions,
         cardPosture=cardPosture, clearHighlight=clearHighlight, trackerChoiceScores=trackerChoiceScores,
-        removeChoiceButtons=removeChoiceButtons, unitManaCounts=unitManaCounts,
+        removeChoiceButtons=removeChoiceButtons, unitManaCounts=function(unit,seat,source,crystalsOnly)
+            return unitManaCounts(unit,seat,source,crystalsOnly,paymentManaColor)
+        end,
         unitManaDecision=unitManaDecision, combatOneUnitSelect=combatOneUnitSelect,
         combatUnitSitePermits=combatUnitSitePermits, showUnitAbilityButtons=showUnitAbilityButtons,
         unitAbilityPaid=unitAbilityPaid, addResourceAmounts=addResourceAmounts, totals=totals, current=current,

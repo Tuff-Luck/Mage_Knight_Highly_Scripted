@@ -1,6 +1,7 @@
 -- Resolve physical Skill links from the coordinator's current scan candidates.
 -- No zone discovery, payment consumption, UI or saved-state writes occur here.
 local physicalLinks=require("PlayingGame.PlayerBoard.ResourceTracker.Core.PhysicalLinks")
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 return function(deps)
     local trackerPrivate=deps.trackerPrivate
     local resourceCardsGoldAllowed=deps.resourceCardsGoldAllowed
@@ -35,8 +36,7 @@ return function(deps)
     -- Day conditions. Keep this separate from matchingSidewaysMana: that helper
     -- also compares actual printed card colours for If It's Not Broken.
     local function matchingSidewaysPaymentMana(card,color)
-        if color=="Gold" then
-            if not resourceCardsGoldAllowed() then return false end
+        if payment.wildcard(color,resourceCardsGoldAllowed()) then
             for _,basicColor in ipairs({"Red","Blue","Green","White"}) do
                 if matchingSidewaysMana(card,basicColor) then return true end
             end
@@ -45,7 +45,7 @@ return function(deps)
         return matchingSidewaysMana(card,color)
     end
 
-    local function sidewaysModifierValue(skill,target,descriptor,mana,unitState)
+    local function sidewaysModifierValue(skill,target,descriptor,mana,unitState,paymentColor)
         local value=skill.is_face_down==true and descriptor.faceDownValue
             or descriptor.value or 1
         local cardData=gameCards[target.guid]
@@ -58,7 +58,7 @@ return function(deps)
             value=descriptor.choiceValues[choice] or value
         end
         if mana~=nil and descriptor.matchingManaValue~=nil
-            and matchingSidewaysPaymentMana(target,manaColor(mana)) then
+            and matchingSidewaysPaymentMana(target,paymentColor(mana)) then
             value=descriptor.matchingManaValue
         end
         if descriptor.perEmptyCommandSlot~=nil and unitState~=nil then
@@ -67,7 +67,8 @@ return function(deps)
         return value
     end
 
-    local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana,unitState)
+    local function resolveSkillCardLinks(skills,targets,footprints,manaObjects,placements,reservedMana,unitState,paymentColor)
+        paymentColor=paymentColor or manaColor
         local byTarget,bySkill,byMana={}, {}, {}
         local candidates={}
         for _,skill in ipairs(skills) do
@@ -102,7 +103,7 @@ return function(deps)
                     for _,available in ipairs(manaObjects) do
                         if placements[available.guid]=="play" and reservedMana[available.guid]==nil
                             and byMana[available.guid]==nil
-                            and sidewaysManaAvailable(manaColor(available))
+                            and sidewaysManaAvailable(paymentColor(available))
                             and (manaInsideFootprint(available,skillArea)
                                 or manaInsideFootprint(available,targetArea)) then
                             local p=available.getPosition()
@@ -116,7 +117,7 @@ return function(deps)
                 end
                 if not descriptor.manaRequired or mana~=nil then
                     byTarget[target.guid]={skillGUID=skill.guid,
-                        sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana,unitState),
+                        sidewaysValue=sidewaysModifierValue(skill,target,descriptor,mana,unitState,paymentColor),
                         manaGUID=mana~=nil and mana.guid or nil}
                     bySkill[skill.guid]=target.guid
                     if mana~=nil then

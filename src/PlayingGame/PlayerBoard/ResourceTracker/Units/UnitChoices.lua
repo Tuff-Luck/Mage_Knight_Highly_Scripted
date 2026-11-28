@@ -1,6 +1,7 @@
 -- Select payable Unit abilities and preserve an activation's existing choice.
 -- The caller owns activation history and supplies the live mana policy/counts.
 -- Only the existing lastPaidIndex and manaChoice bookkeeping is mutated here.
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 return function(deps)
     local unitManaCounts=deps.unitManaCounts
     local unitManaSignature=deps.unitManaSignature
@@ -25,7 +26,7 @@ return function(deps)
                 free[#free+1]=index
             elseif unitAbilityPaid(ability,counts) then
                 paid[#paid+1]=index
-                if (counts[ability.manaCost] or 0)>0 then
+                if (counts[ability.manaCost] or 0)>0 or ability.manaCost=="Black" then
                     direct[#direct+1]=index
                 else
                     goldOnly[#goldOnly+1]=index
@@ -49,7 +50,12 @@ return function(deps)
         if abilities.multi==true then
             local chosen={}
             for _,index in ipairs(direct) do chosen[index]=true end
-            local goldCount=resourceCardsGoldAllowed() and (counts.Gold or 0) or 0
+            local reserveBlack=false
+            for _,index in ipairs(direct) do
+                if abilities[index].manaCost=="Black" then reserveBlack=true break end
+            end
+            local goldCount=payment.wildcardCount(counts,resourceCardsGoldAllowed(),reserveBlack)
+            result.wildcardCount=goldCount
             if #goldOnly<=goldCount then
                 for _,index in ipairs(goldOnly) do chosen[index]=true end
             elseif goldCount>0 then

@@ -105,10 +105,17 @@ local function cardColor(guid)
     return nil
 end
 
+local function stormWildcard(color)
+    return color=="StormGold" or color=="StormBlack"
+end
+local function browserColor(color)
+    return stormWildcard(color) and "Gold" or color
+end
+
 local function matching(guid,color,kind)
     local data=gameCards[guid]
     if data==nil or data.cardType~=(kind or "Spell") then return false end
-    if color=="Gold" then return true end
+    if browserColor(color)=="Gold" then return true end
     if type(data.color)=="string" then return data.color==color end
     for _,value in ipairs(data.color or {}) do if value==color then return true end end
     return false
@@ -187,7 +194,7 @@ local function ancientsPayments(seat,guid,copy,spent)
         if not seen[payment.guid] and not sourcePayments[payment.guid]
             and not (spent or {})[payment.guid]
             and (color=="Red" or color=="Green" or color=="Blue" or color=="White"
-                or (color=="Gold" and resourceCardsGoldAllowed())) then
+                or (stormWildcard(color) or (color=="Gold" and resourceCardsGoldAllowed()))) then
             seen[payment.guid]=true
             result[#result+1]=payment
         end
@@ -245,8 +252,8 @@ local function ancientsPermissions(seat,guid)
     if copy~=nil and copy.powered then return colors,true end
     local payments=ancientsPayments(seat,guid,copy,s~=nil and s.spentMana or nil)
     for _,payment in ipairs(payments) do
-        colors[payment.color]=true
-        if copy==nil and (payment.color=="Red" or payment.color=="Gold") then strong=true end
+        colors[browserColor(payment.color)]=true
+        if copy==nil and (payment.color=="Red" or browserColor(payment.color)=="Gold") then strong=true end
     end
     if copy~=nil then return colors,false end
     local scan=resourceCardScanBySeat~=nil and resourceCardScanBySeat[seat] or nil
@@ -309,7 +316,7 @@ local function strongColor(seat,useIndex,copy,talentGUID)
             if seen[payment.guid]~=true and sourcePayments[payment.guid]~=true
                 and (payment.color=="Red" or payment.color=="Blue"
                     or payment.color=="Green" or payment.color=="White"
-                    or (payment.color=="Gold" and goldLegal)) then
+                    or (stormWildcard(payment.color) or (payment.color=="Gold" and goldLegal))) then
                 seen[payment.guid]=true
                 choices[#choices+1]=payment
             end
@@ -322,16 +329,16 @@ local function strongColor(seat,useIndex,copy,talentGUID)
         local remaining=limit-(claimed~=nil and claimed.used or 0)
         if remaining<1 or #choices<remaining then return nil end
         table.sort(choices,function(a,b) return a.guid<b.guid end)
-        return choices[1].color,choices[1].guid
+        return browserColor(choices[1].color),choices[1].guid
     end
     local goldLegal=resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()
     local power=nil
     for _,payment in ipairs(payments) do
         if payment.color=="Blue" then power=payment break end
     end
-    if power==nil and goldLegal then
+    if power==nil then
         for _,payment in ipairs(payments) do
-            if payment.color=="Gold" then power=payment break end
+            if stormWildcard(payment.color) or (payment.color=="Gold" and goldLegal) then power=payment break end
         end
     end
     if power==nil then return nil end
@@ -339,8 +346,8 @@ local function strongColor(seat,useIndex,copy,talentGUID)
         if payment.guid~=power.guid and
             (payment.color=="Red" or payment.color=="Blue"
             or payment.color=="White" or payment.color=="Green"
-            or (payment.color=="Gold" and goldLegal)) then
-            return payment.color,payment.guid,power.guid
+            or (stormWildcard(payment.color) or (payment.color=="Gold" and goldLegal))) then
+            return browserColor(payment.color),payment.guid,power.guid
         end
     end
     return nil

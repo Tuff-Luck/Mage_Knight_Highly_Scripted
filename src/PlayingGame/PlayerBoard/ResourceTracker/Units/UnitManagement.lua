@@ -321,7 +321,7 @@ function M.choiceClicked(player,value,id,moveRoleAvailable,trackerPrivate,unitMa
         if decision.selected[index]==true then
             activation.selected[index]=nil
         else
-            local goldCount=((activation.frozenCounts
+            local goldCount=decision.wildcardCount or ((activation.frozenCounts
                 or unitManaCounts(unit,current.seatPos)).Gold or 0)
             local prior={}
             for _,candidate in ipairs(decision.display) do

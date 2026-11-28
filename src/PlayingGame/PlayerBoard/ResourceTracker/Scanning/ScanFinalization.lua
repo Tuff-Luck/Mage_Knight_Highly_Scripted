@@ -47,7 +47,7 @@ function M.passiveTerrain(context)
                 if token~=nil then
                     local area=footprint(token)
                     for _,mana in ipairs(manaObjects) do
-                        if placements[mana.guid]=="play" and manaColor(mana)==extra.color
+                        if placements[mana.guid]=="play" and require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments").basicPayment(manaColor(mana),extra.color,resourceCardsGoldAllowed())
                             and manaInsideFootprint(mana,area) then
                             terrainPolicy.append(terrainModifiers,{extra.effect},gStates.dayRound)
                             break

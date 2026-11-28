@@ -564,7 +564,8 @@ function M.process(context)
                         local matching=false
                         for color in pairs(colors) do
                             if powerColors[color]==true
-                                or (powerColors.Gold==true and resourceCardsGoldAllowed()
+                                or (((powerColors.Gold==true and resourceCardsGoldAllowed())
+                                    or powerColors.StormGold==true or powerColors.StormBlack==true)
                                     and matchesCardMana(card,color)) then
                                 matching=true
                                 break

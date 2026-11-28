@@ -2,15 +2,57 @@
 -- Special-card scans read the current play zone; Unit scans read the play and
 -- Unit zones or supplied live candidates. The coordinator retains color and posture policies.
 
+-- Payment-only colours preserve the physical face while allowing Mana Storm
+-- dice to fill basic roles. Never expose these as actual crystal colours.
+local function stormColor(color,isDice,active)
+    if active and isDice then
+        if color=="Gold" then return "StormGold" end
+        if color=="Black" then return "StormBlack" end
+    end
+    return color
+end
+local function wildcard(color,goldAllowed)
+    return color=="StormGold" or color=="StormBlack" or (color=="Gold" and goldAllowed)
+end
+local function blackPayment(color)
+    return color=="Black" or color=="StormBlack"
+end
+local function basicPayment(color,required,goldAllowed)
+    return color==required or (required~=nil and required~="Black" and wildcard(color,goldAllowed))
+end
+local function wildcardCount(counts,goldAllowed,reserveBlack)
+    local count=(goldAllowed and (counts.Gold or 0) or 0)+(counts.StormGold or 0)+(counts.StormBlack or 0)
+    if reserveBlack and (counts.Black or 0)==0 and (counts.StormBlack or 0)>0 then count=count-1 end
+    return count
+end
+local function ordinarySpellRoles(payments,blackAllowed)
+    local cast,power=false,false
+    for _,payment in ipairs(payments) do
+        if payment.color~="Black" then
+            cast=true
+            if blackAllowed then
+                for _,other in ipairs(payments) do
+                    if other.guid~=payment.guid and blackPayment(other.color) then power=true break end
+                end
+            end
+        end
+    end
+    -- Preserve the existing uncast Black-only strong-side indicator.
+    if not cast and blackAllowed then
+        for _,payment in ipairs(payments) do if blackPayment(payment.color) then power=true break end end
+    end
+    return cast,power
+end
+
 -- All roles are assigned to distinct physical objects. Gold can fill a
 -- basic casting or power role, but never substitutes for Black power.
 local function castingColorMatches(spec,color,goldAllowed)
-    return color==spec.castColor or (color=="Gold" and goldAllowed)
+    return basicPayment(color,spec.castColor,goldAllowed)
 end
 
 local function powerColorMatches(spec,color,goldAllowed)
-    return color==spec.powerColor
-        or (goldAllowed and spec.powerColor~="Black" and color=="Gold")
+    if spec.powerColor=="Black" then return blackPayment(color) end
+    return basicPayment(color,spec.powerColor,goldAllowed)
 end
 
 -- Shared enumeration for the possible effect options and Mana Overload's
@@ -41,10 +83,10 @@ local function effectManaPossibilities(spec,payments,needPower,goldAllowed,black
     if not blackAllowed and needPower and spec.powerColor=="Black" then return possible,anyColor end
     for _,effect in ipairs(payments) do
         local category=spec.colors[effect.color]
-        local wildcard=effect.color=="Gold" and goldAllowed
-        if (category~=nil or wildcard)
+        local wild=wildcard(effect.color,goldAllowed)
+        if (category~=nil or wild)
             and hasDistinctRoles(spec,payments,effect.guid,needPower,goldAllowed) then
-            if wildcard then anyColor=true
+            if wild then anyColor=true
             elseif category~=nil then possible[category]=true end
         end
     end
@@ -61,7 +103,7 @@ local function effectManaSelectionsPaid(spec,payments,selections,goldAllowed,cou
         if payment.guid~=nil and not seen[payment.guid] then
             seen[payment.guid]=true
             local category=spec.colors[payment.color]
-            if payment.color=="Gold" and goldAllowed then
+            if wildcard(payment.color,goldAllowed) then
                 wildcards=wildcards+1
             elseif category~=nil then
                 exact[category]=(exact[category] or 0)+1
@@ -90,7 +132,7 @@ local function effectManaPowerColors(spec,payments,goldAllowed,blackAllowed,sele
     if spec==nil or selectedCategory==nil
         or (not blackAllowed and spec.powerColor=="Black") then return eligible end
     for _,effect in ipairs(payments or {}) do
-        if (spec.colors[effect.color]==selectedCategory or (goldAllowed and effect.color=="Gold"))
+        if (spec.colors[effect.color]==selectedCategory or wildcard(effect.color,goldAllowed))
             and hasDistinctRoles(spec,payments,effect.guid,true,goldAllowed) then
             eligible[spec.powerColor]=true
             break
@@ -235,15 +277,18 @@ local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,m
     local zone=playZone(seatPos)
     if zone==nil then return false end
     local area=footprint(card)
-    local blue,black=false,false
+    local payments={}
     for _,mana in ipairs(zone.getObjects()) do
         if mana.guid~=card.guid and manaInsideFootprint(mana,area)
             and (manaClaimDieHeld==nil or not manaClaimDieHeld(mana.guid)) then
             local color=manaColor(mana)
-            if color=="Blue" then blue=true elseif color=="Black" then black=true end
+            if basicPayment(color,"Blue",resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()) or blackPayment(color) then
+                payments[#payments+1]={guid=mana.guid,color=color}
+            end
         end
     end
-    return blue and black
+    local cast,power=ordinarySpellRoles(payments,true)
+    return cast and power
 end
 
 -- Physical mana is authoritative for a paid Unit ability. It is read from
@@ -285,21 +330,28 @@ end
 local function unitAbilityPaid(ability,counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
     local color=ability.manaCost
     if color==nil then return true end
-    if color=="Black" and not resourceCardsBlackAllowed() then return false end
+    if color=="Black" then
+        return resourceCardsBlackAllowed() and ((counts.Black or 0)+(counts.StormBlack or 0)>0)
+    end
     if (counts[color] or 0)>0 then return true end
-    -- Daytime Gold can pay any basic colour, but not Black.
-    return color~="Black" and resourceCardsGoldAllowed() and (counts.Gold or 0)>0
+    return wildcardCount(counts,resourceCardsGoldAllowed())>0
 end
 
 local function unitManaSignature(counts,resourceCardsGoldAllowed,resourceCardsBlackAllowed)
     local parts={tostring(resourceCardsGoldAllowed()),tostring(resourceCardsBlackAllowed())}
-    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold"}) do
+    for _,color in ipairs({"Red","Blue","Green","White","Black","Gold","StormGold","StormBlack"}) do
         parts[#parts+1]=tostring(counts[color] or 0)
     end
     return table.concat(parts,":")
 end
 
 return {
+    stormColor=stormColor,
+    wildcard=wildcard,
+    blackPayment=blackPayment,
+    basicPayment=basicPayment,
+    wildcardCount=wildcardCount,
+    ordinarySpellRoles=ordinarySpellRoles,
     effectManaPossibilities=effectManaPossibilities,
     effectManaPowerColors=effectManaPowerColors,
     effectManaSelectionsPaid=effectManaSelectionsPaid,

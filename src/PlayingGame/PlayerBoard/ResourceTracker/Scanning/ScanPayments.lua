@@ -1,5 +1,6 @@
 -- Ordered physical mana reservation and Action/Skill link resolution. Preserves highest eligible card selection, separate casting and effect roles, and optional terrain mana.
 local M={}
+local payment=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
 
 function M.resolve(context)
     local seatPos, cards, wounds = context.seatPos, context.cards, context.wounds
@@ -41,6 +42,17 @@ function M.resolve(context)
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
     local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
         resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
+    local paymentColor=manaColor
+    if context.paymentManaColorForSeat~=nil then
+        paymentColor=context.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,manaByObject,sidewaysSkillMana)
+        skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
+            resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState,paymentColor)
+    end
+    local function colorForCard(mana,card)
+        if card.guid=="e2b570" then return manaColor(mana) end
+        return paymentColor(mana)
+    end
+    local ordinarySpellMana={}
     local powered,usedMana,spellCastingPaid,powerManaColorsByCard={}, {}, {}, {}
     -- Some cards require a separate coloured mana payment to choose their
     -- effect. Record those candidates before deciding which mana powers the
@@ -61,7 +73,7 @@ function M.resolve(context)
         local data=gameCards[card.guid]
         return data~=nil and data.resourceKey=="bloodOfAncients"
             and (color=="Red" or color=="Blue" or color=="White" or color=="Green"
-                or (color=="Gold" and resourceCardsGoldAllowed()))
+                or payment.wildcard(color,resourceCardsGoldAllowed()))
     end
     local function spendMana(card,color,manaGUID)
         -- Never record an illegal Daytime Black payment through the separate
@@ -73,7 +85,7 @@ function M.resolve(context)
         if freeCastSides[card.guid]~=nil then
             local spec=specialPaymentByCard[card.guid]
             if spec==nil or (spec.colors[color]==nil
-                and not (color=="Gold" and resourceCardsGoldAllowed())) then return end
+                and not payment.wildcard(color,resourceCardsGoldAllowed())) then return end
             local candidates=effectManaByCard[card.guid] or {}
             candidates[#candidates+1]={guid=manaGUID,color=color}
             effectManaByCard[card.guid]=candidates
@@ -83,7 +95,7 @@ function M.resolve(context)
         if ancientsMana(card,color) then
             -- A basic colour is a purchase cost, not necessarily Red power.
             usedMana[manaGUID]=card.guid
-            if color=="Red" or color=="Gold" then
+            if color=="Red" or payment.wildcard(color,resourceCardsGoldAllowed()) then
                 powered[card.guid]=true
                 powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
                 powerManaColorsByCard[card.guid][color]=true
@@ -101,11 +113,13 @@ function M.resolve(context)
         elseif data~=nil and data.cardType=="Spell" then
             -- Casting mana selects the normal Spell; only Black powers
             -- the stronger effect and may activate Mana Overload.
-            if color=="Black" then
-                powered[card.guid]=true
-                powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
-                powerManaColorsByCard[card.guid][color]=true
-            end
+            local candidates=ordinarySpellMana[card.guid] or {}
+            candidates[#candidates+1]={guid=manaGUID,color=color}
+            ordinarySpellMana[card.guid]=candidates
+            local cast,strong=payment.ordinarySpellRoles(candidates,resourceCardsBlackAllowed())
+            spellCastingPaid[card.guid]=cast or nil
+            powered[card.guid]=strong or nil
+            powerManaColorsByCard[card.guid]=strong and {Black=true} or nil
         else
             powered[card.guid]=true
             powerManaColorsByCard[card.guid]=powerManaColorsByCard[card.guid] or {}
@@ -121,22 +135,23 @@ function M.resolve(context)
     for _,mana in ipairs(manaObjects) do
         if placements[mana.guid]=="play" and manaByObject[mana.guid]==nil
             and sidewaysSkillMana[mana.guid]==nil then
-            local color=manaColor(mana)
+            local color=paymentColor(mana)
             if color~=nil then
                 local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
+                    local color=colorForCard(mana,card)
                     if freeCastSides[card.guid]~=nil then
                         local spec=specialPaymentByCard[card.guid]
                         return cardPosture(card)=="upright" and card.is_face_down~=true
                             and spec~=nil and (spec.colors[color]~=nil
-                                or (color=="Gold" and resourceCardsGoldAllowed()))
+                                or payment.wildcard(color,resourceCardsGoldAllowed()))
                     end
                     return cardPosture(card)=="upright" and card.is_face_down~=true
                         and (matchesCardMana(card,color) or ancientsMana(card,color)
                             or (specialPaymentByCard[card.guid]~=nil
                                 and (specialPaymentByCard[card.guid].colors[color]~=nil
-                                    or (color=="Gold" and resourceCardsGoldAllowed()))))
+                                    or payment.wildcard(color,resourceCardsGoldAllowed()))))
                 end)
-                if best~=nil then spendMana(best,color,mana.guid) end
+                if best~=nil then spendMana(best,colorForCard(mana,best),mana.guid) end
             end
         end
     end
@@ -188,11 +203,11 @@ function M.resolve(context)
         for _,mana in ipairs(manaObjects) do
             if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
                 and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
-                local color=manaColor(mana)
+                local color=paymentColor(mana)
                 local best=trackerPrivate.bestManaCard(mana,repeatedManaCards,footprints,function(card)
                     local spec=specialPaymentByCard[card.guid]
                     return cardPosture(card)=="upright"
-                        and (spec.colors[color]~=nil or (color=="Gold" and resourceCardsGoldAllowed()))
+                        and (spec.colors[color]~=nil or payment.wildcard(color,resourceCardsGoldAllowed()))
                 end)
                 if best~=nil then spendMana(best,color,mana.guid) end
             end
@@ -205,12 +220,12 @@ function M.resolve(context)
     for _,mana in ipairs(manaObjects) do
         if placements[mana.guid]=="play" and usedMana[mana.guid]==nil
             and manaByObject[mana.guid]==nil and sidewaysSkillMana[mana.guid]==nil then
-            local color=manaColor(mana)
+            local color=paymentColor(mana)
             local best=trackerPrivate.bestManaCard(mana,cards,footprints,function(card)
                 local data=gameCards[card.guid]
                 local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
                 local spec=rule~=nil and rule.extraTerrainMana or nil
-                return spec~=nil and spec.color==color
+                return spec~=nil and payment.basicPayment(color,spec.color,resourceCardsGoldAllowed())
                     and extraTerrainManaByCard[card.guid]==nil
                     and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
                     and card.is_face_down~=true and cardPosture(card)=="upright"
