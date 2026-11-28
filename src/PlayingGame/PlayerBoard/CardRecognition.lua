@@ -5104,7 +5104,7 @@ function resourceCardsMaximalEffectLink(seatPos,targetGUID)
         end
     end
     local repeats=trackerPrivate.physicalActionLinkSnapshot(seatPos,true)
-    return repeats[targetGUID]
+    return repeats~=nil and repeats[targetGUID] or nil
 end
 
 -- A Maximal Effect power mana object cannot also be one of Magic Talent's
