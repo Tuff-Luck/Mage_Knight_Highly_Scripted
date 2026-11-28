@@ -424,6 +424,7 @@ return function(combatConfig,solver,combatEnemyAttacks,combatNatureVengeanceBloc
             local required=remaining*(attack.swift and 2 or 1)
             local spent=combatBlockSpent(attack,solved,step.used)
             reductions[index]=step.reduction
+            if attack.pending then allBlocked=false end
             if step.blocked then
                 lines[index]=attack.pending and "Summon pending" or (attack.value<=0 and "No attack"
                     or (tostring(math.max(spent,required)).."/"..tostring(required).." Blocked"))

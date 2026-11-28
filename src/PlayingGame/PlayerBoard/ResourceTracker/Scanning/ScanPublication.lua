@@ -135,7 +135,8 @@ function M.publish(context)
         usesCurrentHexHealing=usesCurrentHexHealing,
         usesSkillLocation=usesSkillLocation}
     resourceCardScanBySeat[seatPos].enemyEffectArrowKinds,
-        resourceCardScanBySeat[seatPos].enemyEffectDefenceRequirements=
+        resourceCardScanBySeat[seatPos].enemyEffectDefenceRequirements,
+        resourceCardScanBySeat[seatPos].enemyEffectPreventionSources=
         combatEffectArrowKinds(records,enemyEffects)
     for _,guid in ipairs(changedLinkedSources) do
         context.combatForgetPhysicalSourceTargets(guid)

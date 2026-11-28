@@ -1264,8 +1264,63 @@ end
 
 local combatOrderedReductions=trackerPrivate.enemyAttacks.orderedReductions
 local function combatEnemyAttacks(entry,includeCancelled)
+    if entry.data.monsters~=nil then
+        entry.summonDone=gStates~=nil and gStates.summonStates~=nil
+            and gStates.summonStates[entry.guid]=="SummonDone"
+        local draw=gStates~=nil and gStates.summonDrawPlans~=nil
+            and gStates.summonDrawPlans[entry.guid] or nil
+        entry.summonPending=entry.summonDone and draw~=nil
+            and math.max(0,draw.count-#(entry.summoned or {})) or nil
+        if draw~=nil and draw.preventAll then entry.noAttack=true end
+    end
     return trackerPrivate.enemyAttacks.enemyAttacks(entry,includeCancelled,
         combatReductionAttackChoice[entry.guid])
+end
+
+-- Called immediately before the physical summon draw, after the rewind snapshot.
+-- Calculate the same cancelled pending slots the combat calculator displays.
+function resourceCardsSummonPlan(guid)
+    local skipped,used={},{}
+    if not resourceCardsPanelOpen() then return skipped end
+    local data=combatEnemyData(guid)
+    if data==nil or data.monsters==nil then return skipped end
+    local seat=combatAssignmentActiveSeat()
+    local scan=seat~=nil and resourceCardScanBySeat[seat] or nil
+    local effect=combatEffectOf(guid)
+    if effect==nil then return skipped end
+    local perks=gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+    local prevent=effect.noAttack==true or (effect.noAttackUnfortified==true
+        and resourceCardsEnemyEffectivelyUnfortified(guid,scan~=nil and scan.enemyEffects or nil,
+            scan~=nil and scan.ignoreSiteFortifications==true))
+    if prevent then
+        for slot=1,#data.monsters do skipped[slot]=true end
+        for _,applied in ipairs(effect.applied or {}) do
+            local spec=applied.effective or {}
+            if spec.noAttack or spec.noAttackUnfortified then used[applied.key]=true end
+        end
+    else
+        for _,attack in ipairs(combatEnemyAttacks({guid=guid,data=data,perks=perks,
+            effect=effect,summoned=combatSummonedFor(guid)},true)) do
+            if attack.pending and attack.cancelled then
+                skipped[attack.summonSlot]=true
+                if attack.cancelSource~=nil then used[attack.cancelSource]=true end
+            end
+        end
+    end
+    for key in pairs(used) do
+        gStates.summonPreventionSources=gStates.summonPreventionSources or {}
+        local commitment=gStates.summonPreventionSources[key] or {targets={},committed={}}
+        commitment.targets[guid]=true
+        commitment.committed[guid]=true
+        -- A multi-target prevention retains the other enemies already selected.
+        for target,otherEffect in pairs(scan~=nil and scan.enemyEffects or {}) do
+            for _,applied in ipairs(otherEffect.applied or {}) do
+                if applied.key==key then commitment.targets[target]=true end
+            end
+        end
+        gStates.summonPreventionSources[key]=commitment
+    end
+    return skipped,prevent
 end
 
 -- Conversion availability must reserve Influence only if its explicit target
@@ -5549,12 +5604,22 @@ local function combatEffectTargetEligible(spec)
     return function(enemy,guid)
         local data=combatEnemyData(guid,enemy)
         return data~=nil and (data.attackOnly~=true or not defenceEffect)
+            and (not combatEffectPreventionOnly(spec)
+                or combatEffectSummonPreventionLegal(guid,spec))
     end
 end
 
 local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
     local chosen=nil
     local valid,invalid={},false
+    local commitment=combatEffectSummonCommitment(sourceGUID)
+    local function allowed(enemy,guid)
+        if commitment~=nil then
+            if not commitment.targets[guid] then return false end
+            if commitment.committed[guid] then return true end
+        end
+        return eligible==nil or eligible(enemy,guid)
+    end
     local function targetFor(guid)
         local target=monsters[guid]
         if target==nil then
@@ -5564,7 +5629,7 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
             if data~=nil and data.attackOnly then target=special end
         end
         if target~=nil and target.is_face_down~=true
-            and (eligible==nil or eligible(target,guid)) then return target end
+            and allowed(target,guid) then return target end
         return nil
     end
     for guid in pairs(attackAssignmentsTargetGUIDs(sourceGUID)) do
@@ -5584,7 +5649,13 @@ local function combatEffectChosenEnemy(sourceGUID,area,monsters,eligible)
         combatAssignmentState.targets[sourceGUID]=nil
         combatAssignmentState.explicit[sourceGUID]=nil
     end
-    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,eligible)
+    if commitment~=nil and chosen==nil then
+        for guid in pairs(commitment.committed) do
+            local target=targetFor(guid)
+            if target~=nil and (chosen==nil or guid<chosen.guid) then chosen=target end
+        end
+    end
+    return chosen or combatEffectNearestEnemy(area,monsters,footprint,overlapArea,allowed)
 end
 
 trackerPrivate.unitEffects=require("PlayingGame.PlayerBoard.ResourceTracker.Units.UnitEffects")(

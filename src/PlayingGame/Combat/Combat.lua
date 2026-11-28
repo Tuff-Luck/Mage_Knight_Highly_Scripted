@@ -3053,7 +3053,8 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 	if mouseButton~="-1" then return end
 	local summoner=getObjectFromGUID(id)
 	local monsterData=monsterPugs[id]
-	if summoner==nil or monsterData==nil or monsterData.monsters==nil then return end
+	if summoner==nil or monsterData==nil or monsterData.monsters==nil
+		or gStates.summonStates[id]=="SummonDone" then return end
 	local rewindOwner="Summon "..tostring(id)
 	if rewindReady~=true then
 		if rewindTransactionOwnerActive(rewindOwner)==true then return end
@@ -3061,14 +3062,35 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 		rewindTransactionStart(function() summonMonster(player,mouseButton,id,true) end,rewindOwner)
 		return
 	end
-	local remaining=#monsterData.monsters
-	if remaining==0 then rewindTransactionFinish(rewindOwner) return end
+	local skipped,preventAll={},false
+	if resourceCardsSummonPlan~=nil then skipped,preventAll=resourceCardsSummonPlan(id) end
+	local remaining=0
+	for order in ipairs(monsterData.monsters) do
+		if not skipped[order] then remaining=remaining+1 end
+	end
+	-- Commit before scheduling any asynchronous token-pool work. A second
+	-- click or later cancellation must not alter an already chosen draw.
+	gStates.summonStates[id]="SummonDone"
+	gStates.summonDrawPlans=gStates.summonDrawPlans or {}
+	gStates.summonDrawPlans[id]={count=remaining,preventAll=preventAll==true}
+	setMonsterObjectButtons(summoner)
+	if remaining==0 then
+		if resourceCardsRefreshCombatEnemies~=nil then resourceCardsRefreshCombatEnemies() end
+		rewindTransactionFinish(rewindOwner)
+		return
+	end
 	local completed={}
 	local function finishSummon(order)
 		if completed[order]==true then return end
 		completed[order]=true
 		remaining=remaining-1
-		if remaining==0 then rewindTransactionFinish(rewindOwner) end
+		if remaining==0 then
+			-- No phantom attacks for skipped slots or exhausted token pools.
+			local draw=gStates.summonDrawPlans~=nil and gStates.summonDrawPlans[id] or nil
+			if draw~=nil then draw.count=0 end
+			if resourceCardsRefreshCombatEnemies~=nil then resourceCardsRefreshCombatEnemies() end
+			rewindTransactionFinish(rewindOwner)
+		end
 	end
 	broadcastToAll("{en}Monster Summoned some support{it}Il Mostro ha evocato rinforzi{ru}Враг призвал подмогу{zh-tw}怪物召喚了支援{zh-cn}怪物叫了些同谋{ko}몬스터가 소환되었습니다{es}Monster convocó algo de apoyo{fr}Monstre a invoqué du soutien{pt-br}Monstro Invocou algum suporte.{de}Monster beschwört etwas Unterstützung",positionToColor(gStates.turnNumber))
 	local location=summoner.getPosition()
@@ -3076,6 +3098,7 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 	local tokenWait=0
 	local cameraFocused=false
 	for order, monsterColor in ipairs(monsterData.monsters) do
+		if not skipped[order] then
 		local summonDelay=tokenWait
 		local preferredPile=factionMonsterPreferredPileGUID(monsterColor,summonerFaction)
 		safeWaitFrames("Combat",function()
@@ -3168,9 +3191,8 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 			end,"Combat")
 		end,tokenWait)
 		tokenWait=tokenWait+5
+		end
 	end
-	gStates.summonStates[id]="SummonDone"
-	setMonsterObjectButtons(summoner)
 end
 
 pursuitStunnedImageAsset="Pursuit Stunned"

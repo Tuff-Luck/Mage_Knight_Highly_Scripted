@@ -82,6 +82,14 @@ function M.acceptsSource(sourceKey,targetGUID,combatAssignmentActiveSeat,combatE
     if record~=nil and record.possessEnemyGUID==targetGUID then return false end
     local effectRequiresDefence=scan~=nil and scan.enemyEffectDefenceRequirements or nil
     local effectSource=combatConfig.effectSources[sourceKey]
+    local commitment=combatEffectSummonCommitment~=nil and combatEffectSummonCommitment(sourceKey) or nil
+    if commitment~=nil then
+        if not commitment.targets[targetGUID] then return false end
+        if commitment.committed[targetGUID] then return true end
+    end
+    local prevention=scan~=nil and scan.enemyEffectPreventionSources or nil
+    if prevention~=nil and prevention[sourceKey]~=nil
+        and not combatEffectSummonPreventionLegal(targetGUID,prevention[sourceKey]) then return false end
     if apocalypseDragonGroundHeadNameForGUID~=nil
         and apocalypseDragonGroundHeadNameForGUID(targetGUID)=="Control" then
         if effectRequiresDefence~=nil and effectRequiresDefence[sourceKey]~=nil then

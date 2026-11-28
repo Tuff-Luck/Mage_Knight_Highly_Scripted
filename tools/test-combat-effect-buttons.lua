@@ -20,6 +20,26 @@ gStates={monsterPerks={}}
 monsterPugs={enemy={name="Target"},immune={name="Immune",arcaneImmunity=true}}
 dofile("src/PlayingGame/PlayerBoard/CombatEffects.lua")
 local effects={}
+monsterPugs.summoner={monsters={"brown","red"}}
+monsterPugs.summoned={attack={P={5}}}
+gStates.summonStates={summoned="summoned"}
+eq(combatEffectSummonPreventionLegal("summoner",{cancelOneAttack=true}),true,"Pending summon is legal")
+eq(combatEffectSummonPreventionLegal("summoned",{cancelOneAttack=true}),false,"Revealed summon is illegal")
+local summonEffects={}
+combatEffectAdd(summonEffects,"summoned","late",{noAttack=true})
+eq(summonEffects.summoned.noAttack,false,"Late prevention is ignored even if targeting is bypassed")
+combatEffectAdd(summonEffects,"summoned","reduce",{attackReduce=2})
+eq(summonEffects.summoned.attackReductions[1].amount,2,"Revealed attack reduction still works")
+gStates.summonStates.summoner="SummonDone"
+eq(combatEffectSummonPreventionLegal("summoner",{noAttack=true}),false,"Cannot prevent after draw")
+gStates.summonPreventionSources={fear={targets={summoner=true},committed={summoner=true}}}
+combatEffectAdd(summonEffects,"enemy","fear",{cancelOneAttack=true})
+eq(summonEffects.enemy,nil,"Committed source cannot cancel a second enemy")
+combatEffectAdd(summonEffects,"summoner","fear",{cancelOneAttack=true})
+eq(summonEffects.summoner.applied[1].committedPrevention,true,"Committed cancellation retained for display")
+eq(#summonEffects.summoner.attackReductions,0,"Committed cancellation not reused")
+gStates.summonStates=nil
+gStates.summonPreventionSources=nil
 combatEffectAdd(effects,"enemy","6a33c1",{armourReduce=1})
 eq(#effects.enemy.applied,1,"one targeted effect descriptor")
 eq(effects.enemy.applied[1].key,"6a33c1","skill source key")

@@ -53,7 +53,7 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
         if spec.cancelOneAttack==true then
             amount="X"
             description="Cancel one printed enemy Attack"
-            if actual.cancelOneAttack~=true then
+            if actual.cancelOneAttack~=true and not applied.committedPrevention then
                 reason=applied.immune and "Arcane Immunity ignores this effect."
                     or "This attack cannot be cancelled."
             end
@@ -158,7 +158,7 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
             end
             if spec.insufficientMove then
                 reason="Not enough unspent Move points for this Wings of Night target."
-            elseif not actual.noAttack and not actual.noAttackUnfortified then
+            elseif not actual.noAttack and not actual.noAttackUnfortified and not applied.committedPrevention then
                 reason=applied.iceResistant and "Ice Resistance ignores this blue effect."
                     or (applied.fireResistant and "Fire Resistance ignores this red effect.")
                     or "Arcane Immunity ignores this prevention effect."

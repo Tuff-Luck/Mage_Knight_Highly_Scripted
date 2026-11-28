@@ -312,7 +312,10 @@ function M.resolveUnfortifiedTargets(context)
     for _,pending in ipairs(deferredUnfortifiedUnitEffects) do
         local eligible={}
         for guid,enemy in pairs(monsters) do
+            local commitment=combatEffectSummonCommitment(pending.sourceKey)
             if enemy.is_face_down~=true
+                and ((commitment~=nil and commitment.committed[guid])
+                    or combatEffectSummonPreventionLegal(guid,pending.spec))
                 and resourceCardsEnemyEffectivelyUnfortified(guid,enemyEffects,
                     ignoreSiteFortifications) then
                 eligible[guid]=true

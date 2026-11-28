@@ -59,9 +59,9 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
     -- Effects stored against a summoned token apply to that token's attacks while it replaces its summoner.
     local function combatSummonedAttackPrevented(summoned)
         local effect=summoned.effect
-        return effect~=nil and (effect.noAttack==true or effect.destroy==true or (effect.noAttackUnfortified==true
-            and (combatEnemyFortificationCount(summoned.data,summoned.perks)==0
-                or effect.removeFortify==true)))
+        -- Destruction (e.g. Nature's Vengeance) is distinct from cancelling an
+        -- already revealed summon attack.
+        return effect~=nil and effect.destroy==true
     end
 
     -- An Attack reduction modifies one printed Attack, not every Attack on a multi-attack enemy.
@@ -97,7 +97,8 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
             local sourceKey=reduction.id or tostring(reduction.source)
             local choice=chosenAttacks~=nil and chosenAttacks[sourceKey] or nil
             local target=choice~=nil and attacks[choice] or nil
-            if target~=nil and (target.pending or target.cancelled
+            if target~=nil and ((target.pending and not reduction.cancelAttack)
+                or (target.summoned and reduction.cancelAttack) or target.cancelled
                 or (ownerGUID~=nil and target.owner~=ownerGUID)
                 or not stripEligible(target,reduction)) then
                 target=nil
@@ -105,7 +106,8 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
             -- Stale selections fall back to the strongest currently legal attack.
             if target==nil then
                 for _,attack in ipairs(attacks) do
-                    if not attack.pending and not attack.cancelled
+                    if (not attack.pending or reduction.cancelAttack)
+                        and not (attack.summoned and reduction.cancelAttack) and not attack.cancelled
                         and (ownerGUID==nil or attack.owner==ownerGUID)
                         and stripEligible(attack,reduction)
                         and (attack.value>0 or reduction.amount<0
@@ -117,7 +119,10 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                 end
             end
             if target~=nil then
-                if reduction.cancelAttack then target.cancelled=true end
+                if reduction.cancelAttack then
+                    target.cancelled=true
+                    target.cancelSource=sourceKey
+                end
                 target.value=math.max(0,target.value-reduction.amount)
                 if reduction.stripAbilities then
                     for _,trait in ipairs({"swift","brutal","cumbersome","poison",
@@ -153,6 +158,7 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                         and entry.summonedDestroyed[summoned.guid]==true) then
                     local strip=summoned.effect~=nil and summoned.effect.removeAbilities==true
                     local summonedAttacks=combatEnemyPrintedAttacks(summoned.data,summoned.perks,strip,summoned.guid)
+                    for _,attack in ipairs(summonedAttacks) do attack.summoned=true end
                     convertPreyAttacks(summonedAttacks,summoned.effect)
                     combatApplyAttackReductions(summonedAttacks,summoned.effect,summoned.guid)
                     if summoned.effect~=nil and summoned.effect.grantCumbersome==true then
@@ -164,8 +170,18 @@ return function(attackTypes,combatEnemyHasTrait,combatEnemyFortificationCount)
                     for _,attack in ipairs(summonedAttacks) do attacks[#attacks+1]=attack end
                 end
             end
-            for _=1,math.max(0,#entry.data.monsters-#(entry.summoned or {})) do
-                attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",pending=true}
+            if not entry.summonDone then
+                for slot=#(entry.summoned or {})+1,#entry.data.monsters do
+                    attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",
+                        pending=true,owner=entry.guid,summonSlot=slot}
+                end
+            else
+                -- The physical draw is asynchronous. These placeholders cannot
+                -- be cancelled because the draw has already been committed.
+                for _=1,(entry.summonPending or 0) do
+                    attacks[#attacks+1]={key="P",label="Summon",value=0,block="block",
+                        pending=true,summoned=true,owner=entry.guid}
+                end
             end
         end
         -- Apply the summoner's changes only to its own printed attacks. Changes

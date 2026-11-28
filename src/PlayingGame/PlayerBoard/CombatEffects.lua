@@ -102,7 +102,7 @@ end
 -- Index only independently targetable effect keys. Numeric resource arrows
 -- and unrelated physical links must keep their normal resource classification.
 function combatEffectArrowKinds(records,enemyEffects)
-    local eligible,kinds,defence={},{},{}
+    local eligible,kinds,defence,prevention={},{},{},{}
     for _,record in pairs(records or {}) do
         for _,key in ipairs(record.enemyEffectTargetKeys or {}) do
             eligible[key]=true
@@ -124,13 +124,59 @@ function combatEffectArrowKinds(records,enemyEffects)
             if eligible[applied.key] then
                 kinds[applied.key]=combatEffectArrowKind(applied.spec)
                 defence[applied.key]=combatEffectRequiresDefence(applied.spec)
+                if combatEffectPreventionOnly(applied.spec) then prevention[applied.key]=applied.spec end
             end
         end
     end
-    return kinds,defence
+    return kinds,defence,prevention
+end
+
+-- A summon is an attack, not a second enemy whose attack can be prevented.
+-- Once the summon action is committed, only its revealed attack may be modified.
+function combatEffectPreventsAttack(spec)
+    return spec~=nil and (spec.cancelOneAttack==true or spec.noAttack==true
+        or spec.noAttackUnfortified==true)
+end
+
+function combatEffectSummonPreventionLegal(guid,spec)
+    if not combatEffectPreventsAttack(spec) then return true end
+    local states=gStates~=nil and gStates.summonStates or {}
+    if states[guid]=="summoned" then return false end
+    if states[guid]~="SummonDone" then return true end
+    -- A mixed enemy can still have an ordinary printed attack to cancel.
+    if spec.cancelOneAttack==true and not spec.noAttack and not spec.noAttackUnfortified then
+        local pug=monsterPugs[guid]
+        local perks=gStates~=nil and gStates.monsterPerks~=nil and gStates.monsterPerks[guid] or nil
+        for _,values in pairs(pug~=nil and pug.attack or {}) do
+            if type(values)=="table" and #values>0 then return true end
+        end
+        for _,values in pairs(perks~=nil and perks.attack or {}) do
+            if type(values)=="table" and #values>0 then return true end
+        end
+    end
+    return false
+end
+
+function combatEffectPreventionOnly(spec)
+    return combatEffectPreventsAttack(spec) and not combatEffectRequiresDefence(spec)
+        and not spec.removeAbilities and not spec.removeOneAttackAbilities
+        and not spec.stripAttackTrait and not spec.stripAttackColor
+        and not spec.removeTrait and not spec.convertAttack and not spec.grantCumbersome
+        and (tonumber(spec.attackReduce) or 0)==0 and (tonumber(spec.attackIncrease) or 0)==0
+end
+
+-- Once tokens have been drawn (or deliberately skipped), the source cannot be
+-- recycled onto a different enemy. Save this alongside the turn's summon state.
+function combatEffectSummonCommitment(sourceKey)
+    return gStates~=nil and gStates.summonPreventionSources~=nil
+        and gStates.summonPreventionSources[sourceKey] or nil
 end
 
 function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
+    local commitment=combatEffectSummonCommitment(sourceKey or sourceGUID)
+    if commitment~=nil and not commitment.targets[enemyGUID] then return end
+    local committed=commitment~=nil and commitment.committed[enemyGUID]==true
+    local late=not combatEffectSummonPreventionLegal(enemyGUID,spec)
     local entry=enemyEffects[enemyGUID]
     if entry==nil then
         entry={armourReduce=0,armourReduceFortified=0,armourReduceByResist=0,
@@ -173,11 +219,21 @@ function combatEffectAdd(enemyEffects,enemyGUID,sourceGUID,spec,sourceKey)
             attackIncrease=spec.attackIncrease,grantCumbersome=spec.grantCumbersome,
             firstDamageUnit=spec.firstDamageUnit}
     end
+    if committed or late then
+        -- Preserve independent Armour/trait effects on a mixed effect; only
+        -- the already committed or too-late prevention is removed.
+        local remaining={}
+        for key,value in pairs(spec) do remaining[key]=value end
+        remaining.cancelOneAttack=nil
+        remaining.noAttack=nil
+        remaining.noAttackUnfortified=nil
+        spec=remaining
+    end
     if requested.all~=true then
         entry.applied=entry.applied or {}
         entry.applied[#entry.applied+1]={source=sourceGUID,key=sourceKey or sourceGUID,
             spec=requested,effective=spec,immune=immune,fireResistant=fireResistant,
-            iceResistant=iceResistant}
+            iceResistant=iceResistant,committedPrevention=committed}
     end
     local attackAdjust=(tonumber(spec.attackReduce) or 0)-(tonumber(spec.attackIncrease) or 0)
     if attackAdjust~=0 or spec.removeOneAttackAbilities==true or spec.cancelOneAttack==true

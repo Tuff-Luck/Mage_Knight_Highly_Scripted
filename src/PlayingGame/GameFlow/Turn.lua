@@ -691,6 +691,8 @@ local function turnResetCompletedTurnState()
 	gStates.druidNightsCrystalReward=nil
 	gStates.locationPlace={}
 	gStates.summonStates={}
+	gStates.summonPreventionSources=nil
+	gStates.summonDrawPlans=nil
 	gStates.shieldsDropped={}
 	if gStates.endGameAchieved=="started" then gStates.endGameAchieved="true" end
 	--Update all pursuing monsters, new deployed or stunned will be on the move.

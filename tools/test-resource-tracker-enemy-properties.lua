@@ -71,12 +71,34 @@ run("resource-tracker-enemy-attacks",function()
     eq(attacks[3].pending,true,"Undrawn summon remains pending")
     summoner.summoned[1].effect={noAttackUnfortified=true}
     attacks=engine.enemyAttacks(summoner)
-    eq(#attacks,2,"Unfortified summoned attack prevented")
+    eq(#attacks,3,"Revealed summoned attack cannot be prevented")
     summoner.summoned[1].data.fortified=true
     attacks=engine.enemyAttacks(summoner)
     eq(#attacks,3,"Fortified summoned attack survives")
     summoner.summoned[1].effect.removeFortify=true
-    eq(#engine.enemyAttacks(summoner),2,"Removed fortification prevents attack")
+    eq(#engine.enemyAttacks(summoner),3,"Removed fortification cannot cancel a revealed summon")
+    local pending={guid="pending",data={monsters={"brown","red"}},effect={
+        attackReductions={{source="fear",id="fear",amount=0,cancelAttack=true}}}}
+    local preview=engine.enemyAttacks(pending,true)
+    eq(#preview,2,"Both printed summons available for selection")
+    eq(preview[1].cancelled,true,"One pending summon cancelled")
+    eq(preview[1].summonSlot,1,"Cancelled summon slot is stable")
+    eq(preview[1].cancelSource,"fear","Cancellation source recorded for commitment")
+    eq(#engine.enemyAttacks(pending),1,"One pending summon remains")
+    preview=engine.enemyAttacks(pending,true,{fear=2})
+    eq(preview[2].cancelled,true,"Explicit second summon can be cancelled")
+    pending.noAttack=true
+    eq(#engine.enemyAttacks(pending),0,"Full prevention suppresses all summons")
+    pending.noAttack=false
+    pending.summonDone=true
+    pending.summoned={{guid="revealed",data={attack={P={5}}},effect={
+        noAttack=true,attackReductions={{source="late",amount=0,cancelAttack=true},
+            {source="reduce",amount=2}}}}}
+    local revealed=engine.enemyAttacks(pending)
+    eq(#revealed,1,"No phantom pending slot after partial summon draw")
+    eq(revealed[1].value,3,"Revealed summon can be reduced but not cancelled")
+    pending.summoned={}
+    eq(#engine.enemyAttacks(pending),0,"Fully skipped draw has no attacks")
     print("Enemy attack construction, reduction, cancellation and summons passed")
 end)
 
