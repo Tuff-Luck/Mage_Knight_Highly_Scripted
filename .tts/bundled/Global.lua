@@ -116,15 +116,24 @@ function skillMove(player, mouseButton, id, rewindReady)
 end
 
 function preEndTurn(player, mouseButton, id, rewindReady)
-	return safeCallback("preEndTurn", function() return __preEndTurn_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("preEndTurn", function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("preEndTurn",mouseButton,id) end
+		return __preEndTurn_raw(player, mouseButton, id, rewindReady)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function endTurn(player, mouseButton, id, rewindReady)
-	return safeCallback("endTurn", function() return __endTurn_raw(player, mouseButton, id, rewindReady) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("endTurn", function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("endTurn",mouseButton,id) end
+		return __endTurn_raw(player, mouseButton, id, rewindReady)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function PreEndRound(player, mouseButton, id)
-	return safeCallback("PreEndRound", function() return __PreEndRound_raw(player, mouseButton, id) end, function() return automaticLuaTurnPhaseContext(player, id) end)
+	return safeCallback("PreEndRound", function()
+		if buttonAnimationCompleted~=nil then buttonAnimationCompleted("PreEndRound",mouseButton,id) end
+		return __PreEndRound_raw(player, mouseButton, id)
+	end, function() return automaticLuaTurnPhaseContext(player, id) end)
 end
 
 function endRound(rewindReady)
@@ -5645,12 +5654,12 @@ end
 function applyColorBarButtons()
 	for position, barGUID in pairs(colorBand) do
 		local buttons={{tag="Button", attributes={id=barGUID.."changeMatDown",
-			onClick="global/changeMatImage", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			onClick="global/changeMatImage", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			height=29, width=3, color="rgba(0,0,0,0.0)",
 			position="-90 30 -40", rotation="0 0 180"},
 				children={{tag="Image", attributes={id=barGUID.."changeMatDownImage", image="Overkill Down"}}}},
 			{tag="Button", attributes={id=barGUID.."changeMatUp",
-			onClick="global/changeMatImage", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			onClick="global/changeMatImage", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			height=29, width=3, color="rgba(0,0,0,0.0)",
 			position="-95 30 -40", rotation="0 0 180"},
 				children={{tag="Image", attributes={id=barGUID.."changeMatUpImage", image="Overkill Up"}}}}}
@@ -5697,7 +5706,7 @@ function applyColorBarButtons()
 				end
 				if dropVisible==true then
 					--The color bar is a cube scaled {19.80, 0.01, 2.50}; counter-scale X/Z so this renders like a normal Claim-style button.
-					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/togglePlayerDropoutRequest", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/togglePlayerDropoutRequest", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 						height=200, width=800, position="-70 30 -40", rotation="0 0 0", scale="0.01778 0.1408", interactable=dropInteractable},
 						children={{tag="Image", attributes={id=barGUID.."DropOutImage", image=dropImage, type="Sliced"}},
 							{tag="Text", attributes={id=barGUID.."DropOutText", font="Fonts/MKCardText", fontSize=90, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=90, text=dropText}}}}
@@ -5723,7 +5732,7 @@ function applyColorBarButtons()
                     local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
                     if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                     buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
-                        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+                        onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
                         height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                         children={{tag="Image",attributes={id=barGUID.."TeamCycleImage",image="Sliced Button/Button Object Active",type="Sliced"}},
                             {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
@@ -6383,93 +6392,116 @@ function refreshResourceTracker()
     -- Recalculate for the newly active Mage Knight only when automation is enabled.
     resourceCardsPanelChanged(true)
 end
-local function legacyObjectButtonImage(id,image)
-	if id==nil then return false end
-	id=tostring(id)
-	-- Card Action Buttons keep their gameplay IDs. Tracker controls put the
-	-- card GUID after a prefix; Cure uses a fixed control ID.
-	local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_")
-		or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
-		or (id=="ResourceCardChoice_CureDraw" and "47e71c")
-		or id:sub(1,6)
-	local obj=getObjectFromGUID(guid)
-	if obj==nil then return false end
-	local imageID=id.."Image"
-	-- A gameplay click can replace/remove the control before mouse-up.
-	local current=obj.UI.getAttribute(imageID,"image")
-	if current==nil or current=="" then return false end
-	obj.UI.setAttribute(imageID,"image",image)
-	return true
-end
-
--- Permanent object UIs and shared Card Action Buttons use explicit pressed
--- and released artwork, rather than toggling an image based on its last state.
-function ButtonClickDown(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	legacyObjectButtonImage(id,"Sliced Button/Button Object Deactive")
-end
-function ButtonClickUp(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	legacyObjectButtonImage(id,"Sliced Button/Button Object Active")
-end
-function ButtonClickDownOverkill(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	local image=tostring(id):find("Down",1,true)~=nil and "Overkill Down Deactive" or "Overkill Up Deactive"
-	legacyObjectButtonImage(id,image)
-end
-function ButtonClickUpOverkill(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	local image=tostring(id):find("Down",1,true)~=nil and "Overkill Down" or "Overkill Up"
-	legacyObjectButtonImage(id,image)
-end
-
+-- Momentary button artwork is independent of gameplay state. Only a completed
+-- click may start recovery; a held or dragged-off press never starts a timer.
+-- Each press owns a distinct record, so stale recovery cannot raise a new press.
 buttonImageResetGeneration={}
-function buttonClicked(player, mouseButton, ButtonPressed)
-	if mouseButton~="-1" then return end
-	-- Combat panel slots draw their own icon; the standard button image must not replace it.
-	if ButtonPressed:match("^CombatSourceSlot") or ButtonPressed:match("^CombatEnemyRow")
-		or ButtonPressed:match("^CombatEnemyJoin")
-		or ButtonPressed:match("^CombatEnemyResultToggle") then return end
+do
+    local raisedImages={
+        ["Sliced Button/Button Object Active"]="Sliced Button/Button Object Deactive",
+        ["Sliced Button/Button New Active"]="Sliced Button/Button New Deactive",
+        ["Overkill Up"]="Overkill Up Deactive",
+        ["Overkill Down"]="Overkill Down Deactive"
+    }
 
-	local ui=obj and obj.UI or UI
-	local active, deactive
-	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or
-		ButtonPressed=="ApocalypseDragonLevelUp" or ButtonPressed=="ApocalypseDragonLevelDown"
+    -- These IDs use the image as persistent state, not as a momentary press.
+    -- Explicit opt-outs in XML remain the first line of protection; this also
+    -- protects older saves that still name the generic animation callback.
+    local function stateOwned(id)
+        return id:match("^CombatSourceSlot") or id:match("^CombatEnemyRow")
+            or id:match("^CombatEnemyJoin") or id:match("^CombatEnemyResultToggle")
+            or id:match("AssaultJoin$")
+            or (id:match("Selection$") and id~="Setup1Selection" and id~="Setup2Selection")
+            or id=="RandomizedDragonHeadsButton" or id=="ApocalypseDragonCityRandomHeadsButton"
+            or id=="ApocalypseDragonCityRandomButton" or id=="ApocalypseDragonCityLastButton"
+            or id=="HorsemenHorsesButton"
+    end
 
-	if setupScenarioLevelButton==true then
-		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
-	elseif ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
-		active, deactive="Overkill Up", "Overkill Up Deactive"
-	elseif ButtonPressed:find("LevelDown",1,true)~=nil or ButtonPressed:find("OverkillDown",1,true)~=nil or ButtonPressed:find("ArtifactDown",1,true)~=nil or ButtonPressed:find("changeMatDown",1,true)~=nil then
-		active, deactive="Overkill Down", "Overkill Down Deactive"
-	elseif obj then
-		active, deactive="Sliced Button/Button Object Active", "Sliced Button/Button Object Deactive"
-	else
-		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
-	end
+    local function buttonOwner(id)
+        local seat=tonumber(id:match("^PlayAreaScale(%d+)"))
+        local guid=(seat~=nil and playerBoard~=nil and playerBoard[seat])
+            or id:match("^ResourceCardChoice_([0-9a-f]+)_")
+            or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
+            or (id=="ResourceCardChoice_CureDraw" and "47e71c")
+            or (id=="AgainstDragonAttackComplete" and apocalypseDragon~=nil and apocalypseDragon.roundOrder)
+            or id:match("^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])")
+        local obj=guid~=nil and getObjectFromGUID(guid) or nil
+        if obj~=nil and obj.UI~=nil then
+            local image=obj.UI.getAttribute(id.."Image","image")
+            if image~=nil and image~="" then return obj.UI,guid,image end
+        end
+        -- Some global controls (e.g. Motivation) also start with a GUID.
+        if UI~=nil then return UI,nil,UI.getAttribute(id.."Image","image") end
+    end
 
-	local image=ButtonPressed.."Image"
-	ui.setAttribute(image, "image", ui.getAttribute(image, "image")==active and deactive or active)
+    local function enabled(ui,id)
+        local value=ui.getAttribute(id,"interactable")
+        return value~=false and value~="false"
+    end
 
-	--onClick can rebuild an object's XML before TTS delivers onMouseUp. That used to leave
-	--triangle controls (Artifact rewards, faction Leaders, Dragon heads, etc.) permanently in
-	--their pressed image. Give every animated button the same delayed return-to-active safety.
-	buttonImageResetGeneration[ButtonPressed]=(buttonImageResetGeneration[ButtonPressed] or 0)+1
-	local resetGeneration=buttonImageResetGeneration[ButtonPressed]
-	local objectGUID=obj~=nil and obj.guid or nil
-	safeWaitTime("UI",function()
-		if buttonImageResetGeneration[ButtonPressed]~=resetGeneration then return end
-		local resetUI=UI
-		if objectGUID~=nil then
-			local currentObject=getObjectFromGUID(objectGUID)
-			if currentObject==nil then buttonImageResetGeneration[ButtonPressed]=nil return end
-			resetUI=currentObject.UI
-		end
-		local currentImage=resetUI.getAttribute(image, "image")
-		local interactable=resetUI.getAttribute(ButtonPressed, "interactable")
-		if currentImage~=nil and currentImage~="" and interactable~="false" then resetUI.setAttribute(image, "image", active) end
-		buttonImageResetGeneration[ButtonPressed]=nil
-	end, 0.35)
+    local function restore(id,record)
+        if buttonImageResetGeneration[id]~=record then return end
+        buttonImageResetGeneration[id]=nil
+        local ui=UI
+        if record.guid~=nil then
+            local obj=getObjectFromGUID(record.guid)
+            ui=obj~=nil and obj.UI or nil
+        end
+        if ui~=nil and ui.getAttribute(id.."Image","image")==record.pressed
+            and enabled(ui,id) then
+            ui.setAttribute(id.."Image","image",record.raised)
+        end
+    end
+
+    function ButtonClickDown(player,mouseButton,id)
+        if (mouseButton~="-1" and mouseButton~="-2") or type(id)~="string" or stateOwned(id) then return end
+        local ui,guid,image=buttonOwner(id)
+        if ui==nil or not enabled(ui,id) then return end
+        local previous=buttonImageResetGeneration[id]
+        local raised=image
+        -- A new press can supersede a stuck prior press, but never interpret
+        -- an unowned recessed/disabled/state image as a momentary button.
+        if previous~=nil and previous.guid==guid and image==previous.pressed then raised=previous.raised end
+        local pressed=raisedImages[raised]
+        if pressed==nil then return end
+        local record={guid=guid,raised=raised,pressed=pressed,mouse=mouseButton}
+        buttonImageResetGeneration[id]=record
+        if image~=pressed then ui.setAttribute(id.."Image","image",pressed) end
+    end
+
+    function ButtonClickUp(player,mouseButton,id)
+        if type(id)~="string" then return end
+        local record=buttonImageResetGeneration[id]
+        if record~=nil and record.mouse==mouseButton then restore(id,record) end
+    end
+
+    -- Compatibility for permanent artifact and scale arrow controls.
+    function ButtonClickDownOverkill(player,mouseButton,id)
+        if mouseButton=="-1" then ButtonClickDown(player,mouseButton,id) end
+    end
+    function ButtonClickUpOverkill(player,mouseButton,id)
+        if mouseButton=="-1" then ButtonClickUp(player,mouseButton,id) end
+    end
+
+    -- Called at the public UI action boundary, never from a mouse-down event.
+    -- If mouse-up already succeeded, there is no outstanding press to repair.
+    function buttonAnimationCompleted(callback,mouseButton,id)
+        if type(id)~="string" or stateOwned(id)
+            or callback=="buttonClicked" or callback=="ButtonClickDown" or callback=="ButtonClickUp"
+            or callback=="ButtonClickDownOverkill" or callback=="ButtonClickUpOverkill" then return end
+        local record=buttonImageResetGeneration[id]
+        if record==nil or record.mouse~=mouseButton or record.completed then return end
+        record.completed=true
+        safeWaitTime("UI",function() restore(id,record) end,0.35)
+    end
+
+    -- Saved XML can still reference the old same-handler toggle. No timer
+    -- starts here either; newly built controls use distinct down/up handlers.
+    function buttonClicked(player,mouseButton,id)
+        local record=type(id)=="string" and buttonImageResetGeneration[id] or nil
+        if record~=nil and record.mouse==mouseButton then ButtonClickUp(player,mouseButton,id)
+        else ButtonClickDown(player,mouseButton,id) end
+    end
 end
 
 function uiValueAdjustBase(player, mouseButton, id)
@@ -6623,7 +6655,7 @@ local MONSTER_REPLENISH_TEXT="{en}Restock Empty Piles{it}Rifornisci Pile Vuote{r
 function monsterReplenishObjectOnLoad()
 	local xml=[=[
 <Button id="d7a165replenishMonsterPiles" interactable="true"
-    onClick="global/refillMonsterTokenPiles"
+    onClick="global/refillMonsterTokenPiles" onMouseDown="global/ButtonClickDown" onMouseUp="global/ButtonClickUp"
     tooltipPosition="Left" tooltipOffset="12"
     tooltipBackgroundColor="#24211DF2" tooltipBorderColor="#9E8665"
     tooltipTextColor="#F5E6CA" tooltipFontSize="15"
@@ -6781,7 +6813,7 @@ function createClaimButton(objGUID, source, controlID)
         button.attributes.active=faceVisible and "true" or "false"
         return button
     end
-    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
+    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
 		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}
@@ -11684,7 +11716,7 @@ end
 function proxyEnemyChoiceButton(enemy)
 	if enemy==nil then return end
 	local id=enemy.guid.."ProxyEnemyChoice"
-	enemy.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyEnemyChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	enemy.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyEnemyChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=150,width=500,position="0 190 -10",rotation="0 0 180",scale="0.32 0.32",color="rgba(0,0,0,0.0)"},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding="25 25 25 25"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="82",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="82",text="{en}CHOOSE FOR PROXY{it}SCEGLI PER IL PROXY{ru}ВЫБОР ЗА ПРОКСИ{zh-tw}為代理玩家選擇{zh-cn}为代理玩家选择{ko}프록시 선택{es}ELEGIR POR EL PROXY{fr}CHOISIR POUR LE PROXY{pt-br}ESCOLHER PELO PROXY{de}FÜR PROXY WÄHLEN"}}}}}}})
@@ -11913,7 +11945,7 @@ end
 function proxyInteractionChoiceButton(card)
 	if card==nil then return end
 	local id=card.guid.."ProxyInteractionChoice"
-	card.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyInteractionChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	card.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyInteractionChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=150,width=500,position="0 190 -10",rotation="0 0 180",scale="0.32 0.32",color="rgba(0,0,0,0.0)"},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding="25 25 25 25"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="82",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="82",text="{en}CHOOSE FOR PROXY{it}SCEGLI PER IL PROXY{ru}ВЫБОР ЗА ПРОКСИ{zh-tw}為代理玩家選擇{zh-cn}为代理玩家选择{ko}프록시 선택{es}ELEGIR POR EL PROXY{fr}CHOISIR POUR LE PROXY{pt-br}ESCOLHER PELO PROXY{de}FÜR PROXY WÄHLEN"}}}}}}})
@@ -15905,9 +15937,9 @@ function apocalypseDragonGroundHeadButtons(obj)
 	if combat~=nil and combat.processedTokens~=nil and combat.processedTokens[obj.guid]==true then return {} end
 	local value=apocalypseDragonGroundReduction(headName)
 	return {
-		{tag="Button",attributes={id=obj.guid.."GroundOverkillUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillUpImage",image="Overkill Up"}}}},
+		{tag="Button",attributes={id=obj.guid.."GroundOverkillUp",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillUpImage",image="Overkill Up"}}}},
 		{tag="Image",attributes={image="Overkill Text",height=50/0.9,width=55/0.9,position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Text",attributes={id=obj.guid.."GroundOverkill",color="rgb(0,0,0)",fontSize="45",fontStyle="Bold",alignment="MiddleCenter",text=tostring(value)}}}},
-		{tag="Button",attributes={id=obj.guid.."GroundOverkillDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillDownImage",image="Overkill Down"}}}}
+		{tag="Button",attributes={id=obj.guid.."GroundOverkillDown",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillDownImage",image="Overkill Down"}}}}
 	}
 end
 
@@ -16775,9 +16807,9 @@ local function fracturedLandsOrientationButtons(tile)
 	local buttonZ=-25
 	local buttonScale="0.18144 0.18144"--locked-in visual scale
 	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
-		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
-		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}Done{it}Fatto{ru}Готово{zh-tw}完成{zh-cn}完成{ko}완료{es}Listo{fr}Terminé{pt-br}Concluído{de}Fertig"}}}},
-		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
+		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
+		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}Done{it}Fatto{ru}Готово{zh-tw}完成{zh-cn}完成{ko}완료{es}Listo{fr}Terminé{pt-br}Concluído{de}Fertig"}}}},
+		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
 	}}}
 	tile.UI.setXmlTable(xml)
 end
@@ -18671,7 +18703,7 @@ function againstDragonAttackControlUI(show)
 		if id=="AgainstDragonAttackComplete" then table.remove(xml,i) end
 	end
 	if show==true then
-		xml[#xml+1]={tag="Button",attributes={id="AgainstDragonAttackComplete",onClick="global/againstDragonAttackComplete",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+		xml[#xml+1]={tag="Button",attributes={id="AgainstDragonAttackComplete",onClick="global/againstDragonAttackComplete",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 			height=210,width=620,position="0 235 -12",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 			children={{tag="Image",attributes={id="AgainstDragonAttackCompleteImage",image="Sliced Button/Button Object Active",type="Sliced"}},
 				{tag="HorizontalLayout",attributes={padding="28 28 20 20"},children={{tag="Text",attributes={id="AgainstDragonAttackCompleteText",font="Fonts/MKCardText",fontSize="78",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="78",text="{en}COMPLETE\nDRAGON ATTACK{it}COMPLETA\nATTACCO DEL DRAGO{ru}ЗАВЕРШИТЬ\nАТАКУ ДРАКОНА{zh-tw}完成\n巨龍攻擊{zh-cn}完成\n巨龙攻击{ko}드래곤 공격\n완료{es}COMPLETAR\nATAQUE DEL DRAGÓN{fr}TERMINER\nL’ATTAQUE DU DRAGON{pt-br}CONCLUIR\nATAQUE DO DRAGÃO{de}DRACHENANGRIFF\nABSCHLIESSEN"}}}}}}
@@ -18716,7 +18748,7 @@ againstDragonShowOffMapChoice=function(pending)
 		if token~=nil then
 			local xml=token.UI.getXmlTable() or {}
 			local id=token.guid.."DragonOffMapChoice"..tostring(index)
-			xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonOffMapChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+			xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonOffMapChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 				height=150,width=470,position="0 185 -10",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 				children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 					{tag="HorizontalLayout",attributes={padding="20 20 15 15"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text=joinLang({"{en}MARK\n{it}SEGNA\n{ru}ОТМЕТИТЬ\n{zh-tw}標記\n{zh-cn}标记\n{ko}표시\n{es}MARCAR\n{fr}MARQUER\n{pt-br}MARCAR\n{de}MARKIEREN\n",tostring(option.mage)})}}}}}}
@@ -22813,7 +22845,7 @@ function dayNight(targetDay, setupPreview)
 		local function configureNightBoard()
 			if setupPreview~=true and getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
 			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
-				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
+				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{it}Nessuna Tinta{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID(GUID.ui.nightTint).interactable=false
@@ -22897,7 +22929,7 @@ function dayTactic2ButtonActivate()
 		if cardEffectIsVertical(card)==true and gStates.tacticTwoState~="Used" then
 			local scale=0.32*0.6521739130434783
 			local text="{en}Day Tactic 2\nClick after Card(s) have been discarded{it}Tattica Giorno 2\nPremi dopo aver scartato le carte{ru}Тактика дня 2\nЩелкните после сброса карт{zh-tw}白天战术卡2\n弃牌后单击此处{zh-cn}白天战术卡2\n弃牌后单击此处{ko}낮 전략 2\n버릴 카드를 놓고 클릭하세요.{es}Táctica del día 2\nHaz clic después de descartar carta(s){fr}Tactique de Jour 2\nCliquez après avoir défaussé la/les carte(s){pt-br}Tática do Dia 2\nClique depois de descartar a(s) carta(s){de}Tagestaktik 2\nNach dem Abwerfen der Karte(n) klicken"
-			card.UI.setXmlTable({{tag="Button", attributes={id="a000a4DayTactic2Discard", onClick="global/dayTactic2Discarded", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height="300", width="650", position="-317 -140 -1", rotation="0 0 180", scale=tostring(scale).." "..tostring(scale)},
+			card.UI.setXmlTable({{tag="Button", attributes={id="a000a4DayTactic2Discard", onClick="global/dayTactic2Discarded", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", height="300", width="650", position="-317 -140 -1", rotation="0 0 180", scale=tostring(scale).." "..tostring(scale)},
 				children={{tag="Image", attributes={id="a000a4DayTactic2DiscardImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 					{tag="HorizontalLayout", attributes={padding="20 20 20 20"}, children={{tag="Text", attributes={id="a000a4DayTactic2DiscardText", font="Fonts/MKCardText", fontSize="65", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="65", text=text}}}}}}})
 		end
@@ -34799,7 +34831,7 @@ local function deedOfferSourceUiXml(size)
 			text="{en}Offers{it}Offerte{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"
 		}},
 		{tag="Button", attributes={
-			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			interactable=upEnabled and "true" or "false", active="true",
 			height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"
 		}, children={
@@ -34810,7 +34842,7 @@ local function deedOfferSourceUiXml(size)
 			}}
 		}},
 		{tag="Button", attributes={
-			id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			interactable=downEnabled and "true" or "false", active="true",
 			height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"
 		}, children={
@@ -37451,7 +37483,7 @@ function refreshTerrainExploreOptions(compactCities)
 				end
 				if found==false and terrainPositionLegal({guid=testTerrain, faceDown=false, objName=nameTerrain, position=terTile, bearing=math.deg(math.atan2(terTile[3]-startTilePosition[3], terTile[1]-startTilePosition[1]))},faceUpTerrain,northBearing,{})==true then--country tile guid stand-in
 					terrainDecals[#terrainDecals+1]={name="Legal Play", url="https://steamusercontent-a.akamaihd.net/ugc/1833526258732421084/29942DB5776ABA4145E9E115D1C893574C9A737A/", position=terTile, rotation={90.0, 0.0, 0.0}, scale={6, 6, 1}}
-					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
+					terrainExploreButtons[#terrainExploreButtons+1]={tag="Button", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3], onClick="global/exploreMap", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", height=150, width=500, tilePosX=terTile[1], tilePosZ=terTile[3], position=(-terTile[1]*100).." "..(-terTile[3]*100).." -1100", rotation="0 0 180", scale="0.38 0.38"},
 							children={	{tag="Image", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 										{tag="HorizontalLayout", attributes={padding="25 25 25 25"},
 										children={{tag="Text", attributes={id=GUID.ui.mapExplore..terTile[1]..","..terTile[3].."Text", font="Fonts/MKCardText", offsetXY="0 1", fontSize="90", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="90", text="{en}EXPLORE{it}ESPLORA{ru}ИССЛЕДОВАТЬ{zh-tw}探索{zh-cn}探索{ko}타일 공개{es}EXPLORAR{fr}EXPLORER{pt-br}EXPLORAR{de}ERKUNDEN SIE"}}}}}}
@@ -38199,11 +38231,11 @@ end
 function factionLeaderOverkillButtons(obj)
 	if obj==nil or factionLeaderForToken(obj.guid)==nil then return {} end
 	local addedButtons={}
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
+		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillUp", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
 			color="rgba(0,0,0,0.0)", position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillUpImage", image="Overkill Up"}}}}
 		addedButtons[#addedButtons+1]={tag="Image", attributes={image="Overkill Text", height=50/0.9, width=55/0.9, position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"},
 			children={{tag="Text", attributes={id=obj.guid.."Overkill", color="rgb(0,0,0)", fontSize="45", fontStyle="Bold", alignment="MiddleCenter", text=gStates.leaderOverkill}}}}
-		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
+		addedButtons[#addedButtons+1]={tag="Button", attributes={id=obj.guid.."OverkillDown", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/adjustOverkill", height=50/0.9, width=50/0.9,
 			color="rgba(0,0,0,0.0)", position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9), rotation="0 0 180"}, children={{tag="Image", attributes={id=obj.guid.."OverkillDownImage", image="Overkill Down"}}}}
 	return addedButtons
 end
@@ -39451,19 +39483,19 @@ function cityLevelButtons(cityGUID, terrainGUID)
 		local state=cityControlState(cityGUID,terrainGUID)
 		local buttonXML={}
 		if state.canLevelUp then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
 		end
 		if state.showLevel then
 			buttonXML[#buttonXML+1]={tag="Image",attributes={image="Overkill Text",height=50,width=50,position="0 60 -30",rotation="0 0 180"},children={{tag="Text",attributes={id=cityGUID..terrainGUID.."Overkill",color="rgb(0,0,0)",fontSize="35",fontStyle="Bold",alignment="MiddleCenter",text=state.level}}}}
 		end
 		if state.canLevelDown then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
 		end
 		if state.canAddMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
 		end
 		if state.canRemoveMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
 		end
 		if #buttonXML==0 then buttonXML={{}} end
 		cityObj.UI.setXmlTable(buttonXML)
@@ -48265,6 +48297,7 @@ end
 --Keep setup-specific validation and rulebook deployment with the setup owner rather than a late wrapper module.
 function setupGame(player, mouseButton, id, rewindReady)
 	return safeCallback("setupGame",function()
+		if rewindReady~=true and buttonAnimationCompleted~=nil then buttonAnimationCompleted("setupGame",mouseButton,id) end
 		if mouseButton=="-1" and rewindReady==true and gStates~=nil then
 			--Book.setPage expects a CLR Int32. Normalize scenario rule-page values before the delayed
 			--rulebook callback runs, including values restored from a string.
@@ -74269,13 +74302,17 @@ local function playAreaScaleBoardButtons(board,seat)
         return string.format("%.3f %.3f",value,value)
     end
     local function imageButton(id,callback,image,offset,width,height,scale)
+        local arrow=image=="Overkill Down" or image=="Overkill Up"
+        local suffix=arrow and "Overkill" or ""
+        local imageAttributes={id=id.."Image",image=image}
+        if not arrow then imageAttributes.type="Sliced" end
         return {tag="Button",attributes={
             id=id,onClick="global/"..callback,
-            onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+            onMouseDown="global/ButtonClickDown"..suffix,onMouseUp="global/ButtonClickUp"..suffix,
             height=height,width=width,position=uiPosition(offset),
             rotation="0 0 180",scale=uiScale(scale),
             color="rgba(0,0,0,0.0)"
-        },children={{tag="Image",attributes={id=id.."Image",image=image}}}}
+        },children={{tag="Image",attributes=imageAttributes}}}
     end
 
     -- Left to right:  <  [100%]  >  [Cards/All]
@@ -74296,7 +74333,7 @@ local function playAreaScaleBoardButtons(board,seat)
                 color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
         imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",
             upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
-        imageButton(prefix.."Scope","playAreaScaleScope","Overkill Text",
+        imageButton(prefix.."Scope","playAreaScaleScope","Sliced Button/Button Object Active",
             scopeX,ui.boxWidth,ui.boxHeight,ui.scopeScale)
     }
     items[4].children[#items[4].children+1]={tag="Text",attributes={
@@ -80525,7 +80562,7 @@ function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec,s
 	local split=placement.count>1
 	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
 	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=(split and placement.height or spec.height or placement.height),width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}
@@ -81185,7 +81222,12 @@ function safePublicCallback(label, callback, contextCallback)
 		if type(contextCallback)=="function" then
 			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
 		end
-		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
+		return safeCallback(label,function()
+			-- Only a delivered public UI action can schedule momentary artwork
+			-- recovery. The helper ignores mouse events and unowned/state images.
+			if buttonAnimationCompleted~=nil then buttonAnimationCompleted(label,args[2],args[3]) end
+			return callback(automaticLuaUnpackArgs(args,1))
+		end,contextFactory)
 	end
 end
 
