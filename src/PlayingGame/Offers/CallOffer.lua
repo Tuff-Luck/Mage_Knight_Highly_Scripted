@@ -5,20 +5,6 @@ local excluded={["0a2e0b"]=true,["d8e49b"]=true,["9c5c38"]=true,["5c2da0"]=true}
 local transferSerial=0
 local spellMoveSerial=0 -- Invalidate stale leave-zone checks during drag/rearrangement.
 
----@class CallOfferPlacement
----@field position number[]
----@field rotation number[]
----@field scale? number[]
-
----@class CallOfferPreviewState
----@field spellGUID string
----@field seatPos integer
----@field order string[]
----@field index integer
----@field unitGUID? string
----@field home? CallOfferPlacement
----@field display? CallOfferPlacement
-
 ---@return CallOfferPreviewState?
 local function previewState()
     return gStates~=nil and gStates.callOfferPreview or nil
