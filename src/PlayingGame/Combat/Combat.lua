@@ -3096,7 +3096,6 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 	local location=summoner.getPosition()
 	local summonerFaction=monsterEffectiveFaction(id)
 	local tokenWait=0
-	local cameraFocused=false
 	for order, monsterColor in ipairs(monsterData.monsters) do
 		if not skipped[order] then
 		local summonDelay=tokenWait
@@ -3132,7 +3131,6 @@ summonMonster=function(player, mouseButton, id, rewindReady)
 				local summonPile=getObjectFromGUID(summonPileGUID)
 				local summonPilePos=summonPile~=nil and summonPile.getPosition() or drawPos
 				local returnPos={summonPilePos[1],2,summonPilePos[3]}
-				if cameraFocused==false then combatCameraFocus(turnOrder[gStates.turnNumber]) cameraFocused=true end
 				gStates.attackedMonsters[summonedMonster.guid]={returnPos,{0.00,0.00,0.00},"summoned",id}
 				local summonedNightRules=id==darkCrusader.token
 					or (summonerFaction=="Dark" and turnOrder[gStates.turnNumber].avatarLocation=="graveyard")
