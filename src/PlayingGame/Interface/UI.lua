@@ -2701,7 +2701,11 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 		or ButtonPressed:match("^CombatEnemyJoin")
 		or ButtonPressed:match("^CombatEnemyResultToggle") then return end
 
-	local ui=obj and obj.UI or UI
+	-- Older saved object buttons still call this toggle handler. Resolve
+	-- the owning object from its GUID-prefixed ID, not an unrelated global.
+	local guid=ButtonPressed:match("^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])")
+	local owner=guid~=nil and getObjectFromGUID(guid) or nil
+	local ui=owner~=nil and owner.UI or UI
 	local active, deactive
 	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or
 		ButtonPressed=="ApocalypseDragonLevelUp" or ButtonPressed=="ApocalypseDragonLevelDown"
@@ -2712,21 +2716,23 @@ function buttonClicked(player, mouseButton, ButtonPressed)
 		active, deactive="Overkill Up", "Overkill Up Deactive"
 	elseif ButtonPressed:find("LevelDown",1,true)~=nil or ButtonPressed:find("OverkillDown",1,true)~=nil or ButtonPressed:find("ArtifactDown",1,true)~=nil or ButtonPressed:find("changeMatDown",1,true)~=nil then
 		active, deactive="Overkill Down", "Overkill Down Deactive"
-	elseif obj then
+	elseif owner~=nil then
 		active, deactive="Sliced Button/Button Object Active", "Sliced Button/Button Object Deactive"
 	else
 		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
 	end
 
 	local image=ButtonPressed.."Image"
-	ui.setAttribute(image, "image", ui.getAttribute(image, "image")==active and deactive or active)
+	local current=ui.getAttribute(image,"image")
+	if current~=active and current~=deactive then return end
+	ui.setAttribute(image, "image", current==active and deactive or active)
 
 	--onClick can rebuild an object's XML before TTS delivers onMouseUp. That used to leave
 	--triangle controls (Artifact rewards, faction Leaders, Dragon heads, etc.) permanently in
 	--their pressed image. Give every animated button the same delayed return-to-active safety.
 	buttonImageResetGeneration[ButtonPressed]=(buttonImageResetGeneration[ButtonPressed] or 0)+1
 	local resetGeneration=buttonImageResetGeneration[ButtonPressed]
-	local objectGUID=obj~=nil and obj.guid or nil
+	local objectGUID=owner~=nil and guid or nil
 	safeWaitTime("UI",function()
 		if buttonImageResetGeneration[ButtonPressed]~=resetGeneration then return end
 		local resetUI=UI
@@ -3051,7 +3057,7 @@ function createClaimButton(objGUID, source, controlID)
         button.attributes.active=faceVisible and "true" or "false"
         return button
     end
-    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
+    return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
 		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},
 				  children={{tag="Text", attributes={id=objGUID..source.."Text", font="Fonts/MKCardText", fontSize=fontSize, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=fontSize, text=text}}}}}}

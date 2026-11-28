@@ -58,6 +58,11 @@ do
     for _,entry in ipairs({
         {"2eb8d0",top},
         {"47e71c",draw},
+        {"111aaa",claimButton("111aaa","offer")},
+        {"222bbb",claimButton("222bbb","tactic1")},
+        {"333ccc",claimButton("333ccc","artifactReward")},
+        {"444ddd",claimButton("444ddd","removeTactic1")},
+        {"555eee",claimButton("555eee","1")},
         {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_artifactBreak",
             "global/resourceCardsArtifactBreakClicked","THROW",artifactActionButtonPosition(false,"-35"))},
         {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_grailFame",
@@ -109,6 +114,40 @@ do
         animationEnv.ButtonClickUp(nil,"-2",id)
         assert(writes==previous,"Removed control must not receive a stale image write")
     end
+end
+-- Older saved claims may still point to buttonClicked. Verify that handler
+-- resolves the card UI and never touches global UI for a card claim.
+do
+    local id="111aaaoffer"
+    local active="Sliced Button/Button Object Active"
+    local pressed="Sliced Button/Button Object Deactive"
+    local image=active
+    local deferred={}
+    local oldEnv=setmetatable({
+        getObjectFromGUID=function(guid)
+            if guid~="111aaa" then return nil end
+            return {guid=guid,UI={
+                getAttribute=function(key,attr)
+                    if key==id.."Image" and attr=="image" then return image end
+                    return "true"
+                end,
+                setAttribute=function(key,attr,value)
+                    assert(key==id.."Image" and attr=="image")
+                    image=value
+                end
+            }}
+        end,
+        UI={getAttribute=function() error("Claim must not read global UI") end},
+        safeWaitTime=function(_scope,callback,_delay) deferred[#deferred+1]=callback end
+    },{__index=_G})
+    assert(load(section(ui,"buttonImageResetGeneration={}","function uiValueAdjustBase("),
+        "Saved claim animation","t",oldEnv))()
+    oldEnv.buttonClicked(nil,"-1",id)
+    assert(image==pressed,"Saved claim presses on its own object UI")
+    oldEnv.buttonClicked(nil,"-1",id)
+    assert(image==active,"Saved claim releases on its own object UI")
+    for _,callback in ipairs(deferred) do callback() end
+    assert(image==active,"Deferred reset leaves saved claim raised")
 end
 assert(draw.children[2].children[1].attributes.resizeTextForBestFit=="true","Fit long labels")
 assert(draw.attributes.position==sideActionButtonPosition(1)
