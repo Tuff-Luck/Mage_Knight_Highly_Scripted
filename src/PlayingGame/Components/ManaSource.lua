@@ -78,10 +78,12 @@ end
 -- Concurrent arrivals share the locks; never unlock a die that was already locked.
 local sourceArrivalLocks={}
 local sourceArrivalsPending=0
+local sourceArrivalDice={}
 local function beginSourceArrival()
 	local zone=getObjectFromGUID(GUID.zone.mana)
 	for _,die in ipairs(zone~=nil and zone.getObjects() or {}) do
-		if die.type=="Dice" and die.resting==true and die.held_by_color==nil and die.getLock()==false then
+		if die.type=="Dice" and die.resting==true and die.spawning~=true
+			and sourceArrivalDice[die.guid]~=true and (die.held_by_color==nil or die.held_by_color=="") and die.getLock()==false then
 			die.setLock(true)
 			sourceArrivalLocks[die.guid]=true
 		end
@@ -107,12 +109,17 @@ local function spawnReturnedSourceDie(spareDice,params)
 	if not ok then release() error(die,0) end
 	if die==nil or die.guid==nil then release() return die end
 	local guid=die.guid
+	sourceArrivalDice[guid]=true
+	local function finish()
+		sourceArrivalDice[guid]=nil
+		release()
+	end
 	-- Extraction can leave a die temporarily frozen/resting before physics starts.
 	safeWaitFrames("ManaSource",function()
-		safeWaitCondition("ManaSource",release,function()
+		safeWaitCondition("ManaSource",finish,function()
 			local current=getObjectFromGUID(guid)
 			return current==nil or (current.spawning~=true and current.resting==true)
-		end,10,release)
+		end,10,finish)
 	end,2)
 	return die
 end
