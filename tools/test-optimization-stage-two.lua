@@ -158,6 +158,81 @@ eq(sourceUpdates,2,"next Source event recovers normally")
 assert(events:find("unitLayoutCommandDropped(dropped_object)",1,true),
     "global drop must resume held Command release checks")
 
+-- Source arrivals must protect settled neighbours before extraction, without
+-- locking rolling or newly spawning dice. Overlapping arrivals share the lock.
+do
+    local manaSource=read("src/PlayingGame/Components/ManaSource.lua")
+    local protection=extract(manaSource,"local sourceArrivalLocks={}",
+        "\nscheduleReturnedSourceMirror=function")
+    local objects,zoneDice,arrivalFrames,arrivalWaits={},{},{},{}
+    local function makeDie(guid,resting,locked,spawning)
+        local obj={guid=guid,type="Dice",resting=resting,spawning=spawning}
+        obj.getLock=function() return locked end
+        obj.setLock=function(value) locked=value end
+        objects[guid]=obj
+        zoneDice[#zoneDice+1]=obj
+        return obj
+    end
+    local settled=makeDie("old",true,false,false)
+    local rolling=makeDie("rolling",false,false,false)
+    local manuallyLocked=makeDie("manual",true,true,false)
+    local held=makeDie("held",true,false,false)
+    held.held_by_color="Blue"
+    local zone={getObjects=function() return zoneDice end}
+    local arrivalEnv={
+        GUID={zone={mana="source"}},
+        getObjectFromGUID=function(guid) return guid=="source" and zone or objects[guid] end,
+        safeWaitFrames=function(_,callback,delay)
+            arrivalFrames[#arrivalFrames+1]=callback
+            return #arrivalFrames
+        end,
+        safeWaitCondition=function(_,callback,condition,timeout,onTimeout)
+            arrivalWaits[#arrivalWaits+1]={callback=callback,condition=condition,timeout=timeout,onTimeout=onTimeout}
+            return #arrivalWaits
+        end,
+    }
+    setmetatable(arrivalEnv,{__index=_G})
+    local spawn=assert(load(protection.."\nreturn spawnReturnedSourceDie","Source arrival protection","t",arrivalEnv))()
+    local first,second
+    local bag={takeObject=function(params)
+        eq(settled.getLock(),true,"neighbour locked before extraction")
+        eq(rolling.getLock(),false,"rolling neighbour left free")
+        eq(held.getLock(),false,"held die not locked")
+        if first~=nil then eq(first.getLock(),false,"first arrival not locked during second spawn") end
+        return makeDie(params.guid,true,false,true)
+    end}
+    first=spawn(bag,{guid="first"})
+    first.spawning=false -- transient resting before the physics check starts
+    second=spawn(bag,{guid="second"})
+    eq(second.getLock(),false,"second arrival remains unlocked")
+    arrivalFrames[1]()
+    arrivalFrames[2]()
+    first.resting=false
+    eq(arrivalWaits[1].condition(),false,"first rolling arrival not settled")
+    eq(arrivalWaits[2].condition(),false,"second still spawning")
+    first.resting=true
+    eq(arrivalWaits[1].condition(),true,"first settled")
+    arrivalWaits[1].callback()
+    eq(settled.getLock(),true,"second arrival still owns protection")
+    eq(arrivalWaits[2].timeout,10,"arrival wait bounded")
+    arrivalWaits[2].onTimeout()
+    eq(settled.getLock(),false,"final timeout releases temporary lock")
+    eq(manuallyLocked.getLock(),true,"manual lock preserved")
+    eq(first.getLock(),false,"first arrival remains free")
+    eq(second.getLock(),false,"second arrival remains free")
+
+    first.resting=false
+    second.resting=false
+    eq(spawn({takeObject=function(params) return nil end},{}),nil,"empty bag safe")
+    eq(settled.getLock(),false,"failed extraction releases temporary lock")
+    local third=spawn({takeObject=function(params) return makeDie("third",false,false,false) end},{})
+    arrivalFrames[3]()
+    objects[third.guid]=nil
+    eq(arrivalWaits[3].condition(),true,"destroyed arrival resolves")
+    arrivalWaits[3].callback()
+    eq(settled.getLock(),false,"destroyed arrival releases protection")
+end
+
 -- Preserve unrelated Object UI while removing only tracker-owned controls.
 -- A thin-zone lift must never replace the whole XML table on the exit frame.
 local playerBoard=read("src/PlayingGame/PlayerBoard/Events.lua")
