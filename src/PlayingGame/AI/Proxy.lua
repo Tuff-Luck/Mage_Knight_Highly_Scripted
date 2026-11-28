@@ -1772,7 +1772,7 @@ end
 function proxyEnemyChoiceButton(enemy)
 	if enemy==nil then return end
 	local id=enemy.guid.."ProxyEnemyChoice"
-	enemy.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyEnemyChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	enemy.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyEnemyChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=150,width=500,position="0 190 -10",rotation="0 0 180",scale="0.32 0.32",color="rgba(0,0,0,0.0)"},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding="25 25 25 25"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="82",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="82",text="{en}CHOOSE FOR PROXY{it}SCEGLI PER IL PROXY{ru}ВЫБОР ЗА ПРОКСИ{zh-tw}為代理玩家選擇{zh-cn}为代理玩家选择{ko}프록시 선택{es}ELEGIR POR EL PROXY{fr}CHOISIR POUR LE PROXY{pt-br}ESCOLHER PELO PROXY{de}FÜR PROXY WÄHLEN"}}}}}}})
@@ -2001,7 +2001,7 @@ end
 function proxyInteractionChoiceButton(card)
 	if card==nil then return end
 	local id=card.guid.."ProxyInteractionChoice"
-	card.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyInteractionChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	card.UI.setXmlTable({{tag="Button",attributes={id=id,onClick="global/proxyInteractionChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=150,width=500,position="0 190 -10",rotation="0 0 180",scale="0.32 0.32",color="rgba(0,0,0,0.0)"},
 		children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding="25 25 25 25"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="82",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="82",text="{en}CHOOSE FOR PROXY{it}SCEGLI PER IL PROXY{ru}ВЫБОР ЗА ПРОКСИ{zh-tw}為代理玩家選擇{zh-cn}为代理玩家选择{ko}프록시 선택{es}ELEGIR POR EL PROXY{fr}CHOISIR POUR LE PROXY{pt-br}ESCOLHER PELO PROXY{de}FÜR PROXY WÄHLEN"}}}}}}})

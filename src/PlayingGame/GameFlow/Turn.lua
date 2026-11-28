@@ -1673,7 +1673,7 @@ function dayNight(targetDay, setupPreview)
 		local function configureNightBoard()
 			if setupPreview~=true and getObjectFromGUID(GUID.deck.nightWeather)~=nil then getObjectFromGUID(GUID.deck.nightWeather).shuffle() end
 			if getObjectFromGUID(GUID.ui.nightTint)~=nil then
-				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
+				getObjectFromGUID(GUID.ui.nightTint).UI.setXmlTable({{tag="Button", attributes={id="43fa2eNightTint", active="true", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/nightTint", height="150", width="500", color="rgba(0,0,0,0.0)", position="70 -110 -6", rotation="0 0 180", scale="0.16 0.16"},
 					children={	{tag="Image",  attributes={id="43fa2eNightTintImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 							{tag="Text",  attributes={id="43fa2eNightTintText", font="Fonts/MKCardText", fontSize="90", color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}No Tint{it}Nessuna Tinta{ru}Без оттенка{zh-tw}無色調{zh-cn}无色调{ko}색조 없음{es}Sin tinte{fr}Sans teinte{pt-br}Sem tonalidade{de}Keine Tönung"}}}}})
 				getObjectFromGUID(GUID.ui.nightTint).interactable=false
@@ -1757,7 +1757,7 @@ function dayTactic2ButtonActivate()
 		if cardEffectIsVertical(card)==true and gStates.tacticTwoState~="Used" then
 			local scale=0.32*0.6521739130434783
 			local text="{en}Day Tactic 2\nClick after Card(s) have been discarded{it}Tattica Giorno 2\nPremi dopo aver scartato le carte{ru}Тактика дня 2\nЩелкните после сброса карт{zh-tw}白天战术卡2\n弃牌后单击此处{zh-cn}白天战术卡2\n弃牌后单击此处{ko}낮 전략 2\n버릴 카드를 놓고 클릭하세요.{es}Táctica del día 2\nHaz clic después de descartar carta(s){fr}Tactique de Jour 2\nCliquez après avoir défaussé la/les carte(s){pt-br}Tática do Dia 2\nClique depois de descartar a(s) carta(s){de}Tagestaktik 2\nNach dem Abwerfen der Karte(n) klicken"
-			card.UI.setXmlTable({{tag="Button", attributes={id="a000a4DayTactic2Discard", onClick="global/dayTactic2Discarded", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height="300", width="650", position="-317 -140 -1", rotation="0 0 180", scale=tostring(scale).." "..tostring(scale)},
+			card.UI.setXmlTable({{tag="Button", attributes={id="a000a4DayTactic2Discard", onClick="global/dayTactic2Discarded", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", height="300", width="650", position="-317 -140 -1", rotation="0 0 180", scale=tostring(scale).." "..tostring(scale)},
 				children={{tag="Image", attributes={id="a000a4DayTactic2DiscardImage", image="Sliced Button/Button Object Active", type="Sliced"}},
 					{tag="HorizontalLayout", attributes={padding="20 20 20 20"}, children={{tag="Text", attributes={id="a000a4DayTactic2DiscardText", font="Fonts/MKCardText", fontSize="65", fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize="65", text=text}}}}}}})
 		end

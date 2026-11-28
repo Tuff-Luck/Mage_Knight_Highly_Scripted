@@ -728,7 +728,7 @@ local function deedOfferSourceUiXml(size)
 			text="{en}Offers{it}Offerte{ru}Зона доступных карт{zh-tw}供應區{zh-cn}供应区{ko}공급처{es}Ofertas{fr}Les offres{pt-br}Ofertas{de}Angebote"
 		}},
 		{tag="Button", attributes={
-			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			id="e4372aOfferUp", onClick="global/offerAdjust", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			interactable=upEnabled and "true" or "false", active="true",
 			height=150, width=240, position="60 190 -10", rotation="0 180 180", scale="0.32 0.32"
 		}, children={
@@ -739,7 +739,7 @@ local function deedOfferSourceUiXml(size)
 			}}
 		}},
 		{tag="Button", attributes={
-			id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			id="e4372aOfferDown", onClick="global/offerAdjust", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			interactable=downEnabled and "true" or "false", active="true",
 			height=150, width=240, position="-60 190 -10", rotation="0 180 180", scale="0.32 0.32"
 		}, children={

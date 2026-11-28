@@ -1253,9 +1253,9 @@ function apocalypseDragonGroundHeadButtons(obj)
 	if combat~=nil and combat.processedTokens~=nil and combat.processedTokens[obj.guid]==true then return {} end
 	local value=apocalypseDragonGroundReduction(headName)
 	return {
-		{tag="Button",attributes={id=obj.guid.."GroundOverkillUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillUpImage",image="Overkill Up"}}}},
+		{tag="Button",attributes={id=obj.guid.."GroundOverkillUp",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="-62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillUpImage",image="Overkill Up"}}}},
 		{tag="Image",attributes={image="Overkill Text",height=50/0.9,width=55/0.9,position="0 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Text",attributes={id=obj.guid.."GroundOverkill",color="rgb(0,0,0)",fontSize="45",fontStyle="Bold",alignment="MiddleCenter",text=tostring(value)}}}},
-		{tag="Button",attributes={id=obj.guid.."GroundOverkillDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillDownImage",image="Overkill Down"}}}}
+		{tag="Button",attributes={id=obj.guid.."GroundOverkillDown",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/apocalypseDragonGroundReductionAdjust",height=50/0.9,width=50/0.9,color="rgba(0,0,0,0.0)",position="62 "..tostring(-120/0.9).." "..tostring(-15/0.9),rotation="0 0 180"},children={{tag="Image",attributes={id=obj.guid.."GroundOverkillDownImage",image="Overkill Down"}}}}
 	}
 end
 

@@ -28,9 +28,9 @@ local function fracturedLandsOrientationButtons(tile)
 	local buttonZ=-25
 	local buttonScale="0.18144 0.18144"--locked-in visual scale
 	local xml={{tag="Panel", attributes={id=prefix.."FracturedRotationPlane", height=800, width=900, position="0 0 -25", rotation="0 0 "..rotationPlane, color="rgba(0,0,0,0.0)"}, children={
-		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
-		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}Done{it}Fatto{ru}Готово{zh-tw}完成{zh-cn}完成{ko}완료{es}Listo{fr}Terminé{pt-br}Concluído{de}Fertig"}}}},
-		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
+		{tag="Button", attributes={id=prefix.."ArtifactUp", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsRotateLeft", height=150, width=150, color="rgba(0,0,0,0.0)", position="-54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactUpImage", image="Overkill Up"}}}},
+		{tag="Button", attributes={id=prefix.."FracturedDone", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsOrientationDone", height=150, width=400, color="rgba(0,0,0,0.0)", position="0 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."FracturedDoneImage", image="Sliced Button/Button Object Active", type="Sliced"}}, {tag="Text", attributes={font="Fonts/MKCardText", fontSize=90, color="black", fontStyle="Normal", alignment="MiddleCenter", text="{en}Done{it}Fatto{ru}Готово{zh-tw}完成{zh-cn}完成{ko}완료{es}Listo{fr}Terminé{pt-br}Concluído{de}Fertig"}}}},
+		{tag="Button", attributes={id=prefix.."ArtifactDown", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp", onClick="global/fracturedLandsRotateRight", height=150, width=150, color="rgba(0,0,0,0.0)", position="54 "..buttonY.." "..buttonZ, rotation="0 0 180", scale=buttonScale}, children={{tag="Image", attributes={id=prefix.."ArtifactDownImage", image="Overkill Down"}}}}
 	}}}
 	tile.UI.setXmlTable(xml)
 end
@@ -1924,7 +1924,7 @@ function againstDragonAttackControlUI(show)
 		if id=="AgainstDragonAttackComplete" then table.remove(xml,i) end
 	end
 	if show==true then
-		xml[#xml+1]={tag="Button",attributes={id="AgainstDragonAttackComplete",onClick="global/againstDragonAttackComplete",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+		xml[#xml+1]={tag="Button",attributes={id="AgainstDragonAttackComplete",onClick="global/againstDragonAttackComplete",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 			height=210,width=620,position="0 235 -12",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 			children={{tag="Image",attributes={id="AgainstDragonAttackCompleteImage",image="Sliced Button/Button Object Active",type="Sliced"}},
 				{tag="HorizontalLayout",attributes={padding="28 28 20 20"},children={{tag="Text",attributes={id="AgainstDragonAttackCompleteText",font="Fonts/MKCardText",fontSize="78",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="78",text="{en}COMPLETE\nDRAGON ATTACK{it}COMPLETA\nATTACCO DEL DRAGO{ru}ЗАВЕРШИТЬ\nАТАКУ ДРАКОНА{zh-tw}完成\n巨龍攻擊{zh-cn}完成\n巨龙攻击{ko}드래곤 공격\n완료{es}COMPLETAR\nATAQUE DEL DRAGÓN{fr}TERMINER\nL’ATTAQUE DU DRAGON{pt-br}CONCLUIR\nATAQUE DO DRAGÃO{de}DRACHENANGRIFF\nABSCHLIESSEN"}}}}}}
@@ -1969,7 +1969,7 @@ againstDragonShowOffMapChoice=function(pending)
 		if token~=nil then
 			local xml=token.UI.getXmlTable() or {}
 			local id=token.guid.."DragonOffMapChoice"..tostring(index)
-			xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonOffMapChoiceSelect",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+			xml[#xml+1]={tag="Button",attributes={id=id,onClick="global/againstDragonOffMapChoiceSelect",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 				height=150,width=470,position="0 185 -10",rotation="0 0 180",scale="0.30 0.30",color="rgba(0,0,0,0.0)"},
 				children={{tag="Image",attributes={id=id.."Image",image="Sliced Button/Button Object Active",type="Sliced"}},
 					{tag="HorizontalLayout",attributes={padding="20 20 15 15"},children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",fontSize="76",fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize="76",text=joinLang({"{en}MARK\n{it}SEGNA\n{ru}ОТМЕТИТЬ\n{zh-tw}標記\n{zh-cn}标记\n{ko}표시\n{es}MARCAR\n{fr}MARQUER\n{pt-br}MARCAR\n{de}MARKIEREN\n",tostring(option.mage)})}}}}}}

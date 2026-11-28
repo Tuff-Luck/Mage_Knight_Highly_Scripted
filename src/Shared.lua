@@ -972,7 +972,7 @@ function appendTerrainHexChoiceButton(key,index,xml,splitIndex,splitCount,spec,s
 	local split=placement.count>1
 	local fontSize=tostring(split and (spec.splitFontSize or 60) or (spec.fontSize or 72))
 	xml=xml or terrain.UI.getXmlTable() or {}
-	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+	xml[#xml+1]={tag="Button",attributes={id=id,onClick=spec.onClick,onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
 		height=(split and placement.height or spec.height or placement.height),width=spec.width or 320,color="rgba(0,0,0,0.0)",position=placement.x.." "..placement.y.." "..placement.depth,rotation="0 0 "..tostring(placement.rotation),scale=placement.scale.." "..placement.scale},
 		children={{tag="Image",attributes={id=id.."Image",image=spec.image or "Sliced Button/Button Object Active",type="Sliced"}},
 			{tag="HorizontalLayout",attributes={padding=spec.padding or "20 20 12 12"},children={{tag="Text",attributes={id=id.."Text",font=spec.font or "Fonts/MKCardText",offsetXY=spec.offsetXY or "0 1",fontSize=fontSize,fontStyle="Normal",alignment="MiddleCenter",resizeTextForBestFit="true",resizeTextMaxSize=fontSize,text=spec.text or ""}}}}}}

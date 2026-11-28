@@ -1077,19 +1077,19 @@ function cityLevelButtons(cityGUID, terrainGUID)
 		local state=cityControlState(cityGUID,terrainGUID)
 		local buttonXML={}
 		if state.canLevelUp then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelUp",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="-65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelUpImage",image="Overkill Up"}}}}
 		end
 		if state.showLevel then
 			buttonXML[#buttonXML+1]={tag="Image",attributes={image="Overkill Text",height=50,width=50,position="0 60 -30",rotation="0 0 180"},children={{tag="Text",attributes={id=cityGUID..terrainGUID.."Overkill",color="rgb(0,0,0)",fontSize="35",fontStyle="Bold",alignment="MiddleCenter",text=state.level}}}}
 		end
 		if state.canLevelDown then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."LevelDown",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=50,width=50,color="rgba(0,0,0,0.0)",position="65 60 -30",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."LevelDownImage",image="Overkill Down"}}}}
 		end
 		if state.canAddMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisAdd",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisAddImage",image="Megapolis Add"}}}}
 		end
 		if state.canRemoveMegapolis then
-			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
+			buttonXML[#buttonXML+1]={tag="Button",attributes={id=cityGUID..terrainGUID.."MegapolisSubtract",onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",onClick="global/adjustCityLevel",height=80,width=80,color="rgba(0,0,0,0.0)",position="-100 0 -25",rotation="0 0 180"},children={{tag="Image",attributes={id=cityGUID..terrainGUID.."MegapolisSubtractImage",image="Megapolis Subtract"}}}}
 		end
 		if #buttonXML==0 then buttonXML={{}} end
 		cityObj.UI.setXmlTable(buttonXML)
