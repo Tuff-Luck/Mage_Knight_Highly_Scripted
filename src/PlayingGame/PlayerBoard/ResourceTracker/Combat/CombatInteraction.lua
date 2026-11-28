@@ -43,9 +43,11 @@ function M.cycleAttack(row,nextSource,combatPhaseLock,combatAssignmentActiveSeat
     else
         local selected=combatReductionAttackChoice[guid] or {}
         local previous=selected[active]
-        local nextIndex=selector.options[1]
-        for i,index in ipairs(selector.options) do
-            if previous==index then nextIndex=selector.options[i+1] break end
+        local options=selector.optionsBySource~=nil and selector.optionsBySource[active] or selector.options
+        if #options==0 then return end
+        local nextIndex=options[1]
+        for i,index in ipairs(options) do
+            if previous==index then nextIndex=options[i+1] break end
         end
         selected[active]=nextIndex
         combatReductionAttackChoice[guid]=next(selected)~=nil and selected or nil

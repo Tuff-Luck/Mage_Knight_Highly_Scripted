@@ -1271,7 +1271,7 @@ local function combatEnemyAttacks(entry,includeCancelled)
             and gStates.summonDrawPlans[entry.guid] or nil
         entry.summonPending=entry.summonDone and draw~=nil
             and math.max(0,draw.count-#(entry.summoned or {})) or nil
-        if draw~=nil and draw.preventAll then entry.noAttack=true end
+        if entry.summonDone and draw~=nil and draw.preventAll then entry.noAttack=true end
     end
     return trackerPrivate.enemyAttacks.enemyAttacks(entry,includeCancelled,
         combatReductionAttackChoice[entry.guid])
@@ -2999,15 +2999,23 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
             combatPanelSetAttribute("CombatEnemyRow"..row.."Armour","color","rgb(0.96,0.92,0.82)")
             combatPanelSetAttribute("CombatEnemyRow"..row.."Traits","color","rgb(0.88,0.84,0.73)")
             local attacks=combatEnemyAttacks(entry,true)
-            local options={}
-            if #entry.attackReductions>0 then
+            local options,optionsBySource={},{}
+            local selectable=false
+            for _,reduction in ipairs(entry.attackReductions) do
+                local key=reduction.id or tostring(reduction.source)
+                local choices={}
                 for attackIndex,attack in ipairs(attacks) do
-                    if not attack.pending then options[#options+1]=attackIndex end
+                    if (not attack.pending or reduction.cancelAttack)
+                        and not (attack.summoned and reduction.cancelAttack) then
+                        choices[#choices+1]=attackIndex
+                    end
                 end
+                optionsBySource[key]=choices
+                if #choices>1 then selectable=true end
+                if #choices>#options then options=choices end
             end
-            local selectable=#options>1
             combatAttackChoiceByRow[row]=selectable
-                and {options=options,reductions=entry.attackReductions} or nil
+                and {options=options,optionsBySource=optionsBySource,reductions=entry.attackReductions} or nil
             combatPanelSetAttribute("CombatEnemyAttackCycle"..row,"active",selectable and "true" or "false")
             if selectable then
                 local active=combatReductionActiveSource[entry.guid]
@@ -3017,6 +3025,10 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
                 end
                 local selected=entry.attackReductions[rank]
                 combatReductionActiveSource[entry.guid]=selected.id or tostring(selected.source)
+                local choice=(combatReductionAttackChoice[entry.guid] or {})[combatReductionActiveSource[entry.guid]]
+                local selectedAttack=choice~=nil and attacks[choice] or nil
+                local summonLabel=selected.cancelAttack and selectedAttack~=nil and selectedAttack.summonSlot~=nil
+                    and (" (summon #"..tostring(selectedAttack.summonSlot)..")") or ""
                 local sourceData=gameCards[selected.source]
                 local sourceName=sourceData~=nil and sourceData.name or selected.source
                 if type(sourceName)=="table" then sourceName=sourceName[1] end
@@ -3028,7 +3040,7 @@ local function combatAssignmentRefreshRows(entries,sources,scopeRewards,observed
                         or selected.stripTrait and (" (remove "..selected.stripTrait..")")
                         or selected.stripColor and (" (remove "..selected.stripColor..")")
                         or (" (-"..tostring(selected.amount)..")"))
-                    ..". Left-click: cycle target (including Auto). Right-click: next reduction source.")
+                    ..summonLabel..". Left-click: cycle target (including Auto). Right-click: next reduction source.")
             end
             for _,column in ipairs({"Attacks","Offence","Traits"}) do
                 local id="CombatEnemyRow"..row..column

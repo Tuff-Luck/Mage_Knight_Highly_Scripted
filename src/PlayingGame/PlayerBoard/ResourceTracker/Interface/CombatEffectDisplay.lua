@@ -164,7 +164,9 @@ return function(defences,combatEnemyAttacks,combatEnemyPrintedAttacks,
                     or "Arcane Immunity ignores this prevention effect."
             elseif spec.noAttackUnfortified and fortified then
                 reason="The target is still Fortified."
-            elseif #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
+            elseif not applied.committedPrevention
+                and #(entry.data.monsters or {})==0
+                and #combatEnemyPrintedAttacks(entry.data,entry.perks,entry.removeAbilities,entry.guid)==0 then
                 reason="The enemy has no attack to prevent." end
         elseif spec.destroyIfFullyBlocked==true then
             description="Destroy target if all its attacks are successfully Blocked"
