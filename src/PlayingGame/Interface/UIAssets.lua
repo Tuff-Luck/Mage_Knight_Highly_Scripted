@@ -232,8 +232,8 @@ end
 -- Positive X is left; negative Y is up on an upright card.
 local cardActionButtonLayout={
     width=335, height=150, scale="0.16 0.16", padding="30 30 30 30",
-    sideButtonX=145,
-    sideButtonTopY=-125,
+    sideButtonX=140,
+    sideButtonTopY=-130,
     sideButtonSpacing=55,
     sideButtonDepth=-10, -- spell / claim-style controls
     artifactThrowX=-77, artifactThrowY=137,

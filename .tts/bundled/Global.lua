@@ -6385,14 +6385,25 @@ function refreshResourceTracker()
 end
 local function legacyObjectButtonImage(id,image)
 	if id==nil then return false end
-	local obj=getObjectFromGUID(tostring(id):sub(1,6))
+	id=tostring(id)
+	-- Card Action Buttons keep their gameplay IDs. Tracker controls put the
+	-- card GUID after a prefix; Cure uses a fixed control ID.
+	local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_")
+		or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
+		or (id=="ResourceCardChoice_CureDraw" and "47e71c")
+		or id:sub(1,6)
+	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
-	obj.UI.setAttribute(tostring(id).."Image","image",image)
+	local imageID=id.."Image"
+	-- A gameplay click can replace/remove the control before mouse-up.
+	local current=obj.UI.getAttribute(imageID,"image")
+	if current==nil or current=="" then return false end
+	obj.UI.setAttribute(imageID,"image",image)
 	return true
 end
 
---Some permanent object UIs (notably the Artifact deck) are stored on the object itself and
---still call these handlers. They were lost when the common animation helper was consolidated.
+-- Permanent object UIs and shared Card Action Buttons use explicit pressed
+-- and released artwork, rather than toggling an image based on its last state.
 function ButtonClickDown(player,mouseButton,id)
 	if mouseButton~="-1" then return end
 	legacyObjectButtonImage(id,"Sliced Button/Button Object Deactive")
@@ -6702,22 +6713,21 @@ function createClaimButton(objGUID, source, controlID)
 	local text="{en}^ CLAIM{it}^ PRENDI{ru}^ ЗАБРАТЬ{zh-tw}^ 選取{zh-cn}^ 选取{ko}^ 선택{es}^ RECLAMO{fr}^ Demande{pt-br}^ CLAMAR{de}^ ANSPRUCH"
 	local fontSize="90"
     local outside=false
-	--Meditation / Trance uses the exact same proven object-UI structure as Claim.
-	--Coordinates are tuned for four target spots marked during testing:
-	--red pair = Meditation, green pair = Trance.
+	-- Meditation uses the upper slots; Trance uses the lower slots.
 	if source=="meditationTop" or source=="meditationBot" or source=="tranceTop" or source=="tranceBot" then
 		outside=true
 		onClick=(source=="meditationTop" or source=="tranceTop") and "global/meditationTranceTop" or "global/meditationTranceBot"
 		text=(source=="meditationTop" or source=="tranceTop") and "Top" or "Bot"
-		if source=="meditationTop" then position="155 -105 -10" end
-		if source=="meditationBot" then position="155 -50 -10" end
-		if source=="tranceTop" then position="155 35 -10" end
-		if source=="tranceBot" then position="155 105 -10" end
+		if source=="meditationTop" then position=sideActionButtonPosition(1) end
+		if source=="meditationBot" then position=sideActionButtonPosition(2) end
+		if source=="tranceTop" then position=sideActionButtonPosition(4) end
+		if source=="tranceBot" then position=sideActionButtonPosition(5) end
 	end
 	-- A small confirmed draw helper for Cure, distinct from generic Draw Hand.
     if source=="cureDraw" then
+        controlID=controlID or "ResourceCardChoice_CureDraw"
         outside=true
-        position="155 -110 -10"
+        position=sideActionButtonPosition(1)
         onClick="global/cureDrawOne"
         text="Draw 1"
     end
@@ -6726,9 +6736,9 @@ function createClaimButton(objGUID, source, controlID)
 	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
 		outside=true
 		onClick="global/steadyTempoChoice"
-		if source=="steadyTempoDiscard" then text="{en}Dis{it}Scarti{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position="155 -130 -10" end
-		if source=="steadyTempoBot" then text="{en}Bot{it}Fondo{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position="155 0 -10" end
-		if source=="steadyTempoTop" then text="{en}Top{it}Cima{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position="155 130 -10" end
+		if source=="steadyTempoDiscard" then text="{en}Dis{it}Scarti{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position=sideActionButtonPosition(1) end
+		if source=="steadyTempoBot" then text="{en}Bot{it}Fondo{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position=sideActionButtonPosition(3) end
+		if source=="steadyTempoTop" then text="{en}Top{it}Cima{ru}Верх{zh-tw}頂{zh-cn}顶{ko}위{es}Sup{fr}Haut{pt-br}Sup{de}Oben" position=sideActionButtonPosition(5) end
 	end
 	for a=1, 32, 1 do
 		if source==tostring(a) or source=="higherLevelSkill" then
@@ -55493,7 +55503,7 @@ combatConfig.refreshCureDrawButton=function(card,allowed)
         if node.attributes~=nil and node.attributes.id==id then index=i break end
     end
     if allowed and index==nil then
-        local button=createClaimButton(card.guid,"cureDraw",id)
+        local button=createClaimButton(card.guid,"cureDraw")
         xml[#xml+1]=button
         resourceObjectUiSetTable(card.UI,xml)
         safeBroadcastToColor("Cure: use Draw 1 for each Wound healed from your hand this turn, even before casting Cure. Ready every Unit healed this turn by returning its Command token to the ready slot.",
@@ -55636,8 +55646,7 @@ trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
         and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
             or key=="artifactBannerFortitude")
     local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
-    -- Positive X is the screen-left side of an upright card.
-    local position=(broken and "0 -137 " or "-77 137 ")..buttonDepth
+    local position=artifactActionButtonPosition(broken,buttonDepth)
     return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_artifactBreak",
         "global/resourceCardsArtifactBreakClicked",label,position,uiRotation,
         (waitForCombat and "#A0A0A0") or nil)
@@ -55685,7 +55694,7 @@ trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
     used=math.max(0,math.min(2,tonumber(used) or 0))
     return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_grailFame",
         "global/resourceCardsArtifactGrailFameClicked","F "..tostring(used).."/2",
-        "145 -145 "..buttonDepth,uiRotation)
+        sideActionButtonPosition(1,buttonDepth),uiRotation)
 end
 
 trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({
@@ -56681,8 +56690,9 @@ end
 function resourceCardsBrowserSpellValid(seatPos,guid)
     if seatPos==nil or guid==nil then return false end
     local _,discarded,_,spellCastingPaid,powered=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
-    local valid=discarded[guid]==nil and spellCastingPaid[guid]==true
-    return valid,valid and powered[guid]==true
+    local valid=discarded~=nil and spellCastingPaid~=nil
+        and discarded[guid]==nil and spellCastingPaid[guid]==true
+    return valid,valid and powered~=nil and powered[guid]==true
 end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
@@ -56951,11 +56961,11 @@ local function renderSeat(seatPos)
     local function paidManaChoices(guid,rule,strong,boost,repeatLink)
         local freeSide
         if magicTalentOfferCastSide~=nil then freeSide=magicTalentOfferCastSide(seatPos,guid) end
-        repeatLink=repeatLink or repeatByTarget[guid]
+        repeatLink=repeatLink or (repeatByTarget~=nil and repeatByTarget[guid] or nil)
         local granted=freeSide~=nil or repeatLink~=nil
-        local needPower=not granted and powered[guid]==true and boost==nil
+        local needPower=not granted and powered~=nil and powered[guid]==true and boost==nil
         local spec=granted and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
-        local candidates=effectManaByCard[guid] or {}
+        local candidates=(effectManaByCard~=nil and effectManaByCard[guid]) or {}
         local goldAllowed=resourceCardsGoldAllowed()
         -- Direct and borrowed repeats share the same independent printed
         -- effect payments. Maximal Effect itself supplies the copied side.
@@ -60403,59 +60413,52 @@ return function(deps)
                 textColor="#FFFFFF",textAlignment="MiddleCenter"},
                 value=#children==0 and "Arm" or "",children=children}
         end
+        -- Lift only the artwork controls, before appending the fixed side slots.
+        if isArtifact and posture=="upright" then
+            trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
+        end
         if rule~=nil and rule.forkedLightning then
             local phase=gStates~=nil and gStates.forkedLightningPhase or "range"
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_forkPhase",
-                onClick="global/resourceCardsForkedLightningPhaseClicked",
-                position="160 0 "..buttonDepth,rotation=uiRotation,
-                width=140,height=90,scale="0.38 0.38",fontSize=47,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},
-                value=phase=="range" and "RNG" or "ATK"}
+            xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_forkPhase",
+                "global/resourceCardsForkedLightningPhaseClicked",phase=="range" and "RNG" or "ATK",
+                sideActionButtonPosition(3,buttonDepth),uiRotation)
         end
         if rule~=nil and posture=="upright" and card.is_face_down~=true then
-            local function startingControl(suffix,label,active,x,y)
-                xml[#xml+1]={tag="Button",attributes={
-                    id="ResourceCardChoice_"..card.guid.."_"..suffix,
-                    onClick="global/resourceCardsStartingCardControlClicked",
-                    position=tostring(x).." "..tostring(y).." "..buttonDepth,
-                    rotation=uiRotation,width=160,height=90,scale="0.28 0.28",
-                    fontSize=41,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                    colors=active and "#387D30|#4CA940|#387D30|#387D30"
-                        or "#454D5D|#69798E|#444C63|#454D5D"},
-                    value=label}
+            local function startingControl(suffix,label,active,slot)
+                xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_"..suffix,
+                    "global/resourceCardsStartingCardControlClicked",label,
+                    sideActionButtonPosition(slot,buttonDepth),uiRotation,active and "#B9E7AD" or nil)
             end
             if rule.interactionReward~=nil then
                 startingControl("interaction","INT",
-                    special~=nil and special.interaction==true,135,-125)
+                    special~=nil and special.interaction==true,1)
             elseif rule.recruitmentReward~=nil then
-                startingControl("recruitCount","REC "..tostring(recruitmentCount),recruitmentCount>0,135,-125)
+                startingControl("recruitCount","REC "..tostring(recruitmentCount),recruitmentCount>0,1)
             elseif rule.recruitDiscount~=nil and not powered then
                 startingControl("recruit","-2 REC",
-                    special~=nil and special.recruited==true,135,-125)
+                    special~=nil and special.recruited==true,1)
             elseif rule.influenceAction~=nil then
                 if not combatEnemyInPlay then
-                    startingControl("influenceAction","ACT",influenceAction,135,-125)
+                    startingControl("influenceAction","ACT",influenceAction,1)
                     if influenceAction then
                         startingControl("influenceHeal","HEAL "..tostring(influenceHealing),
-                            influenceHealing>0,135,-55)
+                            influenceHealing>0,2)
                         if powered and (canReadyUnit or readyCount>0) then
                             startingControl("ruthlessReady","RDY "..tostring(readyCount),
-                                readyCount>0,135,15)
+                                readyCount>0,3)
                         end
                     end
                 end
             elseif rule.readyWithInfluence~=nil and powered
                 and (canReadyUnit or readyCount>0) then
                 startingControl("ruthlessReady","RDY "..tostring(readyCount),
-                    readyCount>0,145,-125)
+                    readyCount>0,1)
             elseif rule.selectedTerrainDiscount~=nil and powered
                 and (tonumber(resources~=nil and resources.move) or 0)>0
                 and combatConfig.moveRoleForUI(card.guid)=="movement" then
                 startingControl("terrain",special~=nil and special.terrain~=nil
                     and special.terrain:sub(1,3):upper() or "TER",
-                    special~=nil and special.terrain~=nil,150,-125)
+                    special~=nil and special.terrain~=nil,1)
             end
         end
         if rule~=nil and isArtifact
@@ -60463,13 +60466,9 @@ return function(deps)
             and trackerPrivate.bannerStrongActive(card) and posture=="upright"
             and not combatEnemyInPlay and not combatCalcOn
             and not trackerPrivate.bannerEffectUses().healing[card.guid] then
-            xml[#xml+1]={tag="Button",attributes={
-                id="ResourceCardChoice_"..card.guid.."_healAllUnits",
-                onClick="global/resourceCardsArtifactHealUnitsClicked",
-                position="145 -145 "..buttonDepth,rotation=uiRotation,
-                width=160,height=85,scale="0.28 0.28",fontSize=40,
-                colors="#454D5D|#69798E|#444C63|#454D5D",
-                textColor="#FFFFFF",textAlignment="MiddleCenter"},value="HEAL"}
+            xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_healAllUnits",
+                "global/resourceCardsArtifactHealUnitsClicked","HEAL",
+                sideActionButtonPosition(1,buttonDepth),uiRotation)
         end
         if rule~=nil and rule.staffDualChoices==true and posture=="upright" then
             -- Colour identity, not the shared numeric 'other=1', grants Ready.
@@ -60486,13 +60485,9 @@ return function(deps)
             local redReady=type(resources)=="table" and not combatEnemyInPlay
                 and (first=="red" or second=="red")
             if redReady then
-                xml[#xml+1]={tag="Button",attributes={
-                    id="AttackAssignmentSource_"..card.guid.."_0_unitReady",
-                    onClick="global/attackAssignmentReadySourceClicked",
-                    position="150 -145 "..buttonDepth,rotation=uiRotation,
-                    width=150,height=85,scale="0.28 0.28",fontSize=46,
-                    colors="#454D5D|#69798E|#444C63|#454D5D",textColor="#FFFFFF",
-                    textAlignment="MiddleCenter"},value="RDY"}
+                xml[#xml+1]=createOutsideCardButton("AttackAssignmentSource_"..card.guid.."_0_unitReady",
+                    "global/attackAssignmentReadySourceClicked","RDY",
+                    sideActionButtonPosition(1,buttonDepth),uiRotation)
             end
         end
         if rule~=nil and rule.simultaneousReady==true and posture=="upright"
@@ -60502,33 +60497,13 @@ return function(deps)
                 local sourceKey=card.guid.."#ready"..index
                 local linked=gStates~=nil and gStates.unitReadyLinks~=nil
                     and gStates.unitReadyLinks[sourceKey]~=nil
-                xml[#xml+1]={tag="Button",attributes={
-                    id="ResourceCardChoice_"..card.guid.."_regenReady"..index,
-                    onClick="global/resourceCardsRegenerationReadyClicked",
-                    position="145 "..tostring(-125+(index-1)*62).." "..buttonDepth,
-                    rotation=uiRotation,width=150,height=90,scale="0.28 0.28",
-                    fontSize=44,textColor="#FFFFFF",textAlignment="MiddleCenter",
-                    colors=linked and "#387D30|#4CA940|#387D30|#387D30"
-                        or "#454D5D|#69798E|#444C63|#454D5D"},
-                    value="RDY"..(repeatLink~=nil and tostring(index) or "")}
-            end
-        end
-        -- Outside text actions share the spell button renderer. Keep the
-        -- resource/target icon grid and tightly packed combat counters intact.
-        for i=otherControlCount+1,#xml do
-            local node=xml[i]
-            local attrs=node.attributes
-            local id=attrs~=nil and attrs.id or ""
-            if node.tag=="Button" and node.value~=nil and node.children==nil
-                and (attrs.onClick=="global/resourceCardsStartingCardControlClicked"
-                    or id:match("_forkPhase$") or id:match("_healAllUnits$")
-                    or id:match("_unitReady$") or id:match("_regenReady%d+$")) then
-                local tint=attrs.colors~=nil and attrs.colors:sub(1,7)=="#387D30" and "#B9E7AD" or nil
-                xml[i]=createOutsideCardButton(id,attrs.onClick,node.value,attrs.position,attrs.rotation,tint)
+                xml[#xml+1]=createOutsideCardButton("ResourceCardChoice_"..card.guid.."_regenReady"..index,
+                    "global/resourceCardsRegenerationReadyClicked",
+                    "RDY"..(repeatLink~=nil and tostring(index) or ""),
+                    sideActionButtonPosition(index,buttonDepth),uiRotation,linked and "#B9E7AD" or nil)
             end
         end
         if isArtifact and posture=="upright" then
-            trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
             xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)
             if rule~=nil and rule.grailFamePerHealing~=nil and not powered then
                 xml[#xml+1]=trackerPrivate.grailFameButton(card,uiRotation,buttonDepth)
@@ -72425,16 +72400,42 @@ function resourceCardsExistingImageAssetsFor(ui,names)
     return mergeCustomImages(ui,needed)
 end
 
--- Shared fixed-size, beveled text controls for played cards. Keep the original
--- spell proportions at two-thirds scale; shrink labels, never grow the button.
+-- Card Action Button layout: adjust appearance and placement together here.
+-- Positive X is left; negative Y is up on an upright card.
+local cardActionButtonLayout={
+    width=335, height=150, scale="0.16 0.16", padding="30 30 30 30",
+    sideButtonX=140,
+    sideButtonTopY=-130,
+    sideButtonSpacing=55,
+    sideButtonDepth=-10, -- spell / claim-style controls
+    artifactThrowX=-77, artifactThrowY=137,
+    artifactRecoverX=0, artifactRecoverY=-137
+}
+
+-- Five standard vertical slots, numbered top to bottom. More rows can use
+-- the same spacing. Keep the tracker's existing face-relative depth when supplied.
+function sideActionButtonPosition(slot,depth)
+    local layout=cardActionButtonLayout
+    return layout.sideButtonX.." "..(layout.sideButtonTopY+(slot-1)*layout.sideButtonSpacing)
+        .." "..tostring(depth or layout.sideButtonDepth)
+end
+
+function artifactActionButtonPosition(broken,depth)
+    local layout=cardActionButtonLayout
+    return (broken and layout.artifactRecoverX or layout.artifactThrowX).." "
+        ..(broken and layout.artifactRecoverY or layout.artifactThrowY).." "..tostring(depth)
+end
+
+-- Shared fixed-size, beveled text controls for played cards.
 function createOutsideCardButton(id,callback,label,position,rotation,tint)
     return {tag="Button",attributes={
         id=id,onClick=callback,position=position,rotation=rotation or "0 0 180",
-        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
-        width=335,height=150,scale="0.16 0.16"},
+        onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
+        width=cardActionButtonLayout.width,height=cardActionButtonLayout.height,
+        scale=cardActionButtonLayout.scale},
         children={{tag="Image",attributes={id=id.."Image",
             image="Sliced Button/Button Object Active",type="Sliced",color=tint or "#FFFFFF"}},
-            {tag="HorizontalLayout",attributes={padding="30 30 30 30"},
+            {tag="HorizontalLayout",attributes={padding=cardActionButtonLayout.padding},
                 children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",
                     fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
                     resizeTextForBestFit="true",resizeTextMinSize=18,
@@ -73972,13 +73973,13 @@ local function playAreaScaleSeatContaining(guid)
 end
 
 local function playAreaScaleObjectHeld(obj)
-    if obj.held_by_color~=nil then return true end
+    if obj.held_by_color~=nil and obj.held_by_color~="" then return true end
     -- A Fixed-jointed summon may leave its zone while its summoner is held,
     -- even though TTS does not report the child as held itself.
     local attacked=gStates~=nil and gStates.attackedMonsters~=nil and gStates.attackedMonsters[obj.guid] or nil
     if attacked~=nil and attacked[3]=="summoned" and attacked[4]~=nil then
         local summoner=getObjectFromGUID(attacked[4])
-        if summoner~=nil and summoner.held_by_color~=nil then return true end
+        if summoner~=nil and summoner.held_by_color~=nil and summoner.held_by_color~="" then return true end
     end
     return false
 end
@@ -74068,14 +74069,14 @@ function playAreaScaleApplyObject(seat,obj,pending)
     if factor==1 then records[obj.guid]=nil else entry.factor=factor end
 end
 
--- A transient exit during a drag is not a real removal. Recheck X/Z
--- after release; the object need not finish falling vertically.
+-- A transient exit during a drag or a physical drop is not a real removal.
+-- Wait until physics and scripted movement have settled before restoring scale.
 local function playAreaScaleRecheckObject(guid)
     local records=gStates~=nil and gStates.playAreaScaledObjects or nil
     if records==nil or records[guid]==nil then return end
     local obj=getObjectFromGUID(guid)
     if obj==nil then records[guid]=nil return end
-    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true then return end
+    if playAreaScaleObjectHeld(obj) or obj.isSmoothMoving()==true or obj.resting~=true then return end
     local seat=playAreaScaleSeatContaining(guid)
     if seat~=nil then playAreaScaleApplyObject(seat,obj)
     else playAreaScaleRestore(obj) end
@@ -74086,13 +74087,27 @@ local function playAreaScaleWaitForSettle(guid)
     playAreaScaleSettling[guid]=true
     local function finish()
         playAreaScaleSettling[guid]=nil
+        local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+        if records==nil or records[guid]==nil then return end
+        local obj=getObjectFromGUID(guid)
+        if obj~=nil and not playAreaScaleObjectHeld(obj)
+            and (obj.resting~=true or obj.isSmoothMoving()==true) then
+            -- A timeout is not proof of removal; keep the reduced scale.
+            playAreaScaleWaitForSettle(guid)
+            return
+        end
         playAreaScaleRecheckObject(guid)
     end
-    safeWaitCondition("PlayerBoard.Scale",finish,function()
-        local obj=getObjectFromGUID(guid)
-        return obj==nil or (not playAreaScaleObjectHeld(obj)
-            and obj.isSmoothMoving()==false)
-    end,5,finish)
+    -- TTS can still report resting in the drop callback, before gravity takes over.
+    safeWaitFrames("PlayerBoard.Scale",function()
+        safeWaitCondition("PlayerBoard.Scale",finish,function()
+            local records=gStates~=nil and gStates.playAreaScaledObjects or nil
+            if records==nil or records[guid]==nil then return true end
+            local obj=getObjectFromGUID(guid)
+            return obj==nil or (not playAreaScaleObjectHeld(obj)
+                and obj.resting==true and obj.isSmoothMoving()==false)
+        end,5,finish)
+    end,3)
 end
 
 -- Only objects already managed by the scaling system need a post-drop check.
@@ -74126,8 +74141,8 @@ function refreshPlayAreaScale(seat)
             if obj==nil then records[guid]=nil
             elseif playAreaScaleObjectHeld(obj) then
                 -- Lifting/rearranging does not undo scaling; the drop checks its destination.
-            elseif obj.isSmoothMoving()==true then
-                -- Scripted moves keep the same size until they reach their destination.
+            elseif playAreaScaleSettling[guid]==true or obj.resting~=true or obj.isSmoothMoving()==true then
+                -- Neither the zone refresh nor the drop callback may restore a falling object.
                 playAreaScaleWaitForSettle(guid)
             else
                 local destination=playAreaScaleSeatContaining(guid)
