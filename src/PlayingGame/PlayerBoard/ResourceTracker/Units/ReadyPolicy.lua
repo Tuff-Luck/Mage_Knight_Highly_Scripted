@@ -184,7 +184,7 @@ function M.sourceClicked(player,value,id,combatEnemyInPlay,unitResourceDefinitio
     local sourceKey=unitHistoryKey(guid,useIndex or 1)
     local data=gameCards~=nil and gameCards[guid] or nil
     local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
-    if combatEnemyInPlay and rule~=nil
+    if combatEnemyInPlay and data~=nil and rule~=nil
         and (data.resourceKey=="artifactDruidicStaff" or rule.readyOutsideCombat==true) then return end
     if not resourceCardsReadySourceValid(sourceKey) then return end
     local limit=resourceCardsReadySourceLevelLimit(sourceKey)
