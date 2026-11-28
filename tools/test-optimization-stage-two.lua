@@ -231,6 +231,50 @@ do
     eq(arrivalWaits[3].condition(),true,"destroyed arrival resolves")
     arrivalWaits[3].callback()
     eq(settled.getLock(),false,"destroyed arrival releases protection")
+
+    -- Ordinary cleanup relocates existing dice directly, instead of extracting
+    -- replacement dice from a bag. Lock before either move or randomize.
+    local function cleanupDie(guid,expectProtection)
+        local returned={guid=guid,type="Dice",resting=true}
+        objects[guid]=returned
+        local locked=false
+        returned.getLock=function() return locked end
+        returned.setLock=function(value) locked=value end
+        returned.setPosition=function(position)
+            eq(settled.getLock(),expectProtection,"neighbour lock before cleanup relocation")
+            eq(locked,false,"returning die unlocked before relocation")
+            zoneDice[#zoneDice+1]=returned
+        end
+        returned.randomize=function()
+            eq(settled.getLock(),expectProtection,"neighbour lock before cleanup roll")
+            eq(locked,false,"returning die free to roll")
+            returned.resting=false
+        end
+        return returned
+    end
+    local cleanupA=cleanupDie("cleanupA",true)
+    local cleanupB=cleanupDie("cleanupB",true)
+    arrivalEnv.manaSourceReturnDie(cleanupA,{0,2,0},true)
+    arrivalEnv.manaSourceReturnDie(cleanupB,{0,2,0},true)
+    eq(cleanupA.getLock(),false,"first cleanup die can bounce off second")
+    eq(cleanupB.getLock(),false,"second cleanup die can bounce off first")
+    arrivalFrames[4]()
+    arrivalFrames[5]()
+    eq(arrivalWaits[4].condition(),false,"first cleanup roll in progress")
+    cleanupA.resting=true
+    arrivalWaits[4].callback()
+    eq(settled.getLock(),true,"neighbour protected until second cleanup die settles")
+    cleanupB.resting=true
+    eq(arrivalWaits[5].condition(),true,"last cleanup die settled")
+    arrivalWaits[5].callback()
+    eq(settled.getLock(),false,"cleanup releases neighbour")
+    eq(manuallyLocked.getLock(),true,"cleanup preserves manual lock")
+    local resetDie=cleanupDie("roundReset",false)
+    arrivalEnv.manaSourceReturnDie(resetDie,{0,2,0},false)
+    eq(#arrivalFrames,5,"round reset does not start protection")
+    local combat=read("src/PlayingGame/Combat/Combat.lua")
+    assert(combat:find("manaSourceReturnDie(die,",1,true),
+        "end-turn cleanup must use protected Source return")
 end
 
 -- Preserve unrelated Object UI while removing only tracker-owned controls.
