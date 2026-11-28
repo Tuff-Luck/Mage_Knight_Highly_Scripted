@@ -225,7 +225,7 @@ function M.resolve(context)
         end
         return active,protected
     end
-    if context.linkOnly then return repeatByTarget,discarded,hasDiscard end
+    if context.linkOnly then return repeatByTarget,discarded,hasDiscard,spellCastingPaid end
     -- A direct Maximal Effect target can be face down. Its printed effect
     -- mana remains payable even though ordinary card power is forbidden.
     -- Do not reassign a token already owned by another card or Skill.

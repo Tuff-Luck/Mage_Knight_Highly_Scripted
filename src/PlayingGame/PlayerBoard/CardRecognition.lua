@@ -5506,7 +5506,7 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly,stormProbe
     -- if an offer entitlement query re-enters this read-only pass.
     local previous= combatConfig.amuletMana
     combatConfig.amuletMana=trackerPrivate.scanObservation.amuletPermissions(cards,cardPosture)
-    local ok,repeats,discarded,paid=pcall(trackerPrivate.scanPayments.resolve,{
+    local ok,repeats,discarded,paid,spellCastingPaid=pcall(trackerPrivate.scanPayments.resolve,{
         seatPos=seatPos,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,
         footprints=footprints,placements=placements,trackerPrivate=trackerPrivate,
         resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
@@ -5517,7 +5517,16 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly,stormProbe
     })
     combatConfig.amuletMana=previous
     if not ok then error(repeats,0) end
-    return repeats,discarded,paid
+    return repeats,discarded,paid,spellCastingPaid
+end
+
+-- Offer browsers use the same allocation as the calculator, not a cached
+-- record or a proximity-only mana check. Free casts, conversion, Mana Storm
+-- and competing overlapping cards therefore obey the ordinary payment rules.
+function resourceCardsBrowserSpellValid(seatPos,guid)
+    if seatPos==nil or guid==nil then return false end
+    local _,discarded,_,spellCastingPaid=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
+    return discarded[guid]==nil and spellCastingPaid[guid]==true
 end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
@@ -6343,11 +6352,28 @@ function resourceCardsUnderAction(targets)
     return trackerPrivate.objectEvents.underAction(targets,trackerPrivate,resourceObjectKind,queueSeat)
 end
 
+-- Browser payment reconciliation must run even with the tracker minimized.
+-- Limit it to play-area changes that can affect card payment allocation.
+function trackerPrivate.browserPaymentChanged(obj,seatPos)
+    if obj==nil or callOfferPaymentChanged==nil then return end
+    local kind=resourceObjectKind(obj)
+    if kind=="card" or kind=="skill" or kind=="mana"
+        or (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") then
+        callOfferPaymentChanged(obj.guid,seatPos)
+    end
+end
+
 function resourceCardsZoneEntered(ctx)
+    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+        trackerPrivate.browserPaymentChanged(ctx.obj,ctx.zoneInfo.seatPos)
+    end
     return trackerPrivate.objectEvents.zoneEntered(ctx,trackerPrivate,resourceCardsRelevantZone,resourceObjectKind,queueSeat)
 end
 
 function resourceCardsZoneLeft(ctx)
+    if ctx~=nil and ctx.zoneInfo~=nil and ctx.zoneInfo.kind=="play" then
+        trackerPrivate.browserPaymentChanged(ctx.obj,ctx.zoneInfo.seatPos)
+    end
     return trackerPrivate.objectEvents.zoneLeft(ctx,trackerPrivate,resourceCardsRelevantZone,resourceObjectKind,combatConfig,cardInSeatPlayArea,scheduleChoiceResetAfterPlay,queueSeat)
 end
 
@@ -6361,6 +6387,7 @@ trackerPrivate.checkCardChoicesAfterDrop=function(guid,seatPos)
 end
 
 function resourceCardsObjectMoved(obj,stabilized)
+    trackerPrivate.browserPaymentChanged(obj)
     return trackerPrivate.objectEvents.objectMoved(obj,stabilized,trackerPrivate,resourceObjectKind,manaColor,queueSeat,combatEnemyData,cardInSeatPlayArea,scheduleChoiceResetAfterPlay,combatTrackedSeat,combatTrackedEnemies)
 end
 

@@ -118,6 +118,10 @@ handle:close()
 local firstLine=assert(flow:find("function cardEffectIsVertical(card)",1,true))
 local after=assert(flow:find("--End-turn card cleanup",firstLine,true))
 assert(load(flow:sub(firstLine,after-1),"Card posture","t",_G))()
+local castingPaid=false
+resourceCardsBrowserSpellValid=function(seat,guid)
+    return seat==1 and guid==spell.guid and castingPaid
+end
 dofile("src/PlayingGame/Offers/CallOffer.lua")
 local function hasArrow(card,direction)
     for _,node in ipairs(card.UI.getXmlTable()) do
@@ -127,7 +131,18 @@ local function hasArrow(card,direction)
     return false
 end
 callOfferSpellEntered(spell.guid,1)
-eq(gStates.callOfferPreview.unitGUID,first.guid,"initial offered Unit")
+eq(gStates.callOfferPreview,nil,"unpaid upright Spell must not borrow a Unit")
+eq(first.position[1],36,"unpaid Spell leaves offer untouched")
+castingPaid=true
+callOfferScheduleSpellCheck()
+eq(gStates.callOfferPreview.unitGUID,first.guid,"payment opens browser without replaying Spell")
+castingPaid=false
+callOfferScheduleSpellCheck()
+eq(gStates.callOfferPreview,nil,"removing casting payment closes browser")
+eq(first.position[1],36,"payment removal returns preview")
+castingPaid=true
+callOfferScheduleSpellCheck()
+eq(gStates.callOfferPreview.unitGUID,first.guid,"restored payment reopens browser")
 eq(first.position[3],spell.position[3],"borrowed Unit alongside Spell")
 eq(first.scale[1],1.5,"full-sized Unit")
 eq(hasArrow(first,"previous"),true,"left arrow present")

@@ -16,6 +16,17 @@ local function exchangePreview(guid)
         or (magicTalentInactivePreview~=nil and magicTalentInactivePreview(guid))
 end
 
+-- A real cast, not an upright but unpaid card, authorizes the loan. The
+-- same predicate also protects delayed navigation and recruitment callbacks.
+local function validSpell(seatPos,spell)
+    if seatPos==nil or spell==nil or spell.is_face_down==true
+        or exchangePreview(spell.guid) or not cardEffectIsVertical(spell)
+        or not objectGUIDInZone(spell.guid,playerPlayAreas[seatPos]) then return false end
+    local player=gStates~=nil and turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player~=nil and (player.seatPos~=seatPos or player.endCalled==true) then return false end
+    return resourceCardsBrowserSpellValid(seatPos,spell.guid)==true
+end
+
 -- Shared object-UI navigation builder, used by Training's Advanced Action
 -- offer preview without changing the existing Unit browser's lifecycle.
 function callOfferAppendBrowseControls(xml,guid,prefix,callback,includeClaim)
@@ -233,8 +244,7 @@ publishPublicUICallbacks({
         if guid==nil then guid,direction=id:match("^CallOfferControl_([0-9a-f]+)_(next)$") end
         if guid~=state.unitGUID then return end
         local spell=getObjectFromGUID(state.spellGUID)
-        if exchangePreview(state.spellGUID) or not cardEffectIsVertical(spell)
-            or not objectGUIDInZone(state.spellGUID,playerPlayAreas[state.seatPos]) then return end
+        if not validSpell(state.seatPos,spell) then return end
         if legalPlayerCheck(player.color,state.seatPos,"NoDummyException")~=true then return end
         selectRelative(state,direction=="previous" and -1 or 1)
     end
@@ -249,8 +259,9 @@ function callOfferSpellEntered(spellGUID,seatPos)
     if gStates.callOfferGloryClaimed==true then return end
     local spell=getObjectFromGUID(SPELL_GUID)
     if spell==nil or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[seatPos]) then return end
-    if spell.is_face_down==true or not cardEffectIsVertical(spell) then
-        callOfferClose(false)
+    if not validSpell(seatPos,spell) then
+        local current=previewState()
+        if current~=nil and current.seatPos==seatPos then callOfferClose(false) end
         return
     end
     local state=previewState()
@@ -308,7 +319,7 @@ function callOfferSpellPickedUp()
     spellMoveSerial=spellMoveSerial+1
 end
 
-function callOfferScheduleSpellCheck()
+function callOfferScheduleSpellCheck(movedGUID)
     spellMoveSerial=spellMoveSerial+1
     local serial=spellMoveSerial
     safeWaitFrames("Offers.CallOffer",function()
@@ -320,10 +331,30 @@ function callOfferScheduleSpellCheck()
         end,function()
             if serial~=spellMoveSerial then return true end
             local spell=getObjectFromGUID(SPELL_GUID)
-            return spell==nil or (spell.held_by_color==nil
-                and spell.resting==true and spell.isSmoothMoving()==false)
+            if spell~=nil and (spell.held_by_color~=nil and spell.held_by_color~=""
+                or spell.resting~=true or spell.isSmoothMoving()) then return false end
+            local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
+            -- A released die may wobble indefinitely; use its settled face
+            -- after the same short delay instead of requiring resting=true.
+            return moved==nil or ((moved.held_by_color==nil or moved.held_by_color=="")
+                and (moved.type=="Dice" or moved.resting==true)
+                and not moved.isSmoothMoving())
         end,8)
     end,2)
+end
+
+-- Recheck after payment or competing card/skill movement. Avoid scheduling
+-- work for unrelated turns, inactive spells or movement on other boards.
+function callOfferPaymentChanged(movedGUID,seatPos)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or player.seatPos==nil or player.endCalled==true
+        or (seatPos~=nil and seatPos~=player.seatPos) then return end
+    if gStates.callOfferGloryClaimed==true then return end
+    local state=previewState()
+    if state==nil and not objectGUIDInZone(SPELL_GUID,playerPlayAreas[player.seatPos]) then return end
+    if state~=nil and state.unitGUID==movedGUID then return end
+    callOfferScheduleSpellCheck(movedGUID)
 end
 
 function callOfferSpellLeft(spellGUID,seatPos)
@@ -352,6 +383,7 @@ function callOfferRecruitmentCandidate(guid,seatPos)
     local state=previewState()
     if state==nil or state.unitGUID~=guid or state.seatPos~=seatPos
         or gStates.callOfferGloryClaimed==true then return nil end
+    if not validSpell(seatPos,getObjectFromGUID(SPELL_GUID)) then return nil end
     return callOfferBorrowedUnitForSeat(seatPos)
 end
 
@@ -399,8 +431,7 @@ function callOfferObjectDropped(obj,playerColor)
         if current~=state or current.unitGUID~=guid or transferSerial~=serial then return end
         if playerColor~=nil and legalPlayerCheck(playerColor,current.seatPos,"NoDummyException")~=true then return end
         local spell=getObjectFromGUID(current.spellGUID)
-        if exchangePreview(current.spellGUID) or not cardEffectIsVertical(spell)
-            or not objectGUIDInZone(current.spellGUID,playerPlayAreas[current.seatPos]) then
+        if not validSpell(current.seatPos,spell) then
             callOfferClose(false)
             return
         end
@@ -455,8 +486,7 @@ function callOfferRestoreOnLoad()
     if state==nil then return end
     local unit=state.unitGUID~=nil and getObjectFromGUID(state.unitGUID) or nil
     local spell=getObjectFromGUID(SPELL_GUID)
-    if unit==nil or exchangePreview(SPELL_GUID) or not cardEffectIsVertical(spell)
-        or not objectGUIDInZone(SPELL_GUID,playerPlayAreas[state.seatPos]) then
+    if unit==nil or not validSpell(state.seatPos,spell) then
         callOfferClose(true)
         return
     end
