@@ -94,7 +94,8 @@ local function protectedTurnOrderTokenObjectState(obj)
 			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,
 			tonumber(p.z or p[3]) or 0) or "unknown"
 		return "type="..tostring(obj.type).." position="..position
-			.." resting="..tostring(obj.resting)
+			.." resting="..tostring(obj.resting).." faceDown="..tostring(obj.is_face_down)
+			.." locked="..tostring(obj.locked)
 	end)
 	return ok and description or "object state unavailable: "..tostring(description)
 end
@@ -102,9 +103,9 @@ local function protectedTurnOrderTokenRecord(guid,event,obj)
 	if type(guid)~="string" or protectedObjectKind(guid)~="Round Order token" then return end
 	protectedTurnOrderTokenSequence=protectedTurnOrderTokenSequence+1
 	local history=protectedTurnOrderTokenTrail[guid] or {}
-	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". "..event.." "
+	history[#history+1]=tostring(protectedTurnOrderTokenSequence)..". ["..os.date("!%H:%M:%S",os.time()).." UTC] "..event.." "
 		..protectedTurnOrderTokenObjectState(obj)
-	if #history>8 then table.remove(history,1) end
+	if #history>12 then table.remove(history,1) end
 	protectedTurnOrderTokenTrail[guid]=history
 end
 function protectedTurnOrderTokenSetup(obj,sourceBag,position)
@@ -114,6 +115,27 @@ function protectedTurnOrderTokenSetup(obj,sourceBag,position)
 		"Setup took token from cloned bag="..tostring(sourceBag and sourceBag.guid)
 			.." intended position=("..intended..")",obj)
 end
+-- Record only assigned tokens, without changing their movement or identity.
+function protectedTurnOrderTokenScriptMove(obj,position,reason)
+	if obj==nil then return end
+	pcall(function()
+		protectedTurnOrderTokenRecord(obj.guid,"Script move ("..tostring(reason)
+			..") target=("..table.concat(position,",")..")",obj)
+	end)
+end
+
+function protectedTurnOrderTokenStateChanged(obj,oldGUID)
+	pcall(function()
+		local newGUID=obj~=nil and obj.guid or nil
+		if type(oldGUID)=="string" then
+			protectedTurnOrderTokenRecord(oldGUID,"State changed: "..oldGUID.." -> "..tostring(newGUID),obj)
+		end
+		if newGUID~=oldGUID then
+			protectedTurnOrderTokenRecord(newGUID,"State changed from "..tostring(oldGUID),obj)
+		end
+	end)
+end
+
 -- The game intentionally moves certain protected pieces into Trash: tactics at round end,
 -- and Volkare when his scenario ends. The permit is scoped to that destination and expires.
 function protectedObjectAllowScriptRemoval(guid,containerGUID,reason)
@@ -146,6 +168,8 @@ function __onPlayerAction_raw(player,action,targets)
 	for _,obj in ipairs(targets or {}) do
 		local kind=obj~=nil and protectedObjectKind(obj.guid) or nil
 		if kind~=nil then
+			protectedTurnOrderTokenRecord(obj.guid,"Blocked player action "..tostring(action)
+				.." color="..tostring(player and player.color),obj)
 			if player~=nil and player.color~=nil then
 				broadcastToColor(kind.." is protected against player deletion.",player.color,{1,0.72,0.35})
 			end
@@ -159,7 +183,22 @@ local protectedDestroyAuditPending={}
 -- Cheap aggregate of *all* onObjectDestroy callbacks, not only protected tokens.
 -- 15 one-second buckets avoid allocating a new history entry for every destroyed
 -- TTS object (important on slower machines and during mass scene teardown).
-local protectedDestroyEvidence={total=0,buckets={}}
+local protectedDestroyEvidence={total=0,buckets={},trail={},turnCommits=0,followups={}}
+-- Keep only strings and a fixed-size rolling window, never dying TTS userdata.
+function protectedDestroyEvidence.recordObject(guid,obj)
+	local ok,description=pcall(function()
+		local p=obj.getPosition()
+		return "type="..tostring(obj.type).." position="..string.format("(%.2f,%.2f,%.2f)",
+			tonumber(p.x or p[1]) or 0,tonumber(p.y or p[2]) or 0,tonumber(p.z or p[3]) or 0)
+	end)
+	local trail=protectedDestroyEvidence.trail
+	trail[#trail+1]=os.date("!%H:%M:%S",os.time()).." UTC "..tostring(guid)
+		.." "..(ok and description or "object state unavailable")
+	if #trail>20 then table.remove(trail,1) end
+end
+function protectedDestroyEvidence.trailSnapshot()
+	return #protectedDestroyEvidence.trail>0 and table.concat(protectedDestroyEvidence.trail,"\n") or "none"
+end
 function protectedDestroyEvidence.observe()
 	local second=math.floor(os.time())
 	local index=(second%15)+1
@@ -264,7 +303,9 @@ local function protectedObjectDestroyAudit(guid)
 		destroyCount=protectedDestroyEvidence.total,
 		recentCount=protectedDestroyEvidence.recent(startedAt),
 		anchors=protectedDestroyEvidence.anchorSnapshot(),
-		otherTokens=protectedDestroyEvidence.otherTokensSnapshot(guid)
+		otherTokens=protectedDestroyEvidence.otherTokensSnapshot(guid),
+		trail=protectedDestroyEvidence.trailSnapshot(),
+		turnCommits=protectedDestroyEvidence.turnCommits
 	} or true
 	-- Shutdown destroys objects in stages; the old two-frame check could run while
 	-- anchors were still present and dispatch a spurious remote error report.
@@ -293,6 +334,9 @@ local function protectedObjectDestroyAudit(guid)
 					break
 				end
 			end
+			if protectedDestroyEvidence.turnCommits==evidence.turnCommits then
+				protectedDestroyEvidence.followups[guid]={destroyedAt=evidence.destroyedAt,owner=owner}
+			end
 			reportAutomaticLuaDiagnostic("protectedObjectDestroyAudit",
 				"Round Order token disappeared after destroy callback GUID="..tostring(guid),
 				"Owner at destroy audit: "..owner
@@ -312,10 +356,32 @@ local function protectedObjectDestroyAudit(guid)
 					.."\nShutdown anchors at verification: "..protectedDestroyEvidence.anchorSnapshot()
 					.."\nOther turn-order tokens at destroy: "..evidence.otherTokens
 					.."\nOther turn-order tokens at verification: "..protectedDestroyEvidence.otherTokensSnapshot(guid)
+					.."\nGameplay turn commits since destroy: "..tostring(protectedDestroyEvidence.turnCommits-evidence.turnCommits)
+					.."\nLast 20 destruction callbacks at token destroy:\n"..evidence.trail
+					.."\nLast 20 destruction callbacks at verification:\n"..protectedDestroyEvidence.trailSnapshot()
 					.."\nToken lifecycle:\n"..(protectedTurnOrderTokenTrail[guid]~=nil
 						and table.concat(protectedTurnOrderTokenTrail[guid],"\n") or "No token events captured"))
 		end
 	end,PROTECTED_DESTROY_AUDIT_GRACE_FRAMES)
+end
+
+-- One positive follow-up per incident, only if a gameplay turn actually commits
+-- in the same script session. No follow-up is not evidence of a stopped game.
+function protectedTurnOrderTurnCommitted()
+	protectedDestroyEvidence.turnCommits=protectedDestroyEvidence.turnCommits+1
+	for guid,evidence in pairs(protectedDestroyEvidence.followups) do
+		protectedDestroyEvidence.followups[guid]=nil
+		if not eventsExitTeardown() and protectedDestroyEvidence.objectStatus(guid)=="MISSING"
+			and protectedObjectKind(guid)=="Round Order token" and reportAutomaticLuaDiagnostic~=nil then
+			reportAutomaticLuaDiagnostic("protectedTurnOrderTurnCommitted",
+				"Gameplay continued with missing Round Order token GUID="..guid,
+				"Original destroy (UTC): "..os.date("!%Y-%m-%d %H:%M:%S UTC",evidence.destroyedAt)
+				.."\nOwner: "..evidence.owner.."\nRound="..tostring(gStates.currentRound)
+				.." turn="..tostring(gStates.turnNumber)
+				.."\nOther tokens: "..protectedDestroyEvidence.otherTokensSnapshot(guid)
+				.."\nShutdown anchors: "..protectedDestroyEvidence.anchorSnapshot())
+		end
+	end
 end
 
 function __tryObjectEnterContainer_raw(container, object)
@@ -1181,6 +1247,7 @@ function __onObjectDestroy_raw(destroyedObj)
 	local guidOK,destroyedGuid=pcall(function() return destroyedObj.guid end)
 	if not guidOK or type(destroyedGuid)~="string" or destroyedGuid=="" then return end
 	protectedDestroyEvidence.observe()
+	protectedDestroyEvidence.recordObject(destroyedGuid,destroyedObj)
 	-- Combat cleanup refreshes target buttons/lines. Run it after TTS finishes retiring the
 	-- object, rather than recalculating while the dying object is still in physics/zone lists.
 	safeWaitFrames("Events",function() attackAssignmentsClearForObject(destroyedGuid) end,1)
