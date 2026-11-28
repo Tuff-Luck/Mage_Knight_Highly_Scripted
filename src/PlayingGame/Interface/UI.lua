@@ -2706,7 +2706,8 @@ do
         local ui=UI
         if record.guid~=nil then
             local obj=getObjectFromGUID(record.guid)
-            ui=obj~=nil and obj.UI or nil
+            if obj==nil or obj.UI==nil then return end
+            ui=obj.UI
         end
         if ui~=nil and ui.getAttribute(id.."Image","image")==record.pressed
             and enabled(ui,id) then
