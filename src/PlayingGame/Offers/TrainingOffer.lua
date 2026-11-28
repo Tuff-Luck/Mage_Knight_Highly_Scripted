@@ -475,7 +475,7 @@ function trainingOfferObjectDropped(playerColor,obj)
         local guid=obj.guid
         safeWaitCondition("Offers.Training",function()
             local state=currentState()
-            if state~=active or state.cardGUID~=guid then return end
+            if state==nil or state~=active or state.cardGUID~=guid then return end
             local held=getObjectFromGUID(guid)
             if held==nil then return end
             state.display=ttsVectorArray(held.getPosition())
