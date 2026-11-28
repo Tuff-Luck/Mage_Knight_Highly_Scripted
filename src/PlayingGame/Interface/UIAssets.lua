@@ -227,3 +227,19 @@ function resourceCardsExistingImageAssetsFor(ui,names)
     end
     return mergeCustomImages(ui,needed)
 end
+
+-- Shared fixed-size, beveled text controls for played cards. Keep the original
+-- spell proportions at two-thirds scale; shrink labels, never grow the button.
+function createOutsideCardButton(id,callback,label,position,rotation,tint)
+    return {tag="Button",attributes={
+        id=id,onClick=callback,position=position,rotation=rotation or "0 0 180",
+        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+        width=250,height=150,scale=tostring(0.32*2/3).." "..tostring(0.32*2/3)},
+        children={{tag="Image",attributes={id=id.."Image",
+            image="Sliced Button/Button Object Active",type="Sliced",color=tint or "#FFFFFF"}},
+            {tag="HorizontalLayout",attributes={padding="25 25 25 25"},
+                children={{tag="Text",attributes={id=id.."Text",font="Fonts/MKCardText",
+                    fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
+                    resizeTextForBestFit="true",resizeTextMinSize=18,
+                    resizeTextMaxSize=90,text=label}}}}}}
+end

@@ -2958,7 +2958,7 @@ function nightTint(player, mouseButton, id)
 end
 
 -- Shared object claim button builder
-function createClaimButton(objGUID, source)
+function createClaimButton(objGUID, source, controlID)
 	-- Claim controls on Cards belong to the visible front, not the discard
 	-- back. Skill tokens and other objects keep their existing visibility.
 	local obj=getObjectFromGUID(objGUID)
@@ -2971,11 +2971,12 @@ function createClaimButton(objGUID, source)
 	local rotation="0 0 180"
 	local text="{en}^ CLAIM{it}^ PRENDI{ru}^ ЗАБРАТЬ{zh-tw}^ 選取{zh-cn}^ 选取{ko}^ 선택{es}^ RECLAMO{fr}^ Demande{pt-br}^ CLAMAR{de}^ ANSPRUCH"
 	local fontSize="90"
+    local outside=false
 	--Meditation / Trance uses the exact same proven object-UI structure as Claim.
 	--Coordinates are tuned for four target spots marked during testing:
 	--red pair = Meditation, green pair = Trance.
 	if source=="meditationTop" or source=="meditationBot" or source=="tranceTop" or source=="tranceBot" then
-		width=250
+		outside=true
 		onClick=(source=="meditationTop" or source=="tranceTop") and "global/meditationTranceTop" or "global/meditationTranceBot"
 		text=(source=="meditationTop" or source=="tranceTop") and "Top" or "Bot"
 		if source=="meditationTop" then position="155 -105 -10" end
@@ -2985,8 +2986,7 @@ function createClaimButton(objGUID, source)
 	end
 	-- A small confirmed draw helper for Cure, distinct from generic Draw Hand.
     if source=="cureDraw" then
-        width=320
-        height=145
+        outside=true
         position="155 -110 -10"
         onClick="global/cureDrawOne"
         text="Draw 1"
@@ -2994,7 +2994,7 @@ function createClaimButton(objGUID, source)
     --Steady Tempo reuses the same small object-button style. These sit beside the
 	--upper, middle and lower sections of the card: Discard, Bottom, Top.
 	if source=="steadyTempoDiscard" or source=="steadyTempoBot" or source=="steadyTempoTop" then
-		width=250
+		outside=true
 		onClick="global/steadyTempoChoice"
 		if source=="steadyTempoDiscard" then text="{en}Dis{it}Scarti{ru}Сбр{zh-tw}棄{zh-cn}弃{ko}버림{es}Des{fr}Déf{pt-br}Des{de}Abl" position="155 -130 -10" end
 		if source=="steadyTempoBot" then text="{en}Bot{it}Fondo{ru}Низ{zh-tw}底{zh-cn}底{ko}아래{es}Inf{fr}Bas{pt-br}Inf{de}Unt" position="155 0 -10" end
@@ -3036,6 +3036,11 @@ function createClaimButton(objGUID, source)
 			end
 		end
 	end
+    if outside then
+        local button=createOutsideCardButton(controlID or objGUID..source,onClick,text,position,rotation)
+        button.attributes.active=faceVisible and "true" or "false"
+        return button
+    end
     return {tag="Button", attributes={id=objGUID..source, active=faceVisible and "true" or "false", onClick=onClick, onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked", height=height, width=width, position=position, rotation=rotation, scale=tostring(scale).." "..tostring(scale)},
 		children={{tag="Image", attributes={id=objGUID..source.."Image", image="Sliced Button/Button Object Active", type="Sliced"}},
 				  {tag="HorizontalLayout", attributes={padding="25 25 25 25"},

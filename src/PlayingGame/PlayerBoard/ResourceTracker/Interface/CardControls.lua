@@ -707,6 +707,20 @@ return function(deps)
                     value="RDY"..(repeatLink~=nil and tostring(index) or "")}
             end
         end
+        -- Outside text actions share the spell button renderer. Keep the
+        -- resource/target icon grid and tightly packed combat counters intact.
+        for i=otherControlCount+1,#xml do
+            local node=xml[i]
+            local attrs=node.attributes
+            local id=attrs~=nil and attrs.id or ""
+            if node.tag=="Button" and node.value~=nil and node.children==nil
+                and (attrs.onClick=="global/resourceCardsStartingCardControlClicked"
+                    or id:match("_forkPhase$") or id:match("_healAllUnits$")
+                    or id:match("_unitReady$") or id:match("_regenReady%d+$")) then
+                local tint=attrs.colors~=nil and attrs.colors:sub(1,7)=="#387D30" and "#B9E7AD" or nil
+                xml[i]=createOutsideCardButton(id,attrs.onClick,node.value,attrs.position,attrs.rotation,tint)
+            end
+        end
         if isArtifact and posture=="upright" then
             trackerPrivate.raiseArtifactChoiceControls(xml,otherControlCount+1,card.guid)
             xml[#xml+1]=trackerPrivate.artifactBreakButton(card,uiRotation,buttonDepth)

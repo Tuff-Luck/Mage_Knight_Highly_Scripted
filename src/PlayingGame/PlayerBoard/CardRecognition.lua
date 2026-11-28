@@ -4322,8 +4322,7 @@ combatConfig.refreshCureDrawButton=function(card,allowed)
         if node.attributes~=nil and node.attributes.id==id then index=i break end
     end
     if allowed and index==nil then
-        local button=createClaimButton(card.guid,"cureDraw")
-        button.attributes.id=id
+        local button=createClaimButton(card.guid,"cureDraw",id)
         xml[#xml+1]=button
         resourceObjectUiSetTable(card.UI,xml)
         safeBroadcastToColor("Cure: use Draw 1 for each Wound healed from your hand this turn, even before casting Cure. Ready every Unit healed this turn by returning its Command token to the ready slot.",
@@ -4466,21 +4465,11 @@ trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
         and (key=="artifactDruidicStaff" or key=="artifactBannerCourage"
             or key=="artifactBannerFortitude")
     local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
-    return {tag="Button",attributes={
-        id="ResourceCardChoice_"..card.guid.."_artifactBreak",
-        onClick="global/resourceCardsArtifactBreakClicked",
-        -- Card UI rotates 180 degrees: negative Y is toward the top artwork.
-        -- Keep THROW below the printed text and RECOVER above the artwork.
-        position="0 "..tostring(broken and -140 or 140).." "..buttonDepth,
-        rotation=uiRotation,width=220,height=74,scale="0.25 0.25",
-        font="Fonts/MKCardText",fontSize=58,
-        resizeTextForBestFit="true",resizeTextMinSize=26,
-        resizeTextMaxSize=58,padding="18 18 9 9",
-        colors=broken and "#81372F|#AD5045|#81372F|#81372F"
-            or (waitForCombat and "#383838|#505050|#383838|#383838"
-                or "#454D5D|#69798E|#444C63|#454D5D"),
-        textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value=label}
+    -- Positive X is the screen-left side of an upright card.
+    local position=(broken and "0 -140 " or "-90 140 ")..buttonDepth
+    return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_artifactBreak",
+        "global/resourceCardsArtifactBreakClicked",label,position,uiRotation,
+        broken and "#E8B5AE" or (waitForCombat and "#A0A0A0" or nil))
 end
 
 -- Shift only the Artifact's newly generated option/target controls toward the
@@ -4523,14 +4512,9 @@ trackerPrivate.grailFameButton=function(card,uiRotation,buttonDepth)
     local used=gStates~=nil and gStates.artifactGrailHealingUsed~=nil
         and gStates.artifactGrailHealingUsed[card.guid] or 0
     used=math.max(0,math.min(2,tonumber(used) or 0))
-    return {tag="Button",attributes={
-        id="ResourceCardChoice_"..card.guid.."_grailFame",
-        onClick="global/resourceCardsArtifactGrailFameClicked",
-        position="145 -145 "..buttonDepth,rotation=uiRotation,
-        width=185,height=90,scale="0.28 0.28",fontSize=42,
-        colors="#454D5D|#69798E|#454D5D|#454D5D",
-        textColor="#FFFFFF",textAlignment="MiddleCenter"},
-        value="F "..tostring(used).."/2"}
+    return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_grailFame",
+        "global/resourceCardsArtifactGrailFameClicked","F "..tostring(used).."/2",
+        "145 -145 "..buttonDepth,uiRotation)
 end
 
 trackerPrivate.cardControlOptions=require("PlayingGame.PlayerBoard.ResourceTracker.Interface.CardControlOptions")({
@@ -5506,7 +5490,7 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly,stormProbe
     -- if an offer entitlement query re-enters this read-only pass.
     local previous= combatConfig.amuletMana
     combatConfig.amuletMana=trackerPrivate.scanObservation.amuletPermissions(cards,cardPosture)
-    local ok,repeats,discarded,paid,spellCastingPaid=pcall(trackerPrivate.scanPayments.resolve,{
+    local ok,repeats,discarded,paid,spellCastingPaid,powered=pcall(trackerPrivate.scanPayments.resolve,{
         seatPos=seatPos,cards=cards,wounds=wounds,skills=skills,manaObjects=manaObjects,
         footprints=footprints,placements=placements,trackerPrivate=trackerPrivate,
         resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
@@ -5517,7 +5501,7 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly,stormProbe
     })
     combatConfig.amuletMana=previous
     if not ok then error(repeats,0) end
-    return repeats,discarded,paid,spellCastingPaid
+    return repeats,discarded,paid,spellCastingPaid,powered
 end
 
 -- Offer browsers use the same allocation as the calculator, not a cached
@@ -5525,8 +5509,9 @@ end
 -- and competing overlapping cards therefore obey the ordinary payment rules.
 function resourceCardsBrowserSpellValid(seatPos,guid)
     if seatPos==nil or guid==nil then return false end
-    local _,discarded,_,spellCastingPaid=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
-    return discarded[guid]==nil and spellCastingPaid[guid]==true
+    local _,discarded,_,spellCastingPaid,powered=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
+    local valid=discarded[guid]==nil and spellCastingPaid[guid]==true
+    return valid,valid and powered[guid]==true
 end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
@@ -6355,11 +6340,12 @@ end
 -- Browser payment reconciliation must run even with the tracker minimized.
 -- Limit it to play-area changes that can affect card payment allocation.
 function trackerPrivate.browserPaymentChanged(obj,seatPos)
-    if obj==nil or callOfferPaymentChanged==nil then return end
+    if obj==nil then return end
     local kind=resourceObjectKind(obj)
     if kind=="card" or kind=="skill" or kind=="mana"
         or (obj.type=="Dice" and scriptObjectId(obj)=="Mana Dice") then
-        callOfferPaymentChanged(obj.guid,seatPos)
+        if callOfferPaymentChanged~=nil then callOfferPaymentChanged(obj.guid,seatPos) end
+        if meditationPaymentChanged~=nil then meditationPaymentChanged(obj.guid,seatPos) end
     end
 end
 

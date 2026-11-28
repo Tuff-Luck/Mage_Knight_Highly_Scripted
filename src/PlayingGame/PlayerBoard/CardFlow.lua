@@ -1055,7 +1055,7 @@ function dealStartingHandsWhenReady()
 	end)
 end
 
---Meditation / Trance card smarts. Top/Bot starts as Meditation; adding discard cards to the Deed Deck tells the script Trance was powered.
+--Meditation / Trance card smarts. Actual casting payment determines the available side.
 meditationTranceCardGUID="2eb8d0"
 local function meditationPlayerIndex(card)
 	if card==nil then return nil end
@@ -1064,6 +1064,11 @@ local function meditationPlayerIndex(card)
 		if area~=nil then for _, obj in pairs(area.getObjects()) do if obj.guid==card.guid then return playerIndex end end end
 	end
 	return nil
+end
+
+local function meditationCastSide(playerIndex,card)
+    if playerIndex==nil or card==nil or not cardEffectIsVertical(card) then return false,false end
+    return resourceCardsBrowserSpellValid(turnOrder[playerIndex].seatPos,card.guid)
 end
 
 local function meditationDiscardSnapshot(playerIndex)
@@ -1259,7 +1264,7 @@ local function meditationAddButtons(card, tranceReady)
 	else
 		xml[#xml+1]=createClaimButton(card.guid, "meditationTop") xml[#xml+1]=createClaimButton(card.guid, "meditationBot")
 	end
-	card.UI.setXmlTable(xml)
+	if not resourceObjectUiSameXML(resourceObjectUiXmlTable(card.UI),xml) then resourceObjectUiSetTable(card.UI,xml) end
 end
 
 local function meditationNewState(playerIndex)
@@ -1281,12 +1286,38 @@ function refreshMeditationTrance()
 	--Picking the card up can briefly move it outside the player zone. Hide its controls,
 	--but keep the resolved/unresolved state until the next turn explicitly resets it.
 	if playerIndex==nil or cardEffectIsVertical(card)==false then meditationRemoveButtons(card) return end
+	local paid,strong=meditationCastSide(playerIndex,card)
+    if not paid then meditationRemoveButtons(card) return end
 	local state=gStates.meditationTranceState
 	if state==nil or state.player~=playerIndex then gStates.meditationTranceState=meditationNewState(playerIndex) state=gStates.meditationTranceState end
 	if state.resolved==true then meditationRemoveButtons(card) return end
-	if state.mode=="trance" then
-		if #state.accepted>=(state.required or 2) then meditationAddButtons(card, true) else meditationRemoveButtons(card) end
-	else meditationAddButtons(card, false) end
+    if strong then
+        state.mode="trance"
+        if #state.accepted>=(state.required or 2) then meditationAddButtons(card,true) else meditationRemoveButtons(card) end
+    elseif #state.accepted==0 then
+        state.mode="waiting"
+        meditationAddButtons(card,false)
+    else
+        -- Do not turn already chosen Trance cards into a random basic cast.
+        meditationRemoveButtons(card)
+    end
+end
+
+-- The shared payment-change path also runs when the Resource Tracker is closed.
+function meditationPaymentChanged(movedGUID,seatPos)
+    if gStates==nil or gStates.firstStarted~=true then return end
+    local player=turnOrder~=nil and turnOrder[gStates.turnNumber] or nil
+    if player==nil or player.endCalled==true or (seatPos~=nil and seatPos~=player.seatPos) then return end
+    local card=getObjectFromGUID(meditationTranceCardGUID)
+    if card==nil or (gStates.meditationTranceState==nil
+        and not objectGUIDInZone(card.guid,playerPlayAreas[player.seatPos])) then return end
+    safeWaitFrames("PlayerBoard.CardFlow",function()
+        safeWaitCondition("PlayerBoard.CardFlow",refreshMeditationTrance,function()
+            local moved=movedGUID~=nil and getObjectFromGUID(movedGUID) or nil
+            return moved==nil or ((moved.held_by_color==nil or moved.held_by_color=="")
+                and not moved.isSmoothMoving() and (moved.type=="Dice" or moved.resting==true))
+        end,8)
+    end,3)
 end
 
 local function meditationContainerIsDeedDeck(container, playerIndex)
@@ -1301,7 +1332,8 @@ end
 local function meditationAcceptTranceCard(cardGUID)
 	local state=gStates.meditationTranceState
 	if state==nil or state.resolved==true or #state.accepted>=(state.required or 2) or state.discard==nil or state.discard[cardGUID]~=true or (state.acceptedSet~=nil and state.acceptedSet[cardGUID]==true) then return false end
-	if (state.required or 0)<1 then return false end
+	local paid,strong=meditationCastSide(state.player,getObjectFromGUID(meditationTranceCardGUID))
+	if not paid or not strong or (state.required or 0)<1 then return false end
 	if state.acceptedSet==nil then state.acceptedSet={} end
 	state.mode="trance" state.accepted[#state.accepted+1]=cardGUID state.acceptedSet[cardGUID]=true
 	broadcastToAll(joinLang({"{en}Trance Card Accepted ({it}Carta Trance Accettata ({ru}Карта Транса принята ({zh-tw}已接受入定卡（{zh-cn}已接受入定卡（{ko}트랜스 카드 승인 ({es}Carta de Trance aceptada ({fr}Carte de Transe acceptée ({pt-br}Carta de Transe aceita ({de}Trance-Karte akzeptiert (",#state.accepted,"/",state.required,")"}), positionToColor(state.player))
@@ -1401,6 +1433,9 @@ local function meditationResolve(destination, buttonPlayerColor)
 	local state=gStates.meditationTranceState
 	if state==nil or state.player~=playerIndex then refreshMeditationTrance() state=gStates.meditationTranceState end
 	if state==nil or state.resolved==true then return end
+    local paid,strong=meditationCastSide(playerIndex,card)
+    if not paid or (strong and state.mode~="trance")
+        or (not strong and state.mode=="trance") then return end
 	if state.mode=="trance" then
 		local required=state.required or math.min(2,#state.accepted)
 		if #state.accepted<required then broadcastToAll(joinLang({"{en}Trance: add {it}Trance: aggiungi prima altre {ru}Транс: сначала добавьте ещё {zh-tw}入定：請先從棄牌堆再加入 {zh-cn}入定：请先从弃牌堆再加入 {ko}트랜스: 먼저 버린 카드 더미에서 {es}Trance: añade primero {fr}Transe : ajoutez d'abord {pt-br}Transe: primeiro adicione {de}Trance: Lege zuerst noch ",required-#state.accepted,"{en} more chosen card(s) from your discard pile to your Deed deck first.{it} carte scelte dagli scarti al mazzo Gesta.{ru} выбранных карт из сброса в Колоду деяний.{zh-tw} 張選定的卡到行動牌庫。{zh-cn} 张选定的卡到行动牌库。{ko}장의 선택한 카드를 행동 덱에 추가하세요.{es} carta(s) elegida(s) de tu descarte a tu mazo de Proezas.{fr} carte(s) choisie(s) de votre défausse dans votre paquet d'Actions.{pt-br} carta(s) escolhida(s) do descarte ao seu Baralho de Façanhas.{de} ausgewählte Karte(n) aus deinem Ablagestapel in dein Handlungskartendeck."}), positionToColor(playerIndex)) return end

@@ -11,6 +11,7 @@ local function section(content,a,b)
     local finish=assert(content:find(b,start+#a,true),"missing "..b)
     return content:sub(start,finish-1)
 end
+dofile("src/PlayingGame/Interface/UIAssets.lua")
 local rec=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
 local actionLinks=read("src/PlayingGame/PlayerBoard/ResourceTracker/Cards/ActionLinks.lua")
@@ -95,26 +96,28 @@ do
     local button=assert(load(toggleSource.."\nreturn trackerPrivate.artifactBreakButton",
         "artifact toggle display","t",testEnv))()
     local normal=button(card,"0 0 180","-35")
-    assert(normal.attributes.position=="0 140 -35" and normal.value=="THROW",
-        "THROW must sit below the card text")
-    assert(normal.attributes.height==74 and normal.attributes.width==220,
-        "Artifact button must be about four-fifths the previous height")
-    assert(normal.attributes.padding=="18 18 9 9",
-        "Artifact button text needs interior padding")
-    assert(normal.attributes.font=="Fonts/MKCardText"
-        and normal.attributes.resizeTextForBestFit=="true"
-        and normal.attributes.resizeTextMinSize==26
-        and normal.attributes.resizeTextMaxSize==58,
-        "Artifact button text must use shrinking MKCardText")
+    local function caption(button) return button.children[2].children[1].attributes end
+    assert(normal.attributes.position=="-90 140 -35" and caption(normal).text=="THROW",
+        "THROW must sit at the bottom right")
+    assert(normal.attributes.height==150 and normal.attributes.width==250
+        and math.abs(tonumber(normal.attributes.scale:match("^%S+"))-0.32*2/3)<0.00001,
+        "Artifact and spell buttons must share the reduced fixed size")
+    assert(normal.children[1].attributes.image=="Sliced Button/Button Object Active"
+        and caption(normal).resizeTextForBestFit=="true",
+        "Use the spell artwork and fit the caption")
     selected=true
     local strong=button(card,"0 0 180","-35")
-    assert(strong.attributes.position=="0 -140 -35" and strong.value=="RECOVER",
+    assert(strong.attributes.position=="0 -140 -35" and caption(strong).text=="RECOVER",
         "RECOVER must sit above the artwork")
     testEnv.combatEnemyInPlay=true
     selected=false
     local waiting=button(card,"0 0 180","-35")
-    assert(waiting.attributes.position=="0 140 -35" and waiting.value=="WAIT",
-        "Blocked THROW must stay at the lower edge")
+    assert(waiting.attributes.position=="-90 140 -35" and caption(waiting).text=="WAIT",
+        "Blocked THROW must stay at the lower right")
+    local draw=createOutsideCardButton("draw","global/cureDrawOne","Draw 1","155 -110 -10")
+    assert(draw.attributes.width==normal.attributes.width and draw.attributes.height==normal.attributes.height
+        and draw.attributes.scale==normal.attributes.scale and caption(draw).resizeTextForBestFit=="true",
+        "Long captions must not resize the shared button")
 end
 
 -- Raise each new Artifact option/target by half its rendered height, without
