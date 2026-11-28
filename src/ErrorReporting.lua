@@ -5,13 +5,13 @@ local automaticLuaErrorSignatures={}
 local automaticLuaErrorBreadcrumbs={}
 local automaticLuaErrorBreadcrumbLimit=10
 local automaticLuaErrorURL="https://script.google.com/macros/s/AKfycbzU1dSg2mafsUbUTNqOHce0cdWId2I8fkYiNO1JUgG73wtV9E2DCvm7uZ02bXviO-vnFw/exec"
-local automaticLuaErrorReporterVersion="473"
+local automaticLuaErrorReporterVersion="474"
 
 -- Per-script-session wall-clock timestamps. They are deliberately not saved:
 -- onLoad / rewind creates a new TTS script session. Keep these helpers together
 -- to avoid consuming extra chunk-level locals in the bundled Global script.
 local automaticLuaErrorSession={
-	modLoadedAt=os.time(),lastSaveAt=nil,
+	modLoadedAt=os.time(),lastSaveAt=nil,saveTrail={},
 	utcTimestamp=function(timestamp)
 		return os.date("!%Y-%m-%d %H:%M:%S UTC",timestamp)
 	end,
@@ -28,6 +28,7 @@ local automaticLuaErrorSession={
 function automaticLuaRecordModLoad()
 	automaticLuaErrorSession.modLoadedAt=os.time()
 	automaticLuaErrorSession.lastSaveAt=nil
+	automaticLuaErrorSession.saveTrail={}
 	automaticLuaErrorSession.loadStage="onLoad entered"
 end
 -- An incomplete load retains its final stage until a new load starts.
@@ -44,6 +45,11 @@ function automaticLuaLoadStageContext()
 end
 function automaticLuaRecordModSave()
 	automaticLuaErrorSession.lastSaveAt=os.time()
+	local trail=automaticLuaErrorSession.saveTrail
+	local state=type(gStates)=="table" and gStates or {}
+	trail[#trail+1]=automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.lastSaveAt)
+		.." round="..tostring(state.currentRound).." turn="..tostring(state.turnNumber)
+	if #trail>8 then table.remove(trail,1) end
 end
 
 -- Automatic Lua error reporting, protected callback helpers and diagnostic context builders.
@@ -333,6 +339,11 @@ local function reportAutomaticLuaError(functionName, errorText, context, heading
 	if automaticLuaErrorSession.lastSaveAt~=nil then
 		comment=comment.."\nLast onSave (UTC): "..automaticLuaErrorSession.utcTimestamp(automaticLuaErrorSession.lastSaveAt)
 			.."\nTime since onSave: "..tostring(math.max(0,math.floor(now-automaticLuaErrorSession.lastSaveAt))).."s"
+	end
+	if functionName=="protectedObjectDestroyAudit" or functionName=="protectedTurnOrderTurnCommitted" then
+		comment=comment.."\n"..automaticLuaLoadStageContext()
+			.."\nRecent onSave events (current script session):\n"
+			..(#automaticLuaErrorSession.saveTrail>0 and table.concat(automaticLuaErrorSession.saveTrail,"\n") or "none")
 	end
 	if context~=nil and context~="" then comment=comment.."\n"..tostring(context) end
 	local breadcrumbs=automaticLuaBreadcrumbText()
