@@ -4322,7 +4322,7 @@ combatConfig.refreshCureDrawButton=function(card,allowed)
         if node.attributes~=nil and node.attributes.id==id then index=i break end
     end
     if allowed and index==nil then
-        local button=createClaimButton(card.guid,"cureDraw",id)
+        local button=createClaimButton(card.guid,"cureDraw")
         xml[#xml+1]=button
         resourceObjectUiSetTable(card.UI,xml)
         safeBroadcastToColor("Cure: use Draw 1 for each Wound healed from your hand this turn, even before casting Cure. Ready every Unit healed this turn by returning its Command token to the ready slot.",
@@ -5510,8 +5510,9 @@ end
 function resourceCardsBrowserSpellValid(seatPos,guid)
     if seatPos==nil or guid==nil then return false end
     local _,discarded,_,spellCastingPaid,powered=trackerPrivate.physicalActionLinkSnapshot(seatPos,false)
-    local valid=discarded[guid]==nil and spellCastingPaid[guid]==true
-    return valid,valid and powered[guid]==true
+    local valid=discarded~=nil and spellCastingPaid~=nil
+        and discarded[guid]==nil and spellCastingPaid[guid]==true
+    return valid,valid and powered~=nil and powered[guid]==true
 end
 
 -- Physical Skill GUIDs, not translated text, determine available resources.
@@ -5780,11 +5781,11 @@ local function renderSeat(seatPos)
     local function paidManaChoices(guid,rule,strong,boost,repeatLink)
         local freeSide
         if magicTalentOfferCastSide~=nil then freeSide=magicTalentOfferCastSide(seatPos,guid) end
-        repeatLink=repeatLink or repeatByTarget[guid]
+        repeatLink=repeatLink or (repeatByTarget~=nil and repeatByTarget[guid] or nil)
         local granted=freeSide~=nil or repeatLink~=nil
-        local needPower=not granted and powered[guid]==true and boost==nil
+        local needPower=not granted and powered~=nil and powered[guid]==true and boost==nil
         local spec=granted and {colors=rule.effectManaChoice.colors} or rule.effectManaChoice
-        local candidates=effectManaByCard[guid] or {}
+        local candidates=(effectManaByCard~=nil and effectManaByCard[guid]) or {}
         local goldAllowed=resourceCardsGoldAllowed()
         -- Direct and borrowed repeats share the same independent printed
         -- effect payments. Maximal Effect itself supplies the copied side.

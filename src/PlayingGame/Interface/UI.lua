@@ -2986,6 +2986,7 @@ function createClaimButton(objGUID, source, controlID)
 	end
 	-- A small confirmed draw helper for Cure, distinct from generic Draw Hand.
     if source=="cureDraw" then
+        controlID=controlID or "ResourceCardChoice_CureDraw"
         outside=true
         position="155 -110 -10"
         onClick="global/cureDrawOne"
