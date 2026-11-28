@@ -73944,13 +73944,17 @@ local SCALE_CONTROL_UI={
     scopeSpacing=1.20,       -- Up <-> Cards/All centre spacing
     arrowScale=0.08,
     percentScale=0.08,
-    scopeScale=0.08,
+    scopeScale=0.04,        -- larger logical canvas, thinner rendered bevel
+    scopeWidth=260,
+    scopeHeight=180,
     arrowWidth=90,
     arrowHeight=90,
     boxWidth=130,
     boxHeight=90,
     percentFontSize=36,
-    scopeFontSize=36,
+    scopeFontSize=72,
+    scopeMinFontSize=52,
+    disabledArrowTint="#909090",
 }
 
 local playAreaScaleWait={}
@@ -74224,11 +74228,32 @@ local function playAreaScaleCanEdit(seat,playerColor)
     return legalPlayerCheck(playerColor,gStates.handColors[hand.getValue()],"NoDummyException")==true
 end
 
+-- Use the recessed arrow artwork and a muted tint at either adjustment limit.
+local function playAreaScaleArrowAppearance(direction,enabled)
+    local raised="Overkill "..direction
+    return enabled and raised or raised.." Deactive",
+        enabled and "#FFFFFF" or SCALE_CONTROL_UI.disabledArrowTint
+end
+
 local function playAreaScaleUpdateLabels(board,seat)
     local setting=playAreaScaleSettings(seat)
     local prefix=playAreaScaleControlPrefix(seat)
     board.UI.setAttribute(prefix.."PercentText","text",tostring(setting.step*5).."%")
     board.UI.setAttribute(prefix.."ScopeText","text",setting.scope)
+    for _,direction in ipairs({"Down","Up"}) do
+        local enabled=(direction=="Down" and setting.step>12) or (direction=="Up" and setting.step<20)
+        local id=prefix.."Overkill"..direction
+        local current=board.UI.getAttribute(id,"interactable")
+        -- Only change artwork when availability changes; an ordinary click
+        -- must not interrupt the shared pressed/released animation.
+        if tostring(current)~=tostring(enabled) then
+            if buttonImageResetGeneration~=nil then buttonImageResetGeneration[id]=nil end
+            local image,tint=playAreaScaleArrowAppearance(direction,enabled)
+            board.UI.setAttribute(id,"interactable",tostring(enabled))
+            board.UI.setAttribute(id.."Image","image",image)
+            board.UI.setAttribute(id.."Image","color",tint)
+        end
+    end
 end
 
 local function playAreaScaleChange(player,mouseButton,id,delta,scopeToggle)
@@ -74301,13 +74326,18 @@ local function playAreaScaleBoardButtons(board,seat)
     local function uiScale(value)
         return string.format("%.3f %.3f",value,value)
     end
-    local function imageButton(id,callback,image,offset,width,height,scale)
+    local function imageButton(id,callback,image,offset,width,height,scale,enabled)
         local arrow=image=="Overkill Down" or image=="Overkill Up"
         local suffix=arrow and "Overkill" or ""
         local imageAttributes={id=id.."Image",image=image}
-        if not arrow then imageAttributes.type="Sliced" end
+        if arrow then
+            imageAttributes.image,imageAttributes.color=playAreaScaleArrowAppearance(
+                image=="Overkill Down" and "Down" or "Up",enabled~=false)
+        else
+            imageAttributes.type="Sliced"
+        end
         return {tag="Button",attributes={
-            id=id,onClick="global/"..callback,
+            id=id,onClick="global/"..callback,interactable=tostring(enabled~=false),
             onMouseDown="global/ButtonClickDown"..suffix,onMouseUp="global/ButtonClickUp"..suffix,
             height=height,width=width,position=uiPosition(offset),
             rotation="0 0 180",scale=uiScale(scale),
@@ -74323,7 +74353,7 @@ local function playAreaScaleBoardButtons(board,seat)
     local setting=playAreaScaleSettings(seat)
     local items={
         imageButton(prefix.."OverkillDown","playAreaScaleDown","Overkill Down",
-            downX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
+            downX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale,setting.step>12),
         {tag="Image",attributes={id=prefix.."PercentPanel",image="Overkill Text",
             height=ui.boxHeight,width=ui.boxWidth,position=uiPosition(percentX),
             rotation="0 0 180",scale=uiScale(ui.percentScale)},
@@ -74332,15 +74362,15 @@ local function playAreaScaleBoardButtons(board,seat)
                 fontSize=ui.percentFontSize,fontStyle="Bold",
                 color="rgb(0,0,0)",alignment="MiddleCenter"}}}},
         imageButton(prefix.."OverkillUp","playAreaScaleUp","Overkill Up",
-            upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale),
+            upX,ui.arrowWidth,ui.arrowHeight,ui.arrowScale,setting.step<20),
         imageButton(prefix.."Scope","playAreaScaleScope","Sliced Button/Button Object Active",
-            scopeX,ui.boxWidth,ui.boxHeight,ui.scopeScale)
+            scopeX,ui.scopeWidth,ui.scopeHeight,ui.scopeScale)
     }
     items[4].children[#items[4].children+1]={tag="Text",attributes={
         id=prefix.."ScopeText",text=setting.scope,font="Fonts/MKCardText",
         fontSize=ui.scopeFontSize,fontStyle="Normal",
         color="rgb(0,0,0)",alignment="MiddleCenter",
-        resizeTextForBestFit="true",resizeTextMinSize=26,
+        resizeTextForBestFit="true",resizeTextMinSize=ui.scopeMinFontSize,
         resizeTextMaxSize=ui.scopeFontSize
     }}
 
