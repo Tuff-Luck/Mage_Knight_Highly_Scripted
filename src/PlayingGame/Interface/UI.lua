@@ -2655,14 +2655,25 @@ function refreshResourceTracker()
 end
 local function legacyObjectButtonImage(id,image)
 	if id==nil then return false end
-	local obj=getObjectFromGUID(tostring(id):sub(1,6))
+	id=tostring(id)
+	-- Card Action Buttons keep their gameplay IDs. Tracker controls put the
+	-- card GUID after a prefix; Cure uses a fixed control ID.
+	local guid=id:match("^ResourceCardChoice_([0-9a-f]+)_")
+		or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
+		or (id=="ResourceCardChoice_CureDraw" and "47e71c")
+		or id:sub(1,6)
+	local obj=getObjectFromGUID(guid)
 	if obj==nil then return false end
-	obj.UI.setAttribute(tostring(id).."Image","image",image)
+	local imageID=id.."Image"
+	-- A gameplay click can replace/remove the control before mouse-up.
+	local current=obj.UI.getAttribute(imageID,"image")
+	if current==nil or current=="" then return false end
+	obj.UI.setAttribute(imageID,"image",image)
 	return true
 end
 
---Some permanent object UIs (notably the Artifact deck) are stored on the object itself and
---still call these handlers. They were lost when the common animation helper was consolidated.
+-- Permanent object UIs and shared Card Action Buttons use explicit pressed
+-- and released artwork, rather than toggling an image based on its last state.
 function ButtonClickDown(player,mouseButton,id)
 	if mouseButton~="-1" then return end
 	legacyObjectButtonImage(id,"Sliced Button/Button Object Deactive")

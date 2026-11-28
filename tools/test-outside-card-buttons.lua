@@ -44,6 +44,58 @@ assert(claimButton("cure","cureDraw","customDraw").attributes.id=="customDraw",
 assert(draw.attributes.width==top.attributes.width and draw.attributes.height==top.attributes.height
     and draw.attributes.scale==top.attributes.scale,"Draw 1 must not change shared dimensions")
 assert(draw.children[1].attributes.id==draw.attributes.id.."Image","Pressed artwork ID must match callback ID")
+-- Real mouse-down/up handlers must resolve both old GUID-first IDs and
+-- resource tracker IDs without changing the IDs used by gameplay callbacks.
+do
+    local active="Sliced Button/Button Object Active"
+    local pressed="Sliced Button/Button Object Deactive"
+    local objects={}
+    local animationEnv=setmetatable({
+        getObjectFromGUID=function(guid) return objects[guid] end
+    },{__index=_G})
+    assert(load(section(ui,"local function legacyObjectButtonImage(","buttonImageResetGeneration={}"),
+        "Object button animation","t",animationEnv))()
+    for _,entry in ipairs({
+        {"2eb8d0",top},
+        {"47e71c",draw},
+        {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_artifactBreak",
+            "global/resourceCardsArtifactBreakClicked","THROW",artifactActionButtonPosition(false,"-35"))},
+        {"085e59",createOutsideCardButton("ResourceCardChoice_085e59_grailFame",
+            "global/resourceCardsArtifactGrailFameClicked","F 0/2",sideActionButtonPosition(1,"-35"))},
+        {"123abc",createOutsideCardButton("AttackAssignmentSource_123abc_0_unitReady",
+            "global/attackAssignmentReadySourceClicked","RDY",sideActionButtonPosition(1,"-35"))}
+    }) do
+        local guid,button=entry[1],entry[2]
+        local id=button.attributes.id
+        assert(button.attributes.onMouseDown=="global/ButtonClickDown"
+            and button.attributes.onMouseUp=="global/ButtonClickUp","Use explicit down/up callbacks")
+        local image=active
+        local writes=0
+        objects[guid]={UI={
+            getAttribute=function(key,attr)
+                assert(key==id.."Image" and attr=="image")
+                return image
+            end,
+            setAttribute=function(key,attr,value)
+                assert(key==id.."Image" and attr=="image")
+                image=value
+                writes=writes+1
+            end
+        }}
+        animationEnv.ButtonClickDown(nil,"-1",id)
+        assert(image==pressed,"Mouse-down presses "..id)
+        animationEnv.ButtonClickDown(nil,"-1",id)
+        assert(image==pressed,"Repeated down must not toggle to active")
+        animationEnv.ButtonClickUp(nil,"-1",id)
+        assert(image==active,"Mouse-up releases "..id)
+        animationEnv.ButtonClickUp(nil,"-1",id)
+        assert(image==active,"Repeated up must not toggle to pressed")
+        image=nil
+        local previous=writes
+        animationEnv.ButtonClickUp(nil,"-1",id)
+        assert(writes==previous,"Removed control must not receive a stale image write")
+    end
+end
 assert(draw.children[2].children[1].attributes.resizeTextForBestFit=="true","Fit long labels")
 assert(draw.attributes.position==sideActionButtonPosition(1)
     and top.attributes.position==sideActionButtonPosition(1),

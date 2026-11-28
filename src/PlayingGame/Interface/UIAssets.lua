@@ -258,7 +258,7 @@ end
 function createOutsideCardButton(id,callback,label,position,rotation,tint)
     return {tag="Button",attributes={
         id=id,onClick=callback,position=position,rotation=rotation or "0 0 180",
-        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+        onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
         width=cardActionButtonLayout.width,height=cardActionButtonLayout.height,
         scale=cardActionButtonLayout.scale},
         children={{tag="Image",attributes={id=id.."Image",
