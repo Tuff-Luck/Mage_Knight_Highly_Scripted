@@ -533,6 +533,11 @@ local function playerBoardCrookedUnderOverlaps(a,b)
 end
 
 function playerBoardSendCardUnder(card,top,finished,isCurrent)
+    -- Cleanup owns physical card movement from this boundary onwards.
+    if gStates~=nil and gStates.preEndTurn==true then
+        if finished~=nil then finished() end
+        return
+    end
     local guid,topGUID=card.guid,top.guid
     local topPosition=top.getPosition()
     local topX,topY,topZ=topPosition.x or topPosition[1],
@@ -574,7 +579,7 @@ function playerBoardSendCardUnder(card,top,finished,isCurrent)
 end
 
 local function playerBoardScheduleCrookedUnder(obj)
-    if gStates==nil or gStates.firstStarted~=true or obj==nil
+    if gStates==nil or gStates.firstStarted~=true or gStates.preEndTurn==true or obj==nil
         or obj.type~="Card" or gameCards[obj.guid]==nil
         or not playerBoardCrookedUnderRotation(obj) then return end
     local guid=obj.guid
@@ -597,6 +602,7 @@ local function playerBoardScheduleCrookedUnder(obj)
     end
     local function sample()
         if playerBoardCrookedUnderPending[guid]~=state then return end
+        if gStates==nil or gStates.preEndTurn==true then finish() return end
         state.tries=state.tries+1
         local card=getObjectFromGUID(guid)
         local seat=card~=nil and playerBoardPlayMatSeat(card) or nil
