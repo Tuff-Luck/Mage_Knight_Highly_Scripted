@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- All non-Forgemaster Spell pairs must remain registered with both faces.
 -- Run at repository root: lua5.2 tools/test-spell-catalog.lua
 local function read(path)
@@ -112,7 +113,7 @@ local paymentFunctions=between(reader,"local function resourceCardsUsesDayMana()
     "-- A powered link grants a target Action card")
 local payment=assert(load([[
 local gameCards={spell={cardType="Spell",color={"Blue"}}}
-local trackerPrivate={renderCombatNight=nil}
+local trackerPrivate={renderCombatNight=nil,manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")}
 local gStates={dayRound=true,turnNumber=1}
 local turnOrder={{avatarLocation="glade"}}
 ]]..paymentFunctions..[[

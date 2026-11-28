@@ -4767,57 +4767,30 @@ local function matchesCardMana(card,color)
     return false
 end
 
--- A borrowed Spell's casting payment must remain on its physical card.
--- This check also works with the Resource Tracker minimized, when its cached
--- records are deliberately cleared. A lone Black die never casts a Spell.
--- The exception is established from a normal White payment, before any
--- black/gold die can become a wildcard. Use the same highest-card policy as
--- the payment scan, and the live board when the tracker is minimized.
-function trackerPrivate.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,reserved,sideways)
-    local active=false
-    if cards==nil then
-        cards,manaObjects,footprints={},{},{}
-        local zone=seatPos~=nil and playerPlayAreas~=nil
-            and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
-        if zone~=nil then
-            for _,obj in ipairs(zone.getObjects()) do
-                if trackerPrivate.readyForXZ(obj) then
-                    local kind=resourceObjectKind(obj)
-                    if kind=="card" and (magicTalentInactivePreview==nil or not magicTalentInactivePreview(obj.guid)) then
-                        cards[#cards+1]=obj
-                        footprints[obj.guid]=footprint(obj)
-                    elseif kind=="mana" and (manaClaimDieHeld==nil or not manaClaimDieHeld(obj.guid)) then
-                        manaObjects[#manaObjects+1]=obj
+-- Resolve the ordinary payment/link state before granting any extra wildcards.
+-- Closed-tracker queries avoid a full probe when Mana Storm is not in play.
+function trackerPrivate.paymentManaColorForSeat(seatPos)
+    local zoneGUID=seatPos~=nil and playerPlayAreas~=nil and playerPlayAreas[seatPos] or nil
+    local zone=zoneGUID~=nil and getObjectFromGUID(zoneGUID) or nil
+    if zone~=nil then
+        for _,obj in ipairs(zone.getObjects()) do
+            if obj.guid=="e2b570" and obj.is_face_down~=true
+                and cardPosture(obj)=="upright" and trackerPrivate.readyForXZ(obj) then
+                if trackerPrivate.physicalActionLinkSnapshot(seatPos,false,true) then
+                    return function(mana)
+                        return trackerPrivate.manaPayments.stormColor(manaColor(mana),mana.type=="Dice",true)
                     end
                 end
+                break
             end
         end
     end
-    local storm
-    for _,card in ipairs(cards) do
-        if card.guid=="e2b570" and card.is_face_down~=true and cardPosture(card)=="upright" then
-            storm=card break
-        end
-    end
-    if storm~=nil then
-        for _,mana in ipairs(manaObjects) do
-            local color=manaColor(mana)
-            if (placements==nil or placements[mana.guid]=="play")
-                and (reserved==nil or reserved[mana.guid]==nil)
-                and (sideways==nil or sideways[mana.guid]==nil)
-                and (color=="White" or (color=="Gold" and resourceCardsGoldAllowed())) then
-                local best=trackerPrivate.manaPayments.bestManaCard(mana,cards,footprints,function(card)
-                    return card.is_face_down~=true and cardPosture(card)=="upright" and matchesCardMana(card,color)
-                end)
-                if best==storm then active=true break end
-            end
-        end
-    end
-    return function(mana)
-        return trackerPrivate.manaPayments.stormColor(manaColor(mana),mana.type=="Dice",active)
-    end
+    return manaColor
 end
 
+-- A borrowed Spell's casting payment must remain on its physical card.
+-- This check also works with the Resource Tracker minimized, when its cached
+-- records are deliberately cleared.
 function magicTalentSpellCastingPaid(seatPos,guid)
     return trackerPrivate.manaPayments.magicTalentSpellCastingPaid(seatPos,guid,
         footprint,cardPosture,trackerPrivate.paymentManaColorForSeat(seatPos),trackerPrivate.readyForXZ,matchesCardMana)
@@ -5499,7 +5472,7 @@ local resolveManaSkillLinks=trackerPrivate.skillLinks.resolveManaSkillLinks
 -- workflows. Do not publish totals, mutate play order, or restack objects.
 -- The direct-only query is also used by offer browsers to establish a
 -- parent's Maximal Effect entitlement, without re-entering that browser.
-function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
+function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly,stormProbeOnly)
     local zone=seatPos~=nil and getObjectFromGUID(playerPlayAreas[seatPos]) or nil
     local cards,wounds,skills,manaObjects,footprints,placements={},{},{},{},{},{}
     for _,obj in ipairs(zone~=nil and zone.getObjects() or {}) do
@@ -5539,7 +5512,7 @@ function trackerPrivate.physicalActionLinkSnapshot(seatPos,directOnly)
         resolveManaSkillLinks=resolveManaSkillLinks,resolveSkillCardLinks=resolveSkillCardLinks,
         cardPosture=cardPosture,matchesCardMana=matchesCardMana,manaColor=manaColor,
         effectManaPossibilities=effectManaPossibilities,resolveActionLinks=resolveActionLinks,
-        paymentManaColorForSeat=trackerPrivate.paymentManaColorForSeat,
+        manaStormEnabled=true,stormProbe=stormProbeOnly,
         linkOnly=true,directOnly=directOnly
     })
     combatConfig.amuletMana=previous
@@ -5784,17 +5757,16 @@ local function renderSeat(seatPos)
         sidewaysSkillMana,powered,usedMana,spellCastingPaid,powerManaColorsByCard,
         effectManaByCard,links,boostBy,boostSource,discarded,
         hasDiscard,linkedCardBySource,repeatByTarget,discardBoostBySource,extraTerrainManaByCard,
-        extraTerrainManaByObject=
+        extraTerrainManaByObject,paymentManaColor=
         trackerPrivate.scanPayments.resolve({
         seatPos=seatPos, cards=cards, wounds=wounds, skills=skills, manaObjects=manaObjects,
         footprints=footprints, placements=placements, unitState=unitState,
         resolveManaSkillLinks=resolveManaSkillLinks, resolveSkillCardLinks=resolveSkillCardLinks,
         trackerPrivate=trackerPrivate, cardPosture=cardPosture, matchesCardMana=matchesCardMana,
         manaColor=manaColor, effectManaPossibilities=effectManaPossibilities,
-        resolveActionLinks=resolveActionLinks, paymentManaColorForSeat=trackerPrivate.paymentManaColorForSeat,
+        resolveActionLinks=resolveActionLinks, manaStormEnabled=true,
     })
     if scanStage~=nil then scanStage=trackerPrivate.profileCheckpoint("scan.payments",scanStage) end
-    local paymentManaColor=trackerPrivate.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,manaByObject,sidewaysSkillMana)
     local current,records,totals={}, {}, {}
     local usesCurrentHexBlock=false
     local usesCurrentHexHealing=false

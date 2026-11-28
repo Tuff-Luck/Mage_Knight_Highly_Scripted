@@ -40,7 +40,7 @@ env.require=function(name)
 end
 assert(load(table.concat({
     section('local manaColor=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").manaColor','factionRewardForObject=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").factionRewardForObject'),
-    section("function magicTalentSpellCastingPaid(","-- A powered link grants"),
+    section("function trackerPrivate.paymentManaColorForSeat(","-- A powered link grants"),
     section("function resourceCardsMaximalEffectSourceManaGUIDs(","-- One shared linked-throw decision")
 },"\n"),"Zone-bound mana","t",env))()
 local function check(n)

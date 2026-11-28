@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Actual observation and payment passes: shallow-zone membership is authoritative.
 local root="src/PlayingGame/PlayerBoard/ResourceTracker/"
 local function eq(a,b,label) assert(a==b,label..": expected "..tostring(b)..", got "..tostring(a)) end
@@ -158,3 +159,83 @@ eq(repeats.pure.count,3,"Face-up paid target still eligible for basic repetition
 eq(#effectPayments.pure,3,"All Blue mana are effect selections, not power")
 eq(powers.pure,nil,"Target power is superseded by repeat")
 print("Direct repeated effect mana scan regressions passed")
+
+-- Full allocation, not merely the colour helper: prove that the exception
+-- requires a normal payment, respects card posture and cannot bootstrap itself.
+local storm={guid="e2b570",getPosition=function() return {0,1,0} end}
+local target={guid="stormTarget",getPosition=function() return {3,1,0} end}
+local focus={guid="focus",getPosition=function() return {-2,1,0} end}
+local white=token("white","White",0)
+local goldDie=token("goldDie","Gold",3)
+goldDie.type="Dice"
+local blackDie=token("blackDie","Black",3)
+blackDie.type="Dice"
+local goldCrystal=token("goldCrystal","Gold",3)
+goldCrystal.type="Figurine"
+local blackCrystal=token("blackCrystal","Black",3)
+blackCrystal.type="Figurine"
+local selfBlack=token("selfBlack","Black",0)
+selfBlack.type="Dice"
+local selfGold=token("selfGold","Gold",0)
+selfGold.type="Dice"
+local green=token("green","Green",-2)
+env.gameCards.e2b570={cardType="Advanced Action",color={"White"}}
+env.gameCards.stormTarget={cardType="Starting",color={"Red"}}
+env.gameCards.focus={cardType="Starting",color={"Green"},resourceKey="focus"}
+env.cardResourceDefinitions.focus={poweredLink={mode="stronger"}}
+local day=false
+env.resourceCardsGoldAllowed=function() return day end
+env.resourceCardsBlackAllowed=function() return not day end
+local function scanStorm(items,withFocus)
+    local placed={}
+    for _,obj in ipairs(items) do placed[obj.guid]="play" end
+    local stormCards={storm,target}
+    if withFocus then stormCards[#stormCards+1]=focus end
+    local _,_,_,_,_,_,powers,used,_,_,_,_,boost,_,_,_,_,_,_,_,_,colorForPayment=pay.resolve({
+        seatPos=1,cards=stormCards,wounds={},skills={},manaObjects=items,
+        footprints={e2b570={x=0,z=0,halfX=1,halfZ=1,pair="focusPair"},
+            stormTarget={x=3,z=0,halfX=1,halfZ=1},focus={x=-2,z=0,halfX=1,halfZ=1,pair="focusPair"}},
+        placements=placed,trackerPrivate=tracker, manaStormEnabled=true,
+        resolveManaSkillLinks=function() return {},{},{} end,
+        resolveSkillCardLinks=function() return {},{},{} end,
+        cardPosture=function(obj) return obj.posture or "upright" end,
+        matchesCardMana=function(obj,color)
+            local required=env.gameCards[obj.guid].color[1]
+            return color==required or (color=="Gold" and day)
+                or (obj.guid~="e2b570" and realMana.wildcard(color,false))
+        end,
+        manaColor=function(obj) return obj.color end,
+        effectManaPossibilities=realMana.effectManaPossibilities, resolveActionLinks=realLinks
+    })
+    return powers,used,boost,colorForPayment
+end
+local powers,used,_,color=scanStorm({white,goldDie,blackDie,goldCrystal,blackCrystal})
+eq(powers.e2b570,true,"White powers Mana Storm")
+eq(powers.stormTarget,true,"Dice power basic target at night")
+eq(used.goldDie,"stormTarget","Night Gold die is a wildcard")
+eq(used.blackDie,"stormTarget","Night Black die is a wildcard")
+eq(used.goldCrystal,nil,"Night Gold figurine is not a wildcard")
+eq(used.blackCrystal,nil,"Night Black figurine is not a wildcard")
+eq(color(goldDie),"StormGold","Shared scan color for Unit payment")
+powers,used=scanStorm({selfBlack,selfGold,blackDie})
+eq(powers.e2b570,nil,"Night dice cannot bootstrap Mana Storm")
+eq(powers.stormTarget,nil,"Unpowered Mana Storm grants no wildcard")
+storm.posture="sideways"
+powers,used=scanStorm({white,blackDie})
+eq(powers.stormTarget,nil,"Sideways Mana Storm grants no wildcard")
+storm.posture=nil
+storm.is_face_down=true
+powers,used=scanStorm({white,blackDie})
+eq(powers.stormTarget,nil,"Face-down Mana Storm grants no wildcard")
+storm.is_face_down=false
+day=true
+powers,used=scanStorm({selfGold,blackDie,blackCrystal})
+eq(powers.e2b570,true,"Ordinary daytime Gold can activate Mana Storm")
+eq(used.blackDie,"stormTarget","Daytime Black die pays a basic colour")
+eq(used.blackCrystal,nil,"Daytime Black figurine is not a wildcard")
+day=false
+local boost
+powers,used,boost=scanStorm({green,blackDie},true)
+assert(boost.e2b570~=nil,"Powered stronger-side link grants Mana Storm")
+eq(used.blackDie,"stormTarget","Granted stronger side enables dice")
+print("Mana Storm physical payment and activation regressions passed")

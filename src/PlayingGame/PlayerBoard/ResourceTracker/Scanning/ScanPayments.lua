@@ -38,16 +38,38 @@ function M.resolve(context)
             end
         end
     end
+    -- Probe with ordinary rules only when Mana Storm is physically upright.
+    -- This reuses the real allocation and stronger-link resolver, including
+    -- Conversion, Concentration/Will Focus and a granted stronger side.
+    local stormActive,stormProtected=false,{}
+    if context.manaStormEnabled and not context.stormProbe then
+        for _,card in ipairs(cards) do
+            if card.guid=="e2b570" and card.is_face_down~=true and cardPosture(card)=="upright" then
+                local probe={}
+                for key,value in pairs(context) do probe[key]=value end
+                probe.stormProbe=true
+                probe.linkOnly=true
+                stormActive,stormProtected=M.resolve(probe)
+                break
+            end
+        end
+    end
+    local paymentColor=manaColor
+    if stormActive then
+        paymentColor=function(mana)
+            return payment.stormColor(manaColor(mana),mana.type=="Dice",true)
+        end
+    end
     local manaByObject,manaBySkill,manaByCard=
         resolveManaSkillLinks(skills,manaObjects,cards,footprints,placements)
-    local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
-        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState)
-    local paymentColor=manaColor
-    if context.paymentManaColorForSeat~=nil then
-        paymentColor=context.paymentManaColorForSeat(seatPos,cards,manaObjects,footprints,placements,manaByObject,sidewaysSkillMana)
-        skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
-            resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,manaByObject,unitState,paymentColor)
+    local skillReserved=manaByObject
+    if stormActive and next(stormProtected)~=nil then
+        skillReserved={}
+        for guid,link in pairs(manaByObject) do skillReserved[guid]=link end
+        for guid in pairs(stormProtected) do skillReserved[guid]=true end
     end
+    local skillLinksByTarget,skillLinksBySkill,sidewaysSkillMana=
+        resolveSkillCardLinks(skills,skillTargets,footprints,manaObjects,placements,skillReserved,unitState,paymentColor)
     local function colorForCard(mana,card)
         if card.guid=="e2b570" then return manaColor(mana) end
         return paymentColor(mana)
@@ -184,6 +206,25 @@ function M.resolve(context)
     local links,boostBy,boostSource,discarded,hasDiscard,linkedCardBySource,
         repeatByTarget,discardBoostBySource=
         resolveActionLinks(cards,wounds,footprints,powered,skillLinksByTarget,borrowedRepeats)
+    if context.stormProbe then
+        local active=false
+        for _,card in ipairs(cards) do
+            if card.guid=="e2b570" and card.is_face_down~=true and cardPosture(card)=="upright"
+                and discarded[card.guid]==nil then
+                active=powered[card.guid]==true or boostBy[card.guid]~=nil
+                break
+            end
+        end
+        local protected={}
+        if active then
+            for manaGUID,cardGUID in pairs(usedMana) do
+                if cardGUID=="e2b570" or cardGUID==boostSource["e2b570"] then
+                    protected[manaGUID]=true
+                end
+            end
+        end
+        return active,protected
+    end
     if context.linkOnly then return repeatByTarget,discarded,hasDiscard end
     -- A direct Maximal Effect target can be face down. Its printed effect
     -- mana remains payable even though ordinary card power is forbidden.
@@ -225,7 +266,7 @@ function M.resolve(context)
                 local data=gameCards[card.guid]
                 local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
                 local spec=rule~=nil and rule.extraTerrainMana or nil
-                return spec~=nil and payment.basicPayment(color,spec.color,resourceCardsGoldAllowed())
+                return spec~=nil and payment.basicPayment(color,spec.color,false)
                     and extraTerrainManaByCard[card.guid]==nil
                     and (not spec.poweredOnly or powered[card.guid]==true or boostBy[card.guid]~=nil)
                     and card.is_face_down~=true and cardPosture(card)=="upright"
@@ -237,7 +278,7 @@ function M.resolve(context)
             end
         end
     end
-    return manaByObject, manaBySkill, manaByCard, skillLinksByTarget, skillLinksBySkill, sidewaysSkillMana, powered, usedMana, spellCastingPaid, powerManaColorsByCard, effectManaByCard, links, boostBy, boostSource, discarded, hasDiscard, linkedCardBySource, repeatByTarget, discardBoostBySource, extraTerrainManaByCard, extraTerrainManaByObject
+    return manaByObject, manaBySkill, manaByCard, skillLinksByTarget, skillLinksBySkill, sidewaysSkillMana, powered, usedMana, spellCastingPaid, powerManaColorsByCard, effectManaByCard, links, boostBy, boostSource, discarded, hasDiscard, linkedCardBySource, repeatByTarget, discardBoostBySource, extraTerrainManaByCard, extraTerrainManaByObject, paymentColor
 end
 
 return M

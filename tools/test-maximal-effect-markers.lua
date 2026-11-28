@@ -89,6 +89,7 @@ local env={
 }
 setmetatable(env,{__index=_G})
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
+package.path="src/?.lua;"..package.path
 -- Exercise the actual shared read-only payment/link snapshot.
 env.trackerPrivate.scanPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanPayments.lua","t",env))()
 env.trackerPrivate.scanObservation=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ScanObservation.lua","t",env))()

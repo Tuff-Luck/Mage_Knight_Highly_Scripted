@@ -1,3 +1,4 @@
+package.path="src/?.lua;"..package.path
 -- Official Mage Knight artifact regressions (exclude fan-made expansions).
 -- Run at repository root: lua5.2 tools/test-artifact-effects.lua
 local function read(path)
@@ -131,7 +132,7 @@ local paymentSource=between(recognition,"local function resourceCardsUsesDayMana
     "-- A powered link grants a target Action card")
 local payment=assert(load([[
 local combatConfig={amuletMana={gold=false,black=false}}
-local trackerPrivate={}
+local trackerPrivate={manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")}
 local gameCards={spell={cardType="Spell",color={"Blue"}}}
 local gStates={dayRound=true,turnNumber=1}
 local turnOrder={{avatarLocation="glade"}}

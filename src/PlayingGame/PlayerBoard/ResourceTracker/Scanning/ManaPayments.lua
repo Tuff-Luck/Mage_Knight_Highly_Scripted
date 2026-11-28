@@ -282,7 +282,7 @@ local function resourceCardsTimeBendingPaid(seatPos,card,footprint,cardPosture,m
         if mana.guid~=card.guid and manaInsideFootprint(mana,area)
             and (manaClaimDieHeld==nil or not manaClaimDieHeld(mana.guid)) then
             local color=manaColor(mana)
-            if basicPayment(color,"Blue",resourceCardsGoldAllowed~=nil and resourceCardsGoldAllowed()) or blackPayment(color) then
+            if basicPayment(color,"Blue",false) or blackPayment(color) then
                 payments[#payments+1]={guid=mana.guid,color=color}
             end
         end

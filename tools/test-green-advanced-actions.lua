@@ -133,6 +133,7 @@ local function overlapArea(a,b)
         -math.max(a.x-a.halfX,b.x-b.halfX))
 end
 local function manaColor(obj) return obj.color end
+local trackerPrivate={paymentManaColorForSeat=function() return manaColor end}
 local function matchesCardMana(card,color) return card.requiredColor==color end
 local function resourceCardsPanelOpen() return tracker end
 local cardResourceDefinitions={

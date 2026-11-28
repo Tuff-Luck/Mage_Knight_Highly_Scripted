@@ -69,7 +69,7 @@ eq(#unitLayoutSnapshot(1).units,1,"Returned Unit is recovered")
 
 local reader=read("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- Unit payments require current play/Unit zone membership.
-local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly)",
+local manaCode=extract(reader,"local function unitManaCounts(unit,seatPos,source,crystalsOnly,paymentColor)",
     "local function unitAbilityPaid")
 local readyCode=extract(reader,'trackerPrivate.readyForXZ=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.PhysicalObjects").readyForXZ',
     "-- Magic Talent's strong side")
@@ -94,6 +94,7 @@ local function manaInsideFootprint(m,area)
     return math.abs(p.x-area.x)<area.halfX and math.abs(p.z-area.z)<area.halfZ
 end
 local function manaColor(obj) return obj.color end
+trackerPrivate.paymentManaColorForSeat=function() return manaColor end
 local function isManaTokenFigurine(obj) return obj.type=="Figurine" end
 ]]..readyCode.."\n"..manaCode..[[
 return unitManaCounts

@@ -58,7 +58,8 @@ equal(gStates.motivationLockBySeat[1],nil,"Out-of-turn activation unlocks after 
 local recognition=source("src/PlayingGame/PlayerBoard/CardRecognition.lua")
 -- The isolated mana helper now consults the tracker's cached combat-night
 -- state; supply the same private context that the complete module initializes.
-trackerPrivate={renderCombatNight=nil}
+package.path="src/?.lua;"..package.path
+trackerPrivate={renderCombatNight=nil,manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")}
 local manaHelpers=sliceBetween(recognition,
     "local function resourceCardsUsesDayMana()",
     "-- A powered link grants a target Action card")

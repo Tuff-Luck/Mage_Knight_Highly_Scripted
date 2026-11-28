@@ -107,6 +107,7 @@ end
 package.path="src/?.lua;"..package.path
 trackerPrivate=trackerPrivate or {}
 trackerPrivate.manaPayments=require("PlayingGame.PlayerBoard.ResourceTracker.Scanning.ManaPayments")
+trackerPrivate.paymentManaColorForSeat=function() return manaColor end
 local paid=isolated(recognition,
     "function resourceCardsTimeBendingPaid(seatPos,card)",
     "-- Physical mana is authoritative", "resourceCardsTimeBendingPaid")
