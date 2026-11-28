@@ -33,10 +33,13 @@ local env=setmetatable({
     resourceObjectUiSetTable=function(_ui,new) xml=new end
 },{__index=_G})
 assert(load(section(ui,"function createClaimButton(","-- Player colour and board presentation controls"),"claim buttons","t",env))()
-local top=env.createClaimButton(card.guid,"meditationTop")
-local draw=env.createClaimButton("cure","cureDraw")
+-- Use the actual dynamically loaded builder, not the global mock signature.
+---@type fun(objGUID: string, source: string, controlID?: string): table
+local claimButton=assert(rawget(env,"createClaimButton"))
+local top=claimButton(card.guid,"meditationTop")
+local draw=claimButton("cure","cureDraw")
 assert(draw.attributes.id=="ResourceCardChoice_CureDraw","Cure must retain its tracker control ID")
-assert(env.createClaimButton("cure","cureDraw","customDraw").attributes.id=="customDraw",
+assert(claimButton("cure","cureDraw","customDraw").attributes.id=="customDraw",
     "Explicit control ID overrides remain supported")
 assert(draw.attributes.width==top.attributes.width and draw.attributes.height==top.attributes.height
     and draw.attributes.scale==top.attributes.scale,"Draw 1 must not change shared dimensions")
