@@ -4466,10 +4466,10 @@ trackerPrivate.artifactBreakButton=function(card,uiRotation,buttonDepth)
             or key=="artifactBannerFortitude")
     local label=broken and "RECOVER" or (waitForCombat and "WAIT" or "THROW")
     -- Positive X is the screen-left side of an upright card.
-    local position=(broken and "0 -140 " or "-90 140 ")..buttonDepth
+    local position=(broken and "0 -137 " or "-77 137 ")..buttonDepth
     return createOutsideCardButton("ResourceCardChoice_"..card.guid.."_artifactBreak",
         "global/resourceCardsArtifactBreakClicked",label,position,uiRotation,
-        broken and "#E8B5AE" or (waitForCombat and "#A0A0A0" or nil))
+        (waitForCombat and "#A0A0A0") or nil)
 end
 
 -- Shift only the Artifact's newly generated option/target controls toward the
