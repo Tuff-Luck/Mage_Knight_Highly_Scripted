@@ -1,0 +1,62 @@
+-- Shared card-edge controls and actual payment gating for Meditation / Trance.
+local function read(path)
+    local f=assert(io.open(path,"r"))
+    local s=f:read("*a")
+    f:close()
+    return s
+end
+local function section(s,a,b)
+    local first=assert(s:find(a,1,true),a)
+    return s:sub(first,assert(s:find(b,first+#a,true),b)-1)
+end
+dofile("src/PlayingGame/Interface/UIAssets.lua")
+local ui=read("src/PlayingGame/Interface/UI.lua")
+local flow=read("src/PlayingGame/PlayerBoard/CardFlow.lua")
+local xml={}
+local card={guid="2eb8d0",type="Card",is_face_down=false,UI={}}
+card.getRotation=function() return {0,180,0} end
+local paid,strong=false,false
+local env=setmetatable({
+    gStates={},turnOrder={{seatPos=1}},playerPlayAreas={"play"},deedDeckDiscardZones={"discard"},
+    meditationTranceCardGUID=card.guid,
+    getObjectFromGUID=function(id)
+        if id==card.guid then return card end
+        if id=="play" then return {getObjects=function() return {card} end} end
+        if id=="discard" then return {getObjects=function() return {{guid="cost",type="Card"}} end} end
+    end,
+    cardEffectIsVertical=function(obj) return obj~=nil and not obj.is_face_down end,
+    resourceCardsBrowserSpellValid=function(_seat,_guid) return paid,strong end,
+    objectUIRemoveSuffixes=function(_card,_suffixes) xml={} end,
+    objectUIWithoutSuffixes=function(_card,_suffixes) return {} end,
+    resourceObjectUiSameXML=function(_old,_new) return false end,
+    resourceObjectUiXmlTable=function(_ui) return xml end,
+    resourceObjectUiSetTable=function(_ui,new) xml=new end
+},{__index=_G})
+assert(load(section(ui,"function createClaimButton(","-- Player colour and board presentation controls"),"claim buttons","t",env))()
+local top=env.createClaimButton(card.guid,"meditationTop")
+local draw=env.createClaimButton("cure","cureDraw","ResourceCardChoice_CureDraw")
+assert(draw.attributes.width==top.attributes.width and draw.attributes.height==top.attributes.height
+    and draw.attributes.scale==top.attributes.scale,"Draw 1 must not change shared dimensions")
+assert(draw.children[1].attributes.id==draw.attributes.id.."Image","Pressed artwork ID must match callback ID")
+assert(draw.children[2].children[1].attributes.resizeTextForBestFit=="true","Fit long labels")
+assert(load(section(flow,"local function meditationPlayerIndex(","--Card-effect controls")
+    ..section(flow,"local MEDITATION_BUTTON_SUFFIXES","local function meditationContainerIsDeedDeck"),
+    "Meditation payment gating","t",env))()
+env.refreshMeditationTrance()
+assert(#xml==0 and env.gStates.meditationTranceState==nil,"Unpaid Meditation is inert")
+paid=true
+env.refreshMeditationTrance()
+assert(#xml==2 and xml[1].attributes.id==card.guid.."meditationTop","Paid basic cast shows buttons")
+paid=false
+env.refreshMeditationTrance()
+assert(#xml==0,"Removing casting mana hides buttons")
+paid,strong=true,true
+env.refreshMeditationTrance()
+assert(#xml==0 and env.gStates.meditationTranceState.mode=="trance","Strong cast waits for chosen cards")
+env.gStates.meditationTranceState.accepted={"cost"}
+env.refreshMeditationTrance()
+assert(#xml==2 and xml[1].attributes.id==card.guid.."tranceTop","Completed paid Trance shows buttons")
+strong=false
+env.refreshMeditationTrance()
+assert(#xml==0,"Trance selection cannot resolve after losing strong payment")
+print("Outside card buttons and Meditation payment tests passed")

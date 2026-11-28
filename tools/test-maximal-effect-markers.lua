@@ -100,6 +100,8 @@ env.trackerPrivate.scanObservation=assert(loadfile("src/PlayingGame/PlayerBoard/
 env.combatConfig.amuletMana={gold=false,black=false}
 local manaPayments=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Scanning/ManaPayments.lua","t",env))()
 env.trackerPrivate.bestManaCard=manaPayments.bestManaCard
+-- No Mana Storm in this fixture; the live payment color equals physical color.
+env.trackerPrivate.paymentManaColorForSeat=function(_seat) return env.manaColor end
 env.trackerPrivate.bannerCardForm=function(_guid) return nil end
 env.resourceObjectKind=function(obj) return obj.type=="Card" and "card" or (obj.color~=nil and "mana" or nil) end
 env.resolveManaSkillLinks=function() return {},{},{} end

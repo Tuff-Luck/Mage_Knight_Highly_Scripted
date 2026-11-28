@@ -62,6 +62,8 @@ local env={
 }
 setmetatable(env,{__index=_G})
 env.trackerPrivate=env.trackerPrivate or {}
+-- These isolated zone/relocation fixtures do not run offer or spell UI.
+env.trackerPrivate.browserPaymentChanged=function(_obj,_seat) end
 env.trackerPrivate.objectEvents=assert(loadfile("src/PlayingGame/PlayerBoard/ResourceTracker/Core/ObjectEvents.lua","t",env))()
 local functions=table.concat({matCode,resetCode,zoneCode,
     "return scheduleChoiceResetAfterPlay,resourceCardsZoneEntered"},"\n")
