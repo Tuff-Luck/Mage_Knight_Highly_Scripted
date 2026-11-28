@@ -138,7 +138,7 @@ return function(deps)
             local rule=data~=nil and cardResourceDefinitions[data.resourceKey] or nil
             local requirement=rule~=nil and rule.requiredLink or nil
             local repeated=repeatByTarget[source.guid]
-            if requirement~=nil and requirement.mode=="throwAway"
+            if rule~=nil and requirement~=nil and requirement.mode=="throwAway"
                 and (discarded[source.guid]==nil or repeated~=nil)
                 and (source.is_face_down~=true or repeated~=nil)
                 and cardPosture(source)=="upright" then
