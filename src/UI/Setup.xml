@@ -47,7 +47,7 @@
 					</cell>
 					<cell rectAlignment="MiddleRight" width="198" padding="20 20 1 1">
 					</cell>
-					<Button id="Setup2Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleRight" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
+					<Button id="Setup2Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleRight" width="198" height="30" onMouseDown="ButtonClickDown" onMouseUp="ButtonClickUp">
 						<Image id="Setup2SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<VerticalLayout padding="6 6 1 1">
 							<Text id="Setup2SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Play Variants{it}Varianti di Gioco{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
@@ -87,7 +87,7 @@
 							<Text id="Setup2Text" class="Text18">{en}Play Variants{it}Varianti di Gioco{ru}Опциональные правила{zh-tw}變體玩法{zh-cn}变体玩法{ko}플레이 설정{es}Variantes de Juego{fr}Variantes de Jeu{pt-br}Variantes de Jogo{de}Spiel-Varianten</Text>
 						</VerticalLayout>
 					</cell>
-					<Button id="Setup1Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleLeft" width="198" height="30" onMouseDown="buttonClicked" onMouseUp="buttonClicked">
+					<Button id="Setup1Selection" onClick="switchSetup" offsetXY="0 3" rectAlignment="MiddleLeft" width="198" height="30" onMouseDown="ButtonClickDown" onMouseUp="ButtonClickUp">
 						<Image id="Setup1SelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 						<VerticalLayout padding="6 6 1 1">
 							<Text id="Setup1SelectionText" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en}Setup Variants{it}Varianti di Preparazione{ru}Параметры сценария{zh-tw}變體設定{zh-cn}变体设置{ko}세팅 설정{es}Variantes de Instalación{fr}Variantes d'Installation{pt-br}Variantes de Instalação{de}Setup-Varianten</Text>
@@ -690,342 +690,342 @@
 	<Panel id="DropDown" active="false" offsetXY="-100 -275" width="120" outlineSize="1 -1" scale="1">
 		<TableLayout>
 			<Row id="nobodyRow">
-				<Button id="nobodySelection" onClick="PlayerChosen">
+				<Button id="nobodySelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="nobodySelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="nobodySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}nobody{it}nessuno{ru}никто{zh-tw}無玩家{zh-cn}无玩家{ko}없음{es}ninguno{fr}personne{pt-br}ninguém{de}Niemand</Text>
 				</Button>
 			</Row>
 			<Row id="RANDOMRow">
-				<Button id="RANDOMSelection" onClick="PlayerChosen">
+				<Button id="RANDOMSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="RANDOMSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="RANDOMSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Random{it}Casuale{ru}Случайный{zh-tw}隨機{zh-cn}随机{ko}무작위{es}Aleatorio{fr}Aléatoire{pt-br}Aleatório{de}Zufällig</Text>
 				</Button>
 			</Row>
 			<Row id="AllSkillsRow">
-				<Button id="AllSkillsSelection" onClick="PlayerChosen">
+				<Button id="AllSkillsSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="AllSkillsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="AllSkillsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}All Skills{it}Tutte le Abilità{ru}Все навыки{zh-tw}所有技能{zh-cn}所有技能{ko}모든 스킬{es}Todas las Habilidades{fr}Toutes les Compétences{pt-br}Todas Habilidades{de}Alle skills</Text>
 				</Button>
 			</Row>
 			<Row id="ArytheaRow">
-				<Button id="ArytheaSelection" onClick="PlayerChosen">
+				<Button id="ArytheaSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="ArytheaSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ArytheaSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Arythea{it}Arythea{ru}Аритея{zh-tw}艾莉西亞{zh-cn}艾莉西亚{ko}아리시아{es}Arythea{fr}Arythea{pt-br}Arythea{de}Arythea</Text>
 				</Button>
 			</Row>
 			<Row id="GoldyxRow">
-				<Button id="GoldyxSelection" onClick="PlayerChosen">
+				<Button id="GoldyxSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="GoldyxSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="GoldyxSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Goldyx{it}Goldyx{ru}Голдикс{zh-tw}歌狄克斯{zh-cn}歌狄克斯{ko}골딕스{es}Goldyx{fr}Goldyx{pt-br}Goldyx{de}Goldyx</Text>
 				</Button>
 			</Row>
 			<Row id="NorowasRow">
-				<Button id="NorowasSelection" onClick="PlayerChosen">
+				<Button id="NorowasSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="NorowasSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="NorowasSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Norowas{it}Norowas{ru}Норовас{zh-tw}諾羅瓦斯{zh-cn}诺罗瓦斯{ko}노로워즈{es}Norowas{fr}Norowas{pt-br}Norowas{de}Norowas</Text>
 				</Button>
 			</Row>
 			<Row id="TovakRow">
-				<Button id="TovakSelection" onClick="PlayerChosen">
+				<Button id="TovakSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="TovakSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TovakSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Tovak{it}Tovak{ru}Товак{zh-tw}托維克{zh-cn}托维克{ko}토백{es}Tovak{fr}Tovak{pt-br}Tovak{de}Tovak</Text>
 				</Button>
 			</Row>
 			<Row id="BraevalarRow">
-				<Button id="BraevalarSelection" onClick="PlayerChosen">
+				<Button id="BraevalarSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="BraevalarSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="BraevalarSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Braevalar{it}Braevalar{ru}Бравалар{zh-tw}布雷維勒{zh-cn}布雷维勒{ko}브레이바라{es}Braevalar{fr}Braevalar{pt-br}Braevalar{de}Braevalar</Text>
 				</Button>
 			</Row>
 			<Row id="KrangRow">
-				<Button id="KrangSelection" onClick="PlayerChosen">
+				<Button id="KrangSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="KrangSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="KrangSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Krang{it}Krang{ru}Крэнг{zh-tw}朗格{zh-cn}朗格{ko}크랑{es}Krang{fr}Krang{pt-br}Krang{de}Krang</Text>
 				</Button>
 			</Row>
 			<Row id="WolfhawkRow">
-				<Button id="WolfhawkSelection" onClick="PlayerChosen">
+				<Button id="WolfhawkSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="WolfhawkSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="WolfhawkSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Wolfhawk{it}Wolfhawk{ru}Вульфхок{zh-tw}狼鷹{zh-cn}狼鹰{ko}울프호크{es}Wolfhawk{fr}Wolfhawk{pt-br}Wolfhawk{de}Wolfhawk</Text>
 				</Button>
 			</Row>
 			<Row id="CoralRow">
-				<Button id="CoralSelection" onClick="PlayerChosen">
+				<Button id="CoralSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="CoralSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="CoralSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Coral{it}Coral{ru}Коралл{zh-tw}珊瑚{zh-cn}珊瑚{ko}코랄{es}Coral{fr}Coral{pt-br}Coral{de}Coral</Text>
 				</Button>
 			</Row>
 			<Row id="JormundRow">
-				<Button id="JormundSelection" onClick="PlayerChosen">
+				<Button id="JormundSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="JormundSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="JormundSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Jormund{it}Jormund{ru}Йормунд{zh-tw}約爾蒙德{zh-cn}约尔蒙德{ko}요르문{es}Jormund{fr}Jormund{pt-br}Jormund{de}Jormund</Text>
 				</Button>
 			</Row>
 			<Row id="YmirghRow">
-				<Button id="YmirghSelection" onClick="PlayerChosen">
+				<Button id="YmirghSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="YmirghSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="YmirghSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Ymirgh{it}Ymirgh{ru}Имирх{zh-tw}伊米爾{zh-cn}伊米尔{ko}유미르{es}Ymirgh{fr}Ymirgh{pt-br}Ymirgh{de}Ymirgh</Text>
 				</Button>
 			</Row>
 			<Row id="MevokRow">
-				<Button id="MevokSelection" onClick="PlayerChosen">
+				<Button id="MevokSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="MevokSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="MevokSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Mevok{it}Mevok{ru}Мевок{zh-tw}梅沃克{zh-cn}梅沃克{ko}Mevok{es}Mevok{fr}Mevok{pt-br}Mevok{de}Mevok</Text>
 				</Button>
 			</Row>
 			<Row id="DusceniaRow">
-				<Button id="DusceniaSelection" onClick="PlayerChosen">
+				<Button id="DusceniaSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="DusceniaSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="DusceniaSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Duscenia{it}Duscenia{ru}Дусцения{zh-tw}達塞尼亞{zh-cn}达塞尼亚{ko}Duscenia{es}Duscenia{fr}Duscenia{pt-br}Duscenia{de}Duscenia</Text>
 				</Button>
 			</Row>
 			<Row id="MalekRow">
-				<Button id="MalekSelection" onClick="PlayerChosen">
+				<Button id="MalekSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="MalekSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="MalekSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Malek{it}Malek{ru}Малек{zh-tw}馬萊克{zh-cn}马莱克{ko}Malek{es}Malek{fr}Malek{pt-br}Malek{de}Malek</Text>
 				</Button>
 			</Row>
 			<Row id="ZirtaeRow">
-				<Button id="ZirtaeSelection" onClick="PlayerChosen">
+				<Button id="ZirtaeSelection" onClick="PlayerChosen" onMouseDown="" onMouseUp="">
 					<Image id="ZirtaeSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ZirtaeSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Zirtae{it}Zirtae{ru}Зиртэй{zh-tw}齊爾泰{zh-cn}齐尔泰{ko}지르테이{es}Zirtae{fr}Zirtae{pt-br}Zirtae{de}Zirtae</Text>
 				</Button>
 			</Row>
 			<Row id="DaringRow">
-				<Button id="DaringSelection" onClick="VolkareLevelSelection">
+				<Button id="DaringSelection" onClick="VolkareLevelSelection" onMouseDown="" onMouseUp="">
 					<Image id="DaringSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="DaringSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Daring{it}Audace{ru}Смельчак{zh-tw}勇者{zh-cn}勇者{ko}웅장한{es}Atrevido{fr}Audacieux{pt-br}Ousado{de}Gewagt</Text>
 				</Button>
 			</Row>
 			<Row id="HeroicRow">
-				<Button id="HeroicSelection" onClick="VolkareLevelSelection">
+				<Button id="HeroicSelection" onClick="VolkareLevelSelection" onMouseDown="" onMouseUp="">
 					<Image id="HeroicSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="HeroicSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Heroic{it}Eroico{ru}Герой{zh-tw}英雄{zh-cn}英雄{ko}영웅적{es}Heroico{fr}Héroïque{pt-br}Heróico{de}Heroisch</Text>
 				</Button>
 			</Row>
 			<Row id="LegendaryRow">
-				<Button id="LegendarySelection" onClick="VolkareLevelSelection">
+				<Button id="LegendarySelection" onClick="VolkareLevelSelection" onMouseDown="" onMouseUp="">
 					<Image id="LegendarySelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="LegendarySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Legendary{it}Leggendario{ru}Легенда{zh-tw}傳奇{zh-cn}传奇{ko}전설적{es}Legendario{fr}Légendaire{pt-br}Lendário{de}Legendär</Text>
 				</Button>
 			</Row>
 			<Row id="FairRow">
-				<Button id="FairSelection" onClick="VolkareRaceSelection">
+				<Button id="FairSelection" onClick="VolkareRaceSelection" onMouseDown="" onMouseUp="">
 					<Image id="FairSelectionImage" image="Sliced Button/Button New Active" type="Sliced"/>
 					<Text id="FairSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fair{it}Equilibrato{ru}Шаг{zh-tw}正常{zh-cn}正常{ko}평범한{es}Justo{fr}Équitable{pt-br}Justo{de}Messe</Text>
 				</Button>
 			</Row>
 			<Row id="TightRow">
-				<Button id="TightSelection" onClick="VolkareRaceSelection">
+				<Button id="TightSelection" onClick="VolkareRaceSelection" onMouseDown="" onMouseUp="">
 					<Image id="TightSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TightSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Tight{it}Serrato{ru}Рысь{zh-tw}緊急{zh-cn}紧急{ko}빠듯한{es}Apretado{fr}Serré{pt-br}Acirrado{de}Dichtes</Text>
 				</Button>
 			</Row>
 			<Row id="ThrillingRow">
-				<Button id="ThrillingSelection" onClick="VolkareRaceSelection">
+				<Button id="ThrillingSelection" onClick="VolkareRaceSelection" onMouseDown="" onMouseUp="">
 					<Image id="ThrillingSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ThrillingSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Thrilling{it}Emozionante{ru}Галоп{zh-tw}狂飆{zh-cn}狂飙{ko}스릴있는{es}Emocionante{fr}Palpitant{pt-br}Emocionante{de}Spannend</Text>
 				</Button>
 			</Row>
 			<Row id="FirstReconnaissanceRow">
-				<Button id="FirstReconnaissanceSelection" onClick="scenarioSelection">
+				<Button id="FirstReconnaissanceSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="FirstReconnaissanceSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="FirstReconnaissanceSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}First Reconnaissance{it}Prima Ricognizione{ru}Первая Вылазка{zh-tw}首次勘察{zh-cn}首次勘察{ko}첫 번째 정찰{es}Primer reconocimiento{fr}Première Reconnaissance{pt-br}Primeiro Reconhecimento{de}Blitz-Eroberung</Text>
 				</Button>
 			</Row>
 			<Row id="ConquestRow">
-				<Button id="ConquestSelection" onClick="scenarioSelection">
+				<Button id="ConquestSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="ConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Conquest{it}Conquista{ru}Завоевание{zh-tw}征服{zh-cn}征服{ko}정식 정복{es}Conquista{fr}Conquête{pt-br}Conquista{de}Eroberung</Text>
 				</Button>
 			</Row>
 			<Row id="MinesLiberationRow">
-				<Button id="MinesLiberationSelection" onClick="scenarioSelection">
+				<Button id="MinesLiberationSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="MinesLiberationSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="MinesLiberationSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Mines Liberation{it}Liberazione delle Miniere{ru}Освобождение Шахт{zh-tw}解放礦山{zh-cn}解放矿山{ko}광산 해방{es}Liberación de Minas{fr}Libération des Mines{pt-br}Liberação das MInas{de}Befreiung der Minen</Text>
 				</Button>
 			</Row>
 			<Row id="DruidNightsRow">
-				<Button id="DruidNightsSelection" onClick="scenarioSelection">
+				<Button id="DruidNightsSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="DruidNightsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="DruidNightsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Druid Nights{it}Notti Druidiche{ru}Ночи Друидов{zh-tw}德魯伊之夜{zh-cn}德鲁伊之夜{ko}드루이드의 밤{es}Noches de Druidas{fr}Nuits de Druide{pt-br}Noites Druídicas{de}Druiden Nächte</Text>
 				</Button>
 			</Row>
 			<Row id="DungeonLordsRow">
-				<Button id="DungeonLordsSelection" onClick="scenarioSelection">
+				<Button id="DungeonLordsSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="DungeonLordsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="DungeonLordsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Dungeon Lords{it}Signori dei Sotterranei{ru}Владыки Подземелий{zh-tw}地下城領主{zh-cn}地下城领主{ko}던전 로드{es}Señores de las Mazmorras{fr}Seigneurs des Donjons{pt-br}Senhores das Marmorras{de}Kerkerfürsten</Text>
 				</Button>
 			</Row>
 			<Row id="ConquerAndHoldRow">
-				<Button id="ConquerAndHoldSelection" onClick="scenarioSelection">
+				<Button id="ConquerAndHoldSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="ConquerAndHoldSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ConquerAndHoldSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Conquer and Hold{it}Conquista e Mantieni{ru}Захват и Удержание{zh-tw}征服與掌控{zh-cn}征服与掌控{ko}정복과 유지{es}Conquistar y Mantener{fr}Conquérir et Tenir{pt-br}Conquistar e Defender{de}Erobern und Halten</Text>
 				</Button>
 			</Row>
 			<Row id="OneToReturnRow">
-				<Button id="OneToReturnSelection" onClick="scenarioSelection">
+				<Button id="OneToReturnSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="OneToReturnSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="OneToReturnSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}One to Return{it}Uno Solo Tornerà{ru}Вернется только Один{zh-tw}絕地求生{zh-cn}绝地求生{ko}돌아갈 수 있는 자{es}Uno Para Volver{fr}Un Seul Revenu{pt-br}Um Para Retornar{de}Einer zum Zurückkehren</Text>
 				</Button>
 			</Row>
 			<Row id="VolkaresReturnRow">
-				<Button id="VolkaresReturnSelection" onClick="scenarioSelection">
+				<Button id="VolkaresReturnSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="VolkaresReturnSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="VolkaresReturnSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Volkare's Return{it}Il Ritorno di Volkare{ru}Возвращение Волкара{zh-tw}沃卡里的歸來{zh-cn}沃卡里的归来{ko}볼케어의 귀환{es}El Regreso de Volkare{fr}Le Retour de Volkare{pt-br}Retorno de Volkare{de}Volkare's Rückkehr</Text>
 				</Button>
 			</Row>
 			<Row id="VolkaresQuestRow">
-				<Button id="VolkaresQuestSelection" onClick="scenarioSelection">
+				<Button id="VolkaresQuestSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="VolkaresQuestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="VolkaresQuestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Volkare's Quest{it}La Missione di Volkare{ru}Поход Волкара{zh-tw}沃卡里的使命{zh-cn}沃卡里的使命{ko}볼케어의 원정{es}La Búsqueda de Volkare{fr}La Quête de Volkare{pt-br}Missão de Volkare{de}Volkare's Suche</Text>
 				</Button>
 			</Row>
 			<Row id="LifeAndDeathRow">
-				<Button id="LifeAndDeathSelection" onClick="scenarioSelection">
+				<Button id="LifeAndDeathSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="LifeAndDeathSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="LifeAndDeathSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Life and Death{it}Vita e Morte{ru}Жизнь и Смерть{zh-tw}生死之間{zh-cn}生死之间{ko}삶과 죽음{es}Vida y Muerte{fr}Vie et Mort{pt-br}Vida e Morte{de}Leben und Tod</Text>
 				</Button>
 			</Row>
 			<Row id="TheRealmOfTheDeadRow">
-				<Button id="TheRealmOfTheDeadSelection" onClick="scenarioSelection">
+				<Button id="TheRealmOfTheDeadSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheRealmOfTheDeadSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheRealmOfTheDeadSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Realm of the Dead{it}Il Regno dei Morti{ru}Царство Мертвых{zh-tw}亡靈國度{zh-cn}亡灵国度{ko}죽은 자의 왕국{es}El Reino de los Muertos{fr}Le Royaume des Morts{pt-br}O Reino dos Mortos{de}Das Reich der Toten</Text>
 				</Button>
 			</Row>
 			<Row id="TheHiddenValleyRow">
-				<Button id="TheHiddenValleySelection" onClick="scenarioSelection">
+				<Button id="TheHiddenValleySelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheHiddenValleySelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheHiddenValleySelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Hidden Valley{it}La Valle Nascosta{ru}Скрытая Долина{zh-tw}神秘幽谷{zh-cn}神秘幽谷{ko}숨겨진 계곡{es}El Valle Escondido{fr}La Vallée Cachée{pt-br}O Vale Escondido{de}Das verborgene Tal</Text>
 				</Button>
 			</Row>
 			<Row id="TheLostRelicRow">
-				<Button id="TheLostRelicSelection" onClick="scenarioSelection">
+				<Button id="TheLostRelicSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheLostRelicSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheLostRelicSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Lost Relic{it}La Reliquia Perduta{ru}Потерянная Реликвия{zh-tw}失落聖器{zh-cn}失落圣器{ko}사라진 유물{es}La Reliquia Perdida{fr}La Relique Perdue{pt-br}A Relíquia Perdida{de}Die verlorene Reliquie</Text>
 				</Button>
 			</Row>
 			<Row id="ForTheCouncilRow">
-				<Button id="ForTheCouncilSelection" onClick="scenarioSelection">
+				<Button id="ForTheCouncilSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="ForTheCouncilSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ForTheCouncilSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}For the Council{it}Per il Consiglio{ru}За Совет{zh-tw}為了議會{zh-cn}为了议会{ko}평의회를 위하여{es}Por el Consejo{fr}Pour le Conseil{pt-br}Pelo Conselho{de}Für den Rat</Text>
 				</Button>
 			</Row>
 			<Row id="AgainsttheApocalypseRow">
-				<Button id="AgainsttheApocalypseSelection" onClick="scenarioSelection">
+				<Button id="AgainsttheApocalypseSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="AgainsttheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="AgainsttheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Apocalypse{it}Contro l'Apocalisse{ru}Против Апокалипсиса{zh-tw}抵禦末日{zh-cn}抵禦末日{ko}아포칼립스에 맞서{es}Contra el Apocalipsis{fr}Contre l'Apocalypse{pt-br}Contra o Apocalipse{de}Gegen die Apokalypse</Text>
 				</Button>
 			</Row>
 			<Row id="AgainsttheHorsemenRow">
-				<Button id="AgainsttheHorsemenSelection" onClick="scenarioSelection">
+				<Button id="AgainsttheHorsemenSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="AgainsttheHorsemenSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="AgainsttheHorsemenSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Horsemen{it}Contro i Cavalieri{ru}Против Всадников{zh-tw}對抗四騎士{zh-cn}对抗四骑士{ko}사기사들에 맞서{es}Contra los Caballeros{fr}Contre les Cavaliers{pt-br}Contra os Cavaleiros{de}Gegen die Reiter</Text>
 				</Button>
 			</Row>
 			<Row id="AgainsttheDragonRow">
-				<Button id="AgainsttheDragonSelection" onClick="scenarioSelection">
+				<Button id="AgainsttheDragonSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="AgainsttheDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="AgainsttheDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Against the Dragon{it}Contro il Drago{ru}Против Дракона{zh-tw}對抗巨龍{zh-cn}对抗巨龙{ko}드래곤에 맞서{es}Contra el Dragón{fr}Contre le Dragon{pt-br}Contra o Dragão{de}Gegen den Drachen</Text>
 				</Button>
 			</Row>
 			<Row id="ApocalypseIsHereRow">
-				<Button id="ApocalypseIsHereSelection" onClick="scenarioSelection">
+				<Button id="ApocalypseIsHereSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="ApocalypseIsHereSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ApocalypseIsHereSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Apocalypse is Here{it}L'Apocalisse è Qui{ru}Апокалипсис наступил{zh-tw}末日降臨{zh-cn}末日降临{ko}아포칼립스가 왔다{es}El Apocalipsis Está Aquí{fr}L'Apocalypse est Là{pt-br}O Apocalipse Chegou{de}Die Apokalypse ist da</Text>
 				</Button>
 			</Row>
 			<Row id="TheCouncilVersusTheApocalypseRow">
-				<Button id="TheCouncilVersusTheApocalypseSelection" onClick="scenarioSelection">
+				<Button id="TheCouncilVersusTheApocalypseSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheCouncilVersusTheApocalypseSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheCouncilVersusTheApocalypseSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Council Vs the Apocalypse{it}Il Consiglio contro l'Apocalisse{ru}Совет против Апокалипсиса{zh-tw}議會對抗末日{zh-cn}议会对抗末日{ko}평의회 대 아포칼립스{es}El Consejo contra el Apocalipsis{fr}Le Conseil contre l'Apocalypse{pt-br}O Conselho contra o Apocalipse{de}Der Rat gegen die Apokalypse</Text>
 				</Button>
 			</Row>
 			<Row id="FuryOfTheApocalypseDragonRow">
-				<Button id="FuryOfTheApocalypseDragonSelection" onClick="scenarioSelection">
+				<Button id="FuryOfTheApocalypseDragonSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="FuryOfTheApocalypseDragonSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="FuryOfTheApocalypseDragonSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}Fury of the Apocalypse Dragon{it}Furia del Drago dell'Apocalisse{ru}Ярость Дракона Апокалипсиса{zh-tw}末日巨龍之怒{zh-cn}末日巨龙之怒{ko}아포칼립스 드래곤의 분노{es}La Furia del Dragón del Apocalipsis{fr}La Fureur du Dragon de l'Apocalypse{pt-br}A Fúria do Dragão do Apocalipse{de}Der Zorn des Apokalypse-Drachen</Text>
 				</Button>
 			</Row>
 			<Row id="TheFracturedLandsRow">
-				<Button id="TheFracturedLandsSelection" onClick="scenarioSelection">
+				<Button id="TheFracturedLandsSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheFracturedLandsSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheFracturedLandsSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1">{en}The Fractured Lands{it}Le Terre Frantumate{ru}Расколотые Земли{zh-tw}破碎之地{zh-cn}破碎之地{ko}분열된 대지{es}Las Tierras Fracturadas{fr}Les Terres Fracturées{pt-br}As Terras Fraturadas{de}Die Zersplitterten Lande</Text>
 				</Button>
 			</Row>
 			<Row id="FirstConquestRow">
-				<Button id="FirstConquestSelection" onClick="scenarioSelection">
+				<Button id="FirstConquestSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="FirstConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="FirstConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}First Conquest{it}Prima Conquista{ru}Первое Завоевание{zh-tw}首次征服{zh-cn}首次征服{ko}첫 번째 정복{es}Primera Conquista{fr}Première Conquête{pt-br}Conquista Final{de}Solo-Eroberung</Text>
 				</Button>
 			</Row>
 			<Row id="FastForwardedConquestRow">
-				<Button id="FastForwardedConquestSelection" onClick="scenarioSelection">
+				<Button id="FastForwardedConquestSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="FastForwardedConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="FastForwardedConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Fast Forwarded Conquest{it}Conquista Accelerata{ru}Ускоренное Завоевание{zh-tw}快速征服{zh-cn}快速征服{ko}앞서간 정복{es}Conquista Acelerada{fr}Conquête Rapide{pt-br}Conquista Acelerada{de}Blitz-Eroberung</Text>
 				</Button>
 			</Row><Row id="UltimateConquestRow">
-				<Button id="UltimateConquestSelection" onClick="scenarioSelection">
+				<Button id="UltimateConquestSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="UltimateConquestSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="UltimateConquestSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Ultimate Conquest{it}Conquista Suprema{ru}Абсолютное Завоевание{zh-tw}終極征服{zh-cn}终极征服{ko}궁극의 정복{es}Conquista Definitiva{fr}Conquête Ultime{pt-br}Conquista Derradeira{de}Ultimative Eroberung</Text>
 				</Button>
 			</Row>
 			<Row id="TheGauntletRow">
-				<Button id="TheGauntletSelection" onClick="scenarioSelection">
+				<Button id="TheGauntletSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheGauntletSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheGauntletSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The Gauntlet{it}La Sfida{ru}Вызов{zh-tw}大漠尋寶{zh-cn}大漠寻宝{ko}건틀릿{es}El Guantelete{fr}Le Gantelet{pt-br}A Manopla{de}Der Fehdehandschuh</Text>
 				</Button>
 			</Row>
 			<Row id="QuestForTheGoldenGrailRow">
-				<Button id="QuestForTheGoldenGrailSelection" onClick="scenarioSelection">
+				<Button id="QuestForTheGoldenGrailSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="QuestForTheGoldenGrailSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="QuestForTheGoldenGrailSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Quest for the Golden Grail{it}Alla Ricerca del Graal d'Oro{ru}В поисках Золотого Грааля{zh-tw}搜尋金色聖杯{zh-cn}搜寻金色圣杯{ko}황금 성배 원정{es}Búsqueda del Grial Dorado{fr}Quête du Graal d'or{pt-br}Busca pelo Graal Dourado{de}Die Suche nach dem Goldenen Gral</Text>
 				</Button>
 			</Row>
 			<Row id="TheChaosRiftRow">
-				<Button id="TheChaosRiftSelection" onClick="scenarioSelection">
+				<Button id="TheChaosRiftSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheChaosRiftSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheChaosRiftSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The Chaos Rift{it}La Fenditura del Caos{ru}Разлом Хаоса{zh-tw}混沌裂縫{zh-cn}混沌裂缝{ko}혼돈의 균열{es}La Grieta del Caos{fr}La Faille du Chaos{pt-br}A Fenda Caótica{de}Der Chaos-Spalt</Text>
 				</Button>
 			</Row>
 			<Row id="TheWarOfFourRow">
-				<Button id="TheWarOfFourSelection" onClick="scenarioSelection">
+				<Button id="TheWarOfFourSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="TheWarOfFourSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="TheWarOfFourSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}The War of Four{it}La Guerra dei Quattro{ru}Война Четырех{zh-tw}四國爭霸{zh-cn}四国争霸{ko}워 오브 포{es}A Guerra dos Quatro{fr}La Gerre des Quatres{pt-br}A Guerra dos Quatro{de}Der Krieg der Vier</Text>
 				</Button>
 			</Row>
 			<Row id="RaidersOfTheCrusaderTempleRow">
-				<Button id="RaidersOfTheCrusaderTempleSelection" onClick="scenarioSelection">
+				<Button id="RaidersOfTheCrusaderTempleSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="RaidersOfTheCrusaderTempleSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="RaidersOfTheCrusaderTempleSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Raiders of the Crusader Temple{it}Predoni del Tempio dei Crociati{ru}Рейдеры храма крестоносцев{zh-tw}聖教軍奇兵{zh-cn}圣教军奇兵{ko}십자군 성전의 침입자{es}Asaltantes del Templo de los Cruzados{fr}Les aventuriers du temple des croisés{pt-br}Salteadores do Templo dos Cruzados{de}Räuber des Kreuzrittertempels</Text>
 				</Button>
 			</Row>
 			<Row id="CustomRow">
-				<Button id="CustomSelection" onClick="scenarioSelection">
+				<Button id="CustomSelection" onClick="scenarioSelection" onMouseDown="" onMouseUp="">
 					<Image id="CustomSelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="CustomSelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Custom{it}Personalizzato{ru}Пользовательский{zh-tw}自訂{zh-cn}自定义{ko}커스텀{es}Personalizado{fr}Personnalisé{pt-br}Customizado{de}Benutzerdefiniert</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF0Row">
-				<Button id="ROTF0Selection" onClick="riseOfTheForgemasterOption">
+				<Button id="ROTF0Selection" onClick="riseOfTheForgemasterOption" onMouseDown="" onMouseUp="">
 					<Image id="ROTF0SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF0SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}Not Used{it}Non Usato{ru}Не используется{zh-tw}未使用{zh-cn}未使用{ko}사용 안 함{es}No se Utiliza{fr}Non Utilisé{pt-br}Não Utilizado{de}Nicht Verwendet</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF1Row">
-				<Button id="ROTF1Selection" onClick="riseOfTheForgemasterOption">
+				<Button id="ROTF1Selection" onClick="riseOfTheForgemasterOption" onMouseDown="" onMouseUp="">
 					<Image id="ROTF1SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF1SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}1. New Beginning{it}1. Nuovo Inizio{ru}1. Новое начало{zh-tw}新的開始{zh-cn}新的开始{ko}1.새로운 시작{es}1. Un nuevo comienzo{fr}1. Nouveau départ{pt-br}1. Novo Começo{de}1. Neubeginn</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF2Row">
-				<Button id="ROTF2Selection" onClick="riseOfTheForgemasterOption">
+				<Button id="ROTF2Selection" onClick="riseOfTheForgemasterOption" onMouseDown="" onMouseUp="">
 					<Image id="ROTF2SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF2SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}2. Spoils of War{it}2. Bottino di Guerra{ru}2. Военные трофеи{zh-tw}戰爭犒賞{zh-cn}战争犒赏{ko}2.전쟁의 전리품{es}2. Botín de Guerra{fr}2. Butin de Guerre{pt-br}2. Despojos de Guerra{de}2. Kriegsbeute</Text>
 				</Button>
 			</Row>
 			<Row id="ROTF3Row">
-				<Button id="ROTF3Selection" onClick="riseOfTheForgemasterOption">
+				<Button id="ROTF3Selection" onClick="riseOfTheForgemasterOption" onMouseDown="" onMouseUp="">
 					<Image id="ROTF3SelectionImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 					<Text id="ROTF3SelectionText" class="Text17" alignment="MiddleCenter" offsetXY="0 1" color="Brown">{en}3. Elixir of Life{it}3. Elisir di Vita{ru}3. Эликсир Жизни{zh-tw}⽣命靈藥{zh-cn}⽣命灵药{ko}3.생명의 엘릭서{es}3. El Elixir de la Vida{fr}3. Élixir de vie{pt-br}3. Elixir da Vida{de}3. Lebenselixier</Text>
 				</Button>

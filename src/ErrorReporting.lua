@@ -88,7 +88,12 @@ function safePublicCallback(label, callback, contextCallback)
 		if type(contextCallback)=="function" then
 			contextFactory=function() return contextCallback(automaticLuaUnpackArgs(args,1)) end
 		end
-		return safeCallback(label,function() return callback(automaticLuaUnpackArgs(args,1)) end,contextFactory)
+		return safeCallback(label,function()
+			-- Only a delivered public UI action can schedule momentary artwork
+			-- recovery. The helper ignores mouse events and unowned/state images.
+			if buttonAnimationCompleted~=nil then buttonAnimationCompleted(label,args[2],args[3]) end
+			return callback(automaticLuaUnpackArgs(args,1))
+		end,contextFactory)
 	end
 end
 

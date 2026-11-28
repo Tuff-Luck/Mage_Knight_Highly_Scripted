@@ -27,7 +27,7 @@
 		</Row>
 		<Row preferredHeight="30">
 			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-			<Button id="Mage1AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+			<Button id="Mage1AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton" onMouseDown="" onMouseUp="">
 				<Image id="Mage1AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<Text id="Mage1AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
 			</Button>
@@ -55,7 +55,7 @@
 		</Row>
 		<Row preferredHeight="30">
 			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-			<Button id="Mage2AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+			<Button id="Mage2AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton" onMouseDown="" onMouseUp="">
 				<Image id="Mage2AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<Text id="Mage2AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
 			</Button>
@@ -83,7 +83,7 @@
 		</Row>
 		<Row id="Mage3Assault" active="true" preferredHeight="30">
 			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-			<Button id="Mage3AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+			<Button id="Mage3AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton" onMouseDown="" onMouseUp="">
 				<Image id="Mage3AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<Text id="Mage3AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
 			</Button>
@@ -111,7 +111,7 @@
 		</Row>
 		<Row id="Mage4Assault" active="true" preferredHeight="30">
 			<Image image="Sliced Button/Button New Deactive" type="Sliced"/>
-			<Button id="Mage4AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton">
+			<Button id="Mage4AssaultJoin" active="true" width="140" interactable="false" shadowDistance="0 0" rectAlignment="MiddleLeft" offsetXY="0 0" onClick="coopAssaultJoin" class="ShortButton" onMouseDown="" onMouseUp="">
 				<Image id="Mage4AssaultJoinImage" image="Sliced Button/Button New Deactive" type="Sliced"/>
 				<Text id="Mage4AssaulterMageName" class="Text18" alignment="MiddleCenter" offsetXY="0 1">{en} fights{it} combatte{ru} сражается с{zh-cn} 打架{ko} 전투:{es} peleas{fr} combats{pt-br} lutas{de} kämpft{zh-tw} 戰鬥</Text>
 			</Button>

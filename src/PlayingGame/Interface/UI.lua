@@ -1915,12 +1915,12 @@ end
 function applyColorBarButtons()
 	for position, barGUID in pairs(colorBand) do
 		local buttons={{tag="Button", attributes={id=barGUID.."changeMatDown",
-			onClick="global/changeMatImage", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			onClick="global/changeMatImage", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			height=29, width=3, color="rgba(0,0,0,0.0)",
 			position="-90 30 -40", rotation="0 0 180"},
 				children={{tag="Image", attributes={id=barGUID.."changeMatDownImage", image="Overkill Down"}}}},
 			{tag="Button", attributes={id=barGUID.."changeMatUp",
-			onClick="global/changeMatImage", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+			onClick="global/changeMatImage", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 			height=29, width=3, color="rgba(0,0,0,0.0)",
 			position="-95 30 -40", rotation="0 0 180"},
 				children={{tag="Image", attributes={id=barGUID.."changeMatUpImage", image="Overkill Up"}}}}}
@@ -1967,7 +1967,7 @@ function applyColorBarButtons()
 				end
 				if dropVisible==true then
 					--The color bar is a cube scaled {19.80, 0.01, 2.50}; counter-scale X/Z so this renders like a normal Claim-style button.
-					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/togglePlayerDropoutRequest", onMouseDown="global/buttonClicked", onMouseUp="global/buttonClicked",
+					buttons[#buttons+1]={tag="Button", attributes={id=barGUID.."DropOut", onClick="global/togglePlayerDropoutRequest", onMouseDown="global/ButtonClickDown", onMouseUp="global/ButtonClickUp",
 						height=200, width=800, position="-70 30 -40", rotation="0 0 0", scale="0.01778 0.1408", interactable=dropInteractable},
 						children={{tag="Image", attributes={id=barGUID.."DropOutImage", image=dropImage, type="Sliced"}},
 							{tag="Text", attributes={id=barGUID.."DropOutText", font="Fonts/MKCardText", fontSize=90, fontStyle="Normal", alignment="MiddleCenter", resizeTextForBestFit="true", resizeTextMaxSize=90, text=dropText}}}}
@@ -1993,7 +1993,7 @@ function applyColorBarButtons()
                     local teamLabel=team==0 and "{en}NO TEAM{it}NESSUNA SQUADRA{ru}БЕЗ КОМАНДЫ{zh-tw}無隊伍{zh-cn}无队伍{ko}팀 없음{es}SIN EQUIPO{fr}SANS ÉQUIPE{pt-br}SEM EQUIPE{de}KEIN TEAM" or ("{en}Team "..team.."{it}Squadra "..team.."{ru}Команда "..team.."{zh-tw}隊伍 "..team.."{zh-cn}队伍 "..team.."{ko}팀 "..team.."{es}Equipo "..team.."{fr}Équipe "..team.."{pt-br}Equipe "..team.."{de}Team "..team)
                     if shareHands then teamLabel=(gStates.coopShareHands or {})[position]==true and "{en}HIDE HAND{it}NASCONDI MANO{ru}СКРЫТЬ РУКУ{zh-tw}隱藏手牌{zh-cn}隐藏手牌{ko}손패 숨기기{es}OCULTAR MANO{fr}MASQUER MAIN{pt-br}OCULTAR MÃO{de}HAND VERBERGEN" or "{en}SHARE HAND{it}CONDIVIDI MANO{ru}ПОКАЗАТЬ РУКУ{zh-tw}分享手牌{zh-cn}共享手牌{ko}손패 공유{es}COMPARTIR MANO{fr}PARTAGER MAIN{pt-br}PARTILHAR MÃO{de}HAND TEILEN" end
                     buttons[#buttons+1]={tag="Button",attributes={id=barGUID.."TeamCycle",onClick="global/cycleMageKnightSeatTeam",
-                        onMouseDown="global/buttonClicked",onMouseUp="global/buttonClicked",
+                        onMouseDown="global/ButtonClickDown",onMouseUp="global/ButtonClickUp",
                         height=200,width=800,position="50 30 -40",rotation="0 0 0",scale="0.01778 0.1408"},
                         children={{tag="Image",attributes={id=barGUID.."TeamCycleImage",image="Sliced Button/Button Object Active",type="Sliced"}},
                             {tag="Text",attributes={font="Fonts/MKCardText",fontSize=90,fontStyle="Normal",alignment="MiddleCenter",
@@ -2653,101 +2653,116 @@ function refreshResourceTracker()
     -- Recalculate for the newly active Mage Knight only when automation is enabled.
     resourceCardsPanelChanged(true)
 end
-local function legacyObjectButtonImage(id,image)
-	if id==nil then return false end
-	id=tostring(id)
-	-- Card Action Buttons keep their gameplay IDs. Tracker controls put the
-	-- card GUID after a prefix; Cure uses a fixed control ID.
-	local seat=tonumber(id:match("^PlayAreaScale(%d+)"))
-	local guid=(seat~=nil and playerBoard~=nil and playerBoard[seat])
-		or id:match("^ResourceCardChoice_([0-9a-f]+)_")
-		or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
-		or (id=="ResourceCardChoice_CureDraw" and "47e71c")
-		or id:sub(1,6)
-	local obj=getObjectFromGUID(guid)
-	if obj==nil then return false end
-	local imageID=id.."Image"
-	-- A gameplay click can replace/remove the control before mouse-up.
-	local current=obj.UI.getAttribute(imageID,"image")
-	if current==nil or current=="" then return false end
-	obj.UI.setAttribute(imageID,"image",image)
-	return true
-end
-
--- Permanent object UIs and shared Card Action Buttons use explicit pressed
--- and released artwork, rather than toggling an image based on its last state.
-function ButtonClickDown(player,mouseButton,id)
-	if mouseButton~="-1" and mouseButton~="-2" then return end
-	legacyObjectButtonImage(id,"Sliced Button/Button Object Deactive")
-end
-function ButtonClickUp(player,mouseButton,id)
-	if mouseButton~="-1" and mouseButton~="-2" then return end
-	legacyObjectButtonImage(id,"Sliced Button/Button Object Active")
-end
-function ButtonClickDownOverkill(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	local image=tostring(id):find("Down",1,true)~=nil and "Overkill Down Deactive" or "Overkill Up Deactive"
-	legacyObjectButtonImage(id,image)
-end
-function ButtonClickUpOverkill(player,mouseButton,id)
-	if mouseButton~="-1" then return end
-	local image=tostring(id):find("Down",1,true)~=nil and "Overkill Down" or "Overkill Up"
-	legacyObjectButtonImage(id,image)
-end
-
+-- Momentary button artwork is independent of gameplay state. Only a completed
+-- click may start recovery; a held or dragged-off press never starts a timer.
+-- Each press owns a distinct record, so stale recovery cannot raise a new press.
 buttonImageResetGeneration={}
-function buttonClicked(player, mouseButton, ButtonPressed)
-	if mouseButton~="-1" then return end
-	-- Combat panel slots draw their own icon; the standard button image must not replace it.
-	if ButtonPressed:match("^CombatSourceSlot") or ButtonPressed:match("^CombatEnemyRow")
-		or ButtonPressed:match("^CombatEnemyJoin")
-		or ButtonPressed:match("^CombatEnemyResultToggle") then return end
+do
+    local raisedImages={
+        ["Sliced Button/Button Object Active"]="Sliced Button/Button Object Deactive",
+        ["Sliced Button/Button New Active"]="Sliced Button/Button New Deactive",
+        ["Overkill Up"]="Overkill Up Deactive",
+        ["Overkill Down"]="Overkill Down Deactive"
+    }
 
-	-- Older saved object buttons still call this toggle handler. Resolve
-	-- the owning object from its GUID-prefixed ID, not an unrelated global.
-	local guid=ButtonPressed:match("^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])")
-	local owner=guid~=nil and getObjectFromGUID(guid) or nil
-	local ui=owner~=nil and owner.UI or UI
-	local active, deactive
-	local setupScenarioLevelButton=ButtonPressed=="HorsemenLevelUp" or ButtonPressed=="HorsemenLevelDown" or
-		ButtonPressed=="ApocalypseDragonLevelUp" or ButtonPressed=="ApocalypseDragonLevelDown"
+    -- These IDs use the image as persistent state, not as a momentary press.
+    -- Explicit opt-outs in XML remain the first line of protection; this also
+    -- protects older saves that still name the generic animation callback.
+    local function stateOwned(id)
+        return id:match("^CombatSourceSlot") or id:match("^CombatEnemyRow")
+            or id:match("^CombatEnemyJoin") or id:match("^CombatEnemyResultToggle")
+            or id:match("AssaultJoin$")
+            or (id:match("Selection$") and id~="Setup1Selection" and id~="Setup2Selection")
+            or id=="RandomizedDragonHeadsButton" or id=="ApocalypseDragonCityRandomHeadsButton"
+            or id=="ApocalypseDragonCityRandomButton" or id=="ApocalypseDragonCityLastButton"
+            or id=="HorsemenHorsesButton"
+    end
 
-	if setupScenarioLevelButton==true then
-		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
-	elseif ButtonPressed:find("LevelUp",1,true)~=nil or ButtonPressed:find("OverkillUp",1,true)~=nil or ButtonPressed:find("ArtifactUp",1,true)~=nil or ButtonPressed:find("changeMatUp",1,true)~=nil then
-		active, deactive="Overkill Up", "Overkill Up Deactive"
-	elseif ButtonPressed:find("LevelDown",1,true)~=nil or ButtonPressed:find("OverkillDown",1,true)~=nil or ButtonPressed:find("ArtifactDown",1,true)~=nil or ButtonPressed:find("changeMatDown",1,true)~=nil then
-		active, deactive="Overkill Down", "Overkill Down Deactive"
-	elseif owner~=nil then
-		active, deactive="Sliced Button/Button Object Active", "Sliced Button/Button Object Deactive"
-	else
-		active, deactive="Sliced Button/Button New Active", "Sliced Button/Button New Deactive"
-	end
+    local function buttonOwner(id)
+        local seat=tonumber(id:match("^PlayAreaScale(%d+)"))
+        local guid=(seat~=nil and playerBoard~=nil and playerBoard[seat])
+            or id:match("^ResourceCardChoice_([0-9a-f]+)_")
+            or id:match("^AttackAssignmentSource_([0-9a-f]+)_")
+            or (id=="ResourceCardChoice_CureDraw" and "47e71c")
+            or (id=="AgainstDragonAttackComplete" and apocalypseDragon~=nil and apocalypseDragon.roundOrder)
+            or id:match("^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])")
+        local obj=guid~=nil and getObjectFromGUID(guid) or nil
+        if obj~=nil and obj.UI~=nil then
+            local image=obj.UI.getAttribute(id.."Image","image")
+            if image~=nil and image~="" then return obj.UI,guid,image end
+        end
+        -- Some global controls (e.g. Motivation) also start with a GUID.
+        if UI~=nil then return UI,nil,UI.getAttribute(id.."Image","image") end
+    end
 
-	local image=ButtonPressed.."Image"
-	local current=ui.getAttribute(image,"image")
-	if current~=active and current~=deactive then return end
-	ui.setAttribute(image, "image", current==active and deactive or active)
+    local function enabled(ui,id)
+        local value=ui.getAttribute(id,"interactable")
+        return value~=false and value~="false"
+    end
 
-	--onClick can rebuild an object's XML before TTS delivers onMouseUp. That used to leave
-	--triangle controls (Artifact rewards, faction Leaders, Dragon heads, etc.) permanently in
-	--their pressed image. Give every animated button the same delayed return-to-active safety.
-	buttonImageResetGeneration[ButtonPressed]=(buttonImageResetGeneration[ButtonPressed] or 0)+1
-	local resetGeneration=buttonImageResetGeneration[ButtonPressed]
-	local objectGUID=owner~=nil and guid or nil
-	safeWaitTime("UI",function()
-		if buttonImageResetGeneration[ButtonPressed]~=resetGeneration then return end
-		local resetUI=UI
-		if objectGUID~=nil then
-			local currentObject=getObjectFromGUID(objectGUID)
-			if currentObject==nil then buttonImageResetGeneration[ButtonPressed]=nil return end
-			resetUI=currentObject.UI
-		end
-		local currentImage=resetUI.getAttribute(image, "image")
-		local interactable=resetUI.getAttribute(ButtonPressed, "interactable")
-		if currentImage~=nil and currentImage~="" and interactable~="false" then resetUI.setAttribute(image, "image", active) end
-		buttonImageResetGeneration[ButtonPressed]=nil
-	end, 0.35)
+    local function restore(id,record)
+        if buttonImageResetGeneration[id]~=record then return end
+        buttonImageResetGeneration[id]=nil
+        local ui=UI
+        if record.guid~=nil then
+            local obj=getObjectFromGUID(record.guid)
+            ui=obj~=nil and obj.UI or nil
+        end
+        if ui~=nil and ui.getAttribute(id.."Image","image")==record.pressed
+            and enabled(ui,id) then
+            ui.setAttribute(id.."Image","image",record.raised)
+        end
+    end
+
+    function ButtonClickDown(player,mouseButton,id)
+        if (mouseButton~="-1" and mouseButton~="-2") or type(id)~="string" or stateOwned(id) then return end
+        local ui,guid,image=buttonOwner(id)
+        if ui==nil or not enabled(ui,id) then return end
+        local previous=buttonImageResetGeneration[id]
+        local raised=image
+        -- A new press can supersede a stuck prior press, but never interpret
+        -- an unowned recessed/disabled/state image as a momentary button.
+        if previous~=nil and previous.guid==guid and image==previous.pressed then raised=previous.raised end
+        local pressed=raisedImages[raised]
+        if pressed==nil then return end
+        local record={guid=guid,raised=raised,pressed=pressed,mouse=mouseButton}
+        buttonImageResetGeneration[id]=record
+        if image~=pressed then ui.setAttribute(id.."Image","image",pressed) end
+    end
+
+    function ButtonClickUp(player,mouseButton,id)
+        if type(id)~="string" then return end
+        local record=buttonImageResetGeneration[id]
+        if record~=nil and record.mouse==mouseButton then restore(id,record) end
+    end
+
+    -- Compatibility for permanent artifact and scale arrow controls.
+    function ButtonClickDownOverkill(player,mouseButton,id)
+        if mouseButton=="-1" then ButtonClickDown(player,mouseButton,id) end
+    end
+    function ButtonClickUpOverkill(player,mouseButton,id)
+        if mouseButton=="-1" then ButtonClickUp(player,mouseButton,id) end
+    end
+
+    -- Called at the public UI action boundary, never from a mouse-down event.
+    -- If mouse-up already succeeded, there is no outstanding press to repair.
+    function buttonAnimationCompleted(callback,mouseButton,id)
+        if type(id)~="string" or stateOwned(id)
+            or callback=="buttonClicked" or callback=="ButtonClickDown" or callback=="ButtonClickUp"
+            or callback=="ButtonClickDownOverkill" or callback=="ButtonClickUpOverkill" then return end
+        local record=buttonImageResetGeneration[id]
+        if record==nil or record.mouse~=mouseButton or record.completed then return end
+        record.completed=true
+        safeWaitTime("UI",function() restore(id,record) end,0.35)
+    end
+
+    -- Saved XML can still reference the old same-handler toggle. No timer
+    -- starts here either; newly built controls use distinct down/up handlers.
+    function buttonClicked(player,mouseButton,id)
+        local record=type(id)=="string" and buttonImageResetGeneration[id] or nil
+        if record~=nil and record.mouse==mouseButton then ButtonClickUp(player,mouseButton,id)
+        else ButtonClickDown(player,mouseButton,id) end
+    end
 end
 
 function uiValueAdjustBase(player, mouseButton, id)

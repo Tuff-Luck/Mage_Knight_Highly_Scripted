@@ -54,7 +54,7 @@ do
         getObjectFromGUID=function(guid) return objects[guid] end,
         playerBoard={"abcdef"}
     },{__index=_G})
-    assert(load(section(ui,"local function legacyObjectButtonImage(","buttonImageResetGeneration={}"),
+    assert(load(section(ui,"buttonImageResetGeneration={}","function uiValueAdjustBase("),
         "Object button animation","t",animationEnv))()
     for _,entry in ipairs({
         {"2eb8d0",top},
@@ -85,6 +85,7 @@ do
         local writes=0
         objects[guid]={UI={
             getAttribute=function(key,attr)
+                if key==id and attr=="interactable" then return "true" end
                 assert(key==id.."Image" and attr=="image")
                 return image
             end,
@@ -128,6 +129,7 @@ do
         local image=raised
         objects.abcdef={UI={
             getAttribute=function(key,attr)
+                if key==id and attr=="interactable" then return "true" end
                 assert(key==id.."Image" and attr=="image")
                 return image
             end,
@@ -180,6 +182,75 @@ do
     assert(image==active,"Saved claim releases on its own object UI")
     for _,callback in ipairs(deferred) do callback() end
     assert(image==active,"Deferred reset leaves saved claim raised")
+end
+
+-- Held press, completed click recovery, rapid re-press, disabled/recessed
+-- state, and no click when the pointer is dragged off.
+do
+    local id="123abcTest"
+    local active="Sliced Button/Button Object Active"
+    local pressed="Sliced Button/Button Object Deactive"
+    local image=active
+    local enabled="true"
+    local pending={}
+    local writes=0
+    local testUI={
+        getAttribute=function(key,attr)
+            if attr=="interactable" then return enabled end
+            if attr=="image" and key==id.."Image" then return image end
+        end,
+        setAttribute=function(key,attr,value)
+            assert(key==id.."Image" and attr=="image")
+            image=value
+            writes=writes+1
+        end
+    }
+    local animationEnv=setmetatable({
+        getObjectFromGUID=function(guid) if guid=="123abc" then return {UI=testUI} end end,
+        safeWaitTime=function(_scope,callback,_delay) pending[#pending+1]=callback end,
+        UI=testUI
+    },{__index=_G})
+    assert(load(section(ui,"buttonImageResetGeneration={}","function uiValueAdjustBase("),
+        "Momentary recovery","t",animationEnv))()
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    assert(image==pressed and #pending==0,"Hold cannot start a reset")
+    animationEnv.ButtonClickUp(nil,"-1",id)
+    assert(image==active and #pending==0,"Drag-off release restores without a click")
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    animationEnv.buttonAnimationCompleted("ButtonClickDown","-1",id)
+    assert(#pending==0,"Mouse callback cannot schedule recovery")
+    animationEnv.buttonAnimationCompleted("testAction","-1",id)
+    assert(#pending==1 and image==pressed,"Completed click schedules delayed recovery")
+    pending[1]()
+    assert(image==active,"Missing mouse-up recovers")
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    animationEnv.buttonAnimationCompleted("testAction","-1",id)
+    local old=pending[#pending]
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    old()
+    assert(image==pressed,"Old recovery cannot raise new held press")
+    animationEnv.ButtonClickUp(nil,"-1",id)
+    assert(image==active,"New press releases normally")
+    animationEnv.ButtonClickDown(nil,"-2",id)
+    animationEnv.buttonAnimationCompleted("testAction","-2",id)
+    pending[#pending]()
+    assert(image==active,"Right-click recovery")
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    animationEnv.buttonAnimationCompleted("testAction","-1",id)
+    enabled="false"
+    pending[#pending]()
+    assert(image==pressed,"Disabled image must remain recessed")
+    enabled="true"
+    local oldWrites=writes
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    animationEnv.ButtonClickUp(nil,"-1",id)
+    assert(writes==oldWrites and image==pressed,"Unowned recessed image is state, not a press")
+    id="Mage1AssaultJoin"
+    image=active
+    animationEnv.ButtonClickDown(nil,"-1",id)
+    animationEnv.buttonAnimationCompleted("coopAssaultJoin","-1",id)
+    animationEnv.ButtonClickUp(nil,"-1",id)
+    assert(image==active and writes==oldWrites,"Persistent toggle must be untouched")
 end
 assert(draw.children[2].children[1].attributes.resizeTextForBestFit=="true","Fit long labels")
 assert(draw.attributes.position==sideActionButtonPosition(1)
