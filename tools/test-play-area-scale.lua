@@ -17,7 +17,8 @@ local function fakeCard(guid,kind,area)
     obj.setScale=function(v) obj.scale={v[1],v[2],v[3]} end
     obj.getGMNotes=function() return "" end
     obj.hasTag=function(_tag) return false end
-    obj.isSmoothMoving=function() return false end
+    obj.isSmoothMoving=function() return obj.smoothMoving==true end
+    obj.getPosition=function() return obj.position or {0,1,0} end
     return obj
 end
 local loan=fakeCard("111111","unit","play")
@@ -26,12 +27,12 @@ local deed=fakeCard("333333","deed","play")
 local command=fakeCard("444444","command","play")
 local objs={["111111"]=loan,["222222"]=recruit,["333333"]=deed,["444444"]=command}
 local zones={
-    play={getObjects=function()
+    play={getBounds=function() return {center={0,1,0},size={10,1,10}} end,getObjects=function()
         local result={}
         for _,obj in pairs(objs) do if obj.area=="play" then result[#result+1]=obj end end
         return result
     end},
-    army={getObjects=function()
+    army={getBounds=function() return {center={20,1,0},size={10,1,10}} end,getObjects=function()
         local result={}
         for _,obj in pairs(objs) do if obj.area=="army" then result[#result+1]=obj end end
         return result
@@ -48,6 +49,24 @@ unitLayoutIsWound=function() return false end
 gStates={playAreaScaleSettings={[1]={step=16,scope="Cards"}}}
 publishPublicUICallbacks=function(callbacks)
     for name,fn in pairs(callbacks) do _G[name]=fn end
+end
+local frames,conditions={},{}
+safeWaitFrames=function(_scope,callback,_count) frames[#frames+1]=callback end
+safeWaitCondition=function(_scope,callback,predicate,_timeout,onTimeout)
+    conditions[#conditions+1]={callback=callback,predicate=predicate,timeout=onTimeout}
+end
+local function runFrames()
+    local queued=frames
+    frames={}
+    for _,callback in ipairs(queued) do callback() end
+end
+local function pollConditions()
+    local queued=conditions
+    conditions={}
+    for _,check in ipairs(queued) do
+        if check.predicate() then check.callback()
+        else conditions[#conditions+1]=check end
+    end
 end
 dofile("src/PlayingGame/PlayerBoard/Scale.lua")
 refreshPlayAreaScale(1)
@@ -74,4 +93,61 @@ loan.area="offer"
 loan.setScale({1.5,1,1.5})
 eq(gStates.playAreaScaledObjects[loan.guid],nil,"returned offer Unit has no stale scale factor")
 approx(loan.scale[1],1.5,"returned offer Unit original scale")
-print("Play Area Unit scale regressions passed")
+-- A lifted object leaves the shallow zone; the drop callback can initially
+-- report resting before the next physics frame. It must not grow in either path.
+deed.area=nil
+deed.position={12,5,0}
+deed.held_by_color="Red"
+refreshPlayAreaScale(1)
+approx(deed.scale[1],0.9,"held object keeps its scale")
+deed.held_by_color=nil
+playAreaScaleObjectDropped(deed)
+refreshPlayAreaScale(1)
+approx(deed.scale[1],0.9,"drop frame keeps scale even with stale resting flag")
+deed.resting=false
+runFrames()
+eq(#conditions,1,"one pending settle condition")
+refreshPlayAreaScale(1)
+pollConditions()
+approx(deed.scale[1],0.9,"falling outside zone keeps reduced scale")
+eq(#conditions,1,"refresh does not duplicate the pending check")
+deed.position={0,1,0}
+deed.area="play"
+refreshPlayAreaScale(1)
+deed.resting=true
+pollConditions()
+approx(deed.scale[1],0.9,"drop back in play area never grows")
+
+-- An actual removal restores only after resting, including after a timeout.
+deed.area=nil
+deed.position={12,5,0}
+deed.resting=false
+playAreaScaleObjectDropped(deed)
+runFrames()
+local check=table.remove(conditions,1)
+check.timeout()
+approx(deed.scale[1],0.9,"timeout does not restore a moving object")
+runFrames()
+eq(#conditions,1,"timeout schedules another check")
+deed.position={12,1,0}
+deed.resting=true
+pollConditions()
+approx(deed.scale[1],1.5,"settled outside restores natural scale")
+eq(gStates.playAreaScaledObjects[deed.guid],nil,"outside scale record cleared")
+eq(#conditions,0,"settled removal finishes the check")
+
+-- Scripted smooth moves also keep their size until arrival.
+deed.area="play"
+deed.position={0,1,0}
+refreshPlayAreaScale(1)
+deed.area=nil
+deed.position={12,1,0}
+deed.smoothMoving=true
+refreshPlayAreaScale(1)
+runFrames()
+pollConditions()
+approx(deed.scale[1],0.9,"scripted movement keeps reduced scale")
+deed.smoothMoving=false
+pollConditions()
+approx(deed.scale[1],1.5,"scripted move restores on arrival")
+print("Play Area scale regressions passed")
