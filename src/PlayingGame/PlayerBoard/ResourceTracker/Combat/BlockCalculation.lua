@@ -140,7 +140,7 @@ return function(combatConfig)
             score=score+state.spent*100
             -- Equal-cost routes must not depend on Lua hash iteration order.
             if score<math.huge and (bestScore==nil or score<bestScore
-                or (score==bestScore and state.route<bestState.route)) then
+                or (score==bestScore and bestState~=nil and state.route<bestState.route)) then
                 bestScore,bestState,bestReductions=score,state,reductions
             end
         end
