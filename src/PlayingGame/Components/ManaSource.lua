@@ -74,6 +74,49 @@ manaSourceZoneHasDie=function(guid)
 	for _, obj in pairs(zone.getObjects()) do if obj.guid==guid then return true end end
 	return false
 end
+-- Protect settled real-Source dice before a replacement is extracted from the bag.
+-- Concurrent arrivals share the locks; never unlock a die that was already locked.
+local sourceArrivalLocks={}
+local sourceArrivalsPending=0
+local function beginSourceArrival()
+	local zone=getObjectFromGUID(GUID.zone.mana)
+	for _,die in ipairs(zone~=nil and zone.getObjects() or {}) do
+		if die.type=="Dice" and die.resting==true and die.held_by_color==nil and die.getLock()==false then
+			die.setLock(true)
+			sourceArrivalLocks[die.guid]=true
+		end
+	end
+	sourceArrivalsPending=sourceArrivalsPending+1
+	local released=false
+	return function()
+		if released then return end
+		released=true
+		sourceArrivalsPending=sourceArrivalsPending-1
+		if sourceArrivalsPending>0 then return end
+		for guid in pairs(sourceArrivalLocks) do
+			local die=getObjectFromGUID(guid)
+			if die~=nil then die.setLock(false) end
+		end
+		sourceArrivalLocks={}
+	end
+end
+
+local function spawnReturnedSourceDie(spareDice,params)
+	local release=beginSourceArrival()
+	local ok,die=pcall(function() return spareDice.takeObject(params) end)
+	if not ok then release() error(die,0) end
+	if die==nil or die.guid==nil then release() return die end
+	local guid=die.guid
+	-- Extraction can leave a die temporarily frozen/resting before physics starts.
+	safeWaitFrames("ManaSource",function()
+		safeWaitCondition("ManaSource",release,function()
+			local current=getObjectFromGUID(guid)
+			return current==nil or (current.spawning~=true and current.resting==true)
+		end,10,release)
+	end,2)
+	return die
+end
+
 scheduleReturnedSourceMirror=function(sourceDie)
 	if sourceDie==nil or sourceDie.guid==nil then return end
 	local sourceGUID=sourceDie.guid
@@ -362,7 +405,8 @@ function diceResting(dice, state)
 			local currentDice=getObjectFromGUID(diceGUID)
 			local spareDice=getObjectFromGUID(GUID.bag.spareDice)
 			if currentDice==nil or spareDice==nil then return end
-			local returnedSource=spareDice.takeObject({position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
+			local returnedSource=spawnReturnedSourceDie(spareDice,{position={-12.5+(math.random()*7), 1.5 , -24.0+(math.random()*3.5)}, rotation=currentDice.getRotation(), smooth=false})--Mana Dice Container
+			if returnedSource==nil then return end
 			spentSourceDice[diceGUID]=nil
 			scheduleReturnedSourceMirror(returnedSource)
 			pulseSourceRandomizeFences()
